@@ -974,7 +974,10 @@ CONTAINS
           IF (rdlai2d) THEN
              xlai = lai(i,j)
           endif
-
+     ! NU-WRF EMK BUG FIXES...Must initialize for each grid point
+     flx4 = 0 ; fvb = 0 ; fbur = 0; fgsn = 0
+     soilw = 0
+     ! EMK BUG FIXES END
     IF ( ICE == 1 ) THEN
 
        ! Sea-ice case
@@ -1841,6 +1844,8 @@ CONTAINS
 !         print*,'Note that canopy water content (CANWAT) is set to ZERO in LSMINIT'
           DO J = jts,jtf
           DO I = its,itf
+! EMK NUWRF FIXME...Disable zero out when using LIS IC.  Need new namelist 
+! setting?
             CANWAT(I,J)=0.0
           ENDDO
           ENDDO

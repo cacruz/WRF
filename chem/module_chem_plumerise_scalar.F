@@ -627,6 +627,8 @@ tstpf = 2.0  	!- timestep factor
 viscosity = 500.!- viscosity constant (original value: 0.001)
 
 nrectotal=150
+
+DELZ_THRESOLD = 100. ! EMK NUWRF...Setting from Zhining Tao.
 !
 !*************** PROBLEM SETUP AND INITIAL CONDITIONS *****************
 mintime = 1  
@@ -671,7 +673,7 @@ rmaxtime = float(maxtime)
 !-- set timestep
     !dt = (zm(2)-zm(1)) / (tstpf * wmax)  
     dt = min(5.,(zm(2)-zm(1)) / (tstpf * wmax))
-                                
+
 !-- elapsed time, sec
     time = time+dt 
 !-- elapsed time, minutes                                      
@@ -690,7 +692,7 @@ rmaxtime = float(maxtime)
 !-- W advection 
 !   call vel_advectc_plumerise(NM1,WC,WT,DNE,DZM)
     call vel_advectc_plumerise(NM1,WC,WT,RHO,DZM)
-  
+
 !-- scalars advection 1
     call scl_advectc_plumerise('SC',NM1)
 
@@ -757,7 +759,6 @@ rmaxtime = float(maxtime)
     call update_plumerise(nm1,'W')
 
     call hadvance_plumerise(2,nm1,dt,WC,WT,W,mintime) 
-
 
 !-- misc
     do k=2,nm1
@@ -1570,7 +1571,7 @@ end subroutine scl_misc
       
       !-- tendency temperature  from dyn entrainment
      	    TT(k) = TT(K)	    - DMDTM * ( T (k) - TE  (k) ) 
-      
+
       !-- tendency water vapor  from dyn entrainment
    	    QVT(K) = QVT(K)	    - DMDTM * ( QV (k) - QVENV (k) )
       

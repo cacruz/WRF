@@ -56,6 +56,17 @@ Test1_WRFU.exe : libesmf_time.a Test1_WRFU.o
 	$(RM) $@
 	$(SED_FTN) $*.F90 > $*.b
 	$(CPP) -I. $*.b > $*.f
+#	ex - $*.f < wesmf.ex
+	sed -e 's/ESMF_/WESMF_/g'  $*.f > $*.f.new
+	mv $*.f.new $*.f
+	sed -e 's/esmf_/wesmf_/g'  $*.f > $*.f.new
+	mv $*.f.new $*.f
+	sed -e 's/ESMF\\_/WESMF\\_/g'  $*.f > $*.f.new
+	mv $*.f.new $*.f
+	sed -e 's/ESMF /WESMF /g'  $*.f > $*.f.new
+	mv $*.f.new $*.f
+	sed -e 's/ESMFold/WESMFold/g'  $*.f > $*.f.new
+	mv $*.f.new $*.f
 	$(RM) $*.b
 	@ if echo $(CPP) | $(FGREP) 'DVAR4D'; then \
           echo COMPILING $*.F90 for 4DVAR ; \

@@ -1,7 +1,8 @@
 !WRF:MODEL_LAYER:INITIALIZATION
 !
-   subroutine chem_init (id,chem,emis_ant,scalar,dt,bioemdt,photdt,chemdt,stepbioe, &
-               stepphot,stepchem,stepfirepl,plumerisefire_frq,z_at_w,xlat,xlong,    &
+   subroutine chem_init (id,chem,emis_ant,scalar,dt,bioemdt,photdt,chemdt, &
+                        casafxdt, stepcasa,                                         &    !add by Z. Tao
+               stepbioe,stepphot,stepchem,stepfirepl,plumerisefire_frq,z_at_w,xlat,xlong,    &
                g,aerwrf,config_flags,grid,alt,t,p,CONVFAC,ttday,tcosz,julday,gmt,   &
                tauaer1,tauaer2,tauaer3,tauaer4,                      &
                gaer1,gaer2,gaer3,gaer4,                              &
@@ -67,6 +68,7 @@
    IMPLICIT NONE
 
    real  , intent(in) :: bioemdt,photdt,chemdt,dt,gmt
+   real  , intent(in) :: casafxdt                       !add by Z. Tao
    INTEGER,      INTENT(IN   ) :: plumerisefire_frq
    INTEGER,      INTENT(IN   ) :: chem_in_opt
    INTEGER,      INTENT(INOUT) :: num_vert_mix
@@ -126,8 +128,10 @@
    REAL,  DIMENSION( ims:ime ,  jms:jme )         ,         &
           INTENT(INOUT   ) ::                                        &
                                ttday,tcosz,xlat,xlong
+
    real, INTENT (IN) :: g
    integer, intent(out) :: stepbioe,stepphot,stepchem,stepfirepl
+   integer, intent(out) :: stepcasa                 !add by Z. Tao
    TYPE (grid_config_rec_type) , INTENT (in) ::     config_flags
    TYPE(domain) ,             INTENT (inout) ::     grid
 !
@@ -224,6 +228,12 @@ call wrf_message("**************************************************************
 !       call wrf_message("WARNING: RACM_SOA_VBS_AQCHEM_KPP chemistry option is highly experimental and not recommended for use.")
      CASE (CO2_TRACER, GHG_TRACER )
        call wrf_message("WARNING: Users interested in the GHG options should check the comments/references in header of module_ghg_fluxes")
+! NUWRF
+     CASE (CASACO2_TRACER )
+       call wrf_message("WARNING: Users interested in the CASACO2 options should check the comments/references in header of module_casaco2_fluxes")
+       call wrf_message("CASACO2 options")
+       write(message_txt,*) 'CASACO2_Tracer=',CASACO2_TRACER,'chem_opt=',config_flags%chem_opt
+       call wrf_message(trim(message_txt))
      CASE (CBMZ_CAM_MAM3_NOAQ)
         numgas_mam = numgas
         CALL wrf_debug(15,'calling CBMZ_CAM_MAM3_NOAQ chemistry from chem_driver')
@@ -602,12 +612,15 @@ end if
     stepchem=nint(chemdt*60./dt)
   ! stepfirepl=plumerisefire_frq*60/nint(dt)
     stepfirepl=nint(plumerisefire_frq*60/dt)
+    stepcasa=nint(casafxdt*60./dt)              !add by Z. Tao
     stepbioe=max(stepbioe,1)
     stepphot=max(stepphot,1)
     stepchem=max(stepchem,1)
     stepfirepl=max(stepfirepl,1)
+    stepcasa=max(stepcasa, 1)                   !add by Z. Tao
     call wrf_debug( 15, 'in chem_init' )
-!   print *,'stepbioe,stepphot,stepchem,stepfirepl',stepbioe,stepphot,stepchem,stepfirepl
+   print *,'stepbioe,stepphot,stepchem,stepfirepl',stepbioe,stepphot,stepchem,stepfirepl
+   print *,'stepcasa,casafxdt,dt',stepcasa,casafxdt,dt
 !
 ! Setup the cross reference mappings between the default profiles and
 ! the gas mechanism species (wig, 2-May-2007)
@@ -1572,7 +1585,7 @@ end if
 !! restart=0 and chem_in_opt=0
 ghg_block: IF (config_flags%gas_ic_opt==GAS_IC_GHG) THEN
    IF( (.not. config_flags%restart) .AND. config_flags%chem_in_opt==0 ) THEN
-! CO2 tracers:
+! CO2 tracers :
        do j=jts,jte
         do k=kts,kte
          do i=its,ite
@@ -1617,7 +1630,20 @@ ghg_block: IF (config_flags%gas_ic_opt==GAS_IC_GHG) THEN
 
    ENDIF
 ENDIF ghg_block
-!!
+! NUWRF
+casa_block: IF (config_flags%chem_opt == CASACO2_TRACER) THEN
+   IF( (.not. config_flags%restart) .AND. config_flags%chem_in_opt==0 ) THEN
+!  CASACO2:
+       do j=jts,jte
+        do k=kts,kte
+         do i=its,ite
+            chem(i,k,j,p_casaco2)=380.  ! background CASA CO2 
+         enddo
+        enddo
+       enddo
+   ENDIF
+ENDIF casa_block
+
    aer_select: SELECT CASE(config_flags%chem_opt)
      CASE (RACMPM_KPP)
         if(config_flags%chem_in_opt == 0 )then

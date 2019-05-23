@@ -19,6 +19,7 @@ ARCHFLAGS       =    $(COREDEFS) -DIWORDSIZE=$(IWORDSIZE) -DDWORDSIZE=$(DWORDSIZ
                       CONFIGURE_4DVAR_FLAG \
                       CONFIGURE_WAVELET_FLAG \
                       CONFIGURE_NESTOPT \
+                      -DWRF_ELEC \
                       -DUSE_ALLOCATABLES \
                       -DGRIB1 \
                       -DINTIO \
@@ -35,7 +36,7 @@ ESMF_LIB_FLAGS  =    ESMFLIBFLAG
 # ESMF 5 -- these are defined in esmf.mk, included above
 #NOWIN ESMF_IO_LIB     =    ESMFIOLIB
 ESMF_IO_LIB_EXT =    ESMFIOEXTLIB
-INCLUDE_MODULES =    $(MODULE_SRCH_FLAG) \
+INCLUDE_MODULES =    $(MODULE_SRCH_FLAG) BOXMGINCPATH \
                      $(ESMF_MOD_INC) $(ESMF_LIB_FLAGS) \
                       -I$(WRF_SRC_ROOT_DIR)/main \
                       -I$(WRF_SRC_ROOT_DIR)/external/io_netcdf \
@@ -49,28 +50,35 @@ INCLUDE_MODULES =    $(MODULE_SRCH_FLAG) \
 REGISTRY        =    Registry
 CC_TOOLS_CFLAGS = CONFIGURE_NMM_CORE
 
+#EMK BEGIN...Merge NUWRF and WRF 3.2.1
 #NOWIN LIB_BUNDLED     = \
-#NOWIN                      $(WRF_SRC_ROOT_DIR)/external/fftpack/fftpack5/libfftpack.a \
-#NOWIN                      $(WRF_SRC_ROOT_DIR)/external/io_grib1/libio_grib1.a \
-#NOWIN                      $(WRF_SRC_ROOT_DIR)/external/io_grib_share/libio_grib_share.a \
-#NOWIN                      $(WRF_SRC_ROOT_DIR)/external/io_int/libwrfio_int.a \
-#NOWIN                      $(ESMF_IO_LIB) \
-#NOWIN                      CONFIGURE_COMMS_LIB \
-#NOWIN                      $(WRF_SRC_ROOT_DIR)/frame/module_internal_header_util.o \
-#NOWIN                      $(WRF_SRC_ROOT_DIR)/frame/pack_utils.o 
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/fftpack/fftpack5 -lfftpack \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_grib1 -lio_grib1 \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_grib_share -lio_grib_share \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_int -lwrfio_int \
+#NOWIN                     $(ESMF_IO_LIB) \
+#NOWIN                     CONFIGURE_COMMS_LIB \
+#NOWIN                     $(WRF_SRC_ROOT_DIR)/frame/module_internal_header_util.o \
+#NOWIN                     $(WRF_SRC_ROOT_DIR)/frame/pack_utils.o \
+#NOWIN                     $(WRF_ESMF_LIBS)
+#EMK END...Merge NUWRF and WRF 3.2.1
 
+#EMK BEGIN...Merge NUWRF and WRF 3.2.1
 #NOWIN LIB_EXTERNAL    = \
-#NOWIN                      CONFIGURE_NETCDF_LIB_PATH CONFIGURE_PNETCDF_LIB_PATH CONFIGURE_GRIB2_LIB CONFIGURE_ATMOCN_LIB CONFIGURE_HDF5_LIB_PATH
+#NOWIN                      CONFIGURE_NETCDF_LIB_PATH CONFIGURE_PNETCDF_LIB_PATH CONFIGURE_BOXMG_LIB_PATH CONFIGURE_GRIB2_LIB CONFIGURE_ATMOCN_LIB  CONFIGURE_GRIBAPI_LIB_PATH CONFIGURE_HDFEOS_LIB_PATH CONFIGURE_HDF4_LIB_PATH CONFIGURE_HDF5_LIB_PATH CONFIGURE_ZLIB_LIB_PATH
+#EMK END...Merge NUWRF and WRF 3.2.1
 
-LIB             =    $(LIB_BUNDLED) $(LIB_EXTERNAL) $(LIB_LOCAL) $(LIB_WRF_HYDRO)
+LIB             =    $(LIB_PROFILE) $(LIB_BUNDLED) $(LIB_EXTERNAL) $(LIB_LOCAL) $(LIB_WRF_HYDRO) 
+
 LDFLAGS         =    $(OMP) $(FCFLAGS) $(LDFLAGS_LOCAL) CONFIGURE_LDFLAGS
 ENVCOMPDEFS     =    CONFIGURE_COMPILEFLAGS
-CPPFLAGS        =    $(ARCHFLAGS) $(ENVCOMPDEFS) -I$(LIBINCLUDE) $(TRADFLAG) CONFIGURE_COMMS_INCLUDE
+CPPFLAGS        =    $(ARCHFLAGS) $(ENVCOMPDEFS) -I$(LIBINCLUDE) $(TRADFLAG) CONFIGURE_COMMS_INCLUDE BOXMGINCPATH
 NETCDFPATH      =    CONFIGURE_NETCDF_PATH
 HDF5PATH        =    CONFIGURE_HDF5_PATH
 WRFPLUSPATH     =    CONFIGURE_WRFPLUS_PATH
 RTTOVPATH       =    CONFIGURE_RTTOV_PATH
 PNETCDFPATH     =    CONFIGURE_PNETCDF_PATH
+BOXMGPATH       =    CONFIGURE_BOXMG_PATH
 
 bundled:  io_only CONFIGURE_ATMOCN
 external: io_only CONFIGURE_COMMS_EXTERNAL $(ESMF_TARGET)
@@ -110,41 +118,41 @@ wrfio_pnf :
 wrfio_grib_share :
 	( cd $(WRF_SRC_ROOT_DIR)/external/io_grib_share ; \
           make $(J) CC="$(SCC)" CFLAGS="$(CFLAGS)" RM="$(RM)" RANLIB="$(RANLIB)" CPP="$(CPP)" \
-          FC="$(SFC) $(PROMOTION) -I. $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" archive) 
+          FC="$(SFC) $(PROMOTION) -I. $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" archive) 
 
 wrfio_grib1 :
 	( cd $(WRF_SRC_ROOT_DIR)/external/io_grib1 ; \
           make $(J) CC="$(SCC)" CFLAGS="$(CFLAGS)" RM="$(RM)" RANLIB="$(RANLIB)" CPP="$(CPP)" \
-          FC="$(SFC) $(PROMOTION) -I. $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" archive)
+          FC="$(SFC) $(PROMOTION) -I. $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" archive)
 
 wrfio_grib2 :
 	( cd $(WRF_SRC_ROOT_DIR)/external/io_grib2 ; \
           make $(J) CC="$(SCC)" CFLAGS="$(CFLAGS) CONFIGURE_GRIB2_INC" RM="$(RM)" RANLIB="$(RANLIB)" \
           CPP="$(CPP)" \
-          FC="$(SFC) $(PROMOTION) -I. $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="-traditional" AR="$(AR)" ARFLAGS="$(ARFLAGS)" \
+          FC="$(SFC) $(PROMOTION) -I. $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="-traditional" AR="$(AR)" ARFLAGS="$(ARFLAGS)" \
           FIXED="$(FORMAT_FIXED)" archive)
 
 wrfio_int : 
 	( cd $(WRF_SRC_ROOT_DIR)/external/io_int ; \
-          make $(J) CC="$(CC)" CFLAGS_LOCAL="$(CFLAGS_LOCAL)" RM="$(RM)" RANLIB="$(RANLIB)" CPP="$(CPP)" \
-          FC="$(FC) $(PROMOTION) $(FCDEBUG) $(FCBASEOPTS) $(OMP)" FGREP="$(FGREP)" \
+          make $(J) CC="$(CC)" RM="$(RM)" RANLIB="$(RANLIB)" CPP="$(CPP)" \
+          FC="$(FC) $(PROMOTION) $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS) $(OMP)" FGREP="$(FGREP)" \
           TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" ARCHFLAGS="$(ARCHFLAGS)" all )
 
 esmf_time : 
 	( cd $(WRF_SRC_ROOT_DIR)/external/esmf_time_f90 ; \
-          make $(J) FC="$(SFC) $(PROMOTION) $(FCDEBUG) $(FCBASEOPTS)" RANLIB="$(RANLIB)" \
+          make $(J) FC="$(SFC) $(PROMOTION) $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS)" RANLIB="$(RANLIB)" \
           CPP="$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc -I. $(ARCHFLAGS) $(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" )
 
 fftpack :
 	( cd $(WRF_SRC_ROOT_DIR)/external/fftpack/fftpack5 ; \
-          make $(J) FC="$(SFC)" FFLAGS="$(PROMOTION) $(FCDEBUG) $(FCBASEOPTS)" RANLIB="$(RANLIB)" AR="$(AR)" \
+          make $(J) FC="$(SFC)" FFLAGS="$(PROMOTION) $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS)" RANLIB="$(RANLIB)" AR="$(AR)" \
           ARFLAGS="$(ARFLAGS)" CPP="$(CPP)" CPPFLAGS="$(CPPFLAGS)" RM="$(RM)" )
 
 atm_ocn :
 	( cd $(WRF_SRC_ROOT_DIR)/external/atm_ocn ; \
           make $(J) CC="$(SCC)" CFLAGS="$(CFLAGS) " RM="$(RM)" RANLIB="$(RANLIB)" \
           CPP="$(CPP)" CPPFLAGS="$(CPPFLAGS)" \
-          FC="$(DM_FC) $(PROMOTION) -I. $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="-traditional" AR="$(AR)" ARFLAGS="$(ARFLAGS)" \
+          FC="$(DM_FC) $(PROMOTION) -I. $(FCOPTIM) $(FCDEBUG) $(FCBASEOPTS) $(FCSUFFIX)" TRADFLAG="-traditional" AR="$(AR)" ARFLAGS="$(ARFLAGS)" \
           FIXED="$(FORMAT_FIXED)" )
 
 $(WRF_SRC_ROOT_DIR)/external/RSL_LITE/librsl_lite.a :
@@ -188,6 +196,15 @@ wrfio_esmf :
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.G  > $*.H
 	sed -e "s/gridmu/grid%mu/g" -e "s/gridMu/grid%Mu/g" $*.H > $*.bb
 	$(SED_FTN) $*.bb | $(CPP) $(TRADFLAG) > $*.f90
+	$(RM) $*.b $*.bb
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 >& $*.f90.new # NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 >& $*.f90.new # NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	$(RM) $*.G $*.H $*.bb
 	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
           echo COMPILING $*.F for 4DVAR ; \
@@ -204,6 +221,14 @@ wrfio_esmf :
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $*.H  > $*.I
 	sed -e "s/gridmu/grid%mu/g" -e "s/gridMu/grid%Mu/g" $*.I > $@
 	$(RM) $*.G $*.H $*.I
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 >& $*.f90.new # NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 >& $*.f90.new # NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 
 .f90.o:
 	$(RM) $@

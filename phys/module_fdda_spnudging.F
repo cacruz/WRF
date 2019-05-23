@@ -688,31 +688,38 @@ IF(gph > 0. ) then
 #if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
 # include "XPOSE_SPECTRAL_NUDGING_z2x.inc"
 
+! NUWRF WWANG...Changed last vertical dimension
      CALL spectral_nudging_filter_3dx( grid%dif_xxx, xwavenum,    &
                                 ids, ide, jds, jde, kds, kde,         &
                                 imsx, imex, jmsx, jmex, kmsx, kmex,     &
-                                ipsx, ipex, jpsx, jpex, kpsx, kpex  )
+                                ipsx, ipex, jpsx, jpex, kpsx, MIN(kde-1,kpex) )
+!                                ipsx, ipex, jpsx, jpex, kpsx, kpex  )
 
 # include "XPOSE_SPECTRAL_NUDGING_x2y.inc"
 
+! NUWRF WWANG...Changed last vertical dimension
      CALL spectral_nudging_filter_3dy( grid%dif_yyy, ywavenum,    &
                                 ids, ide, jds, jde, kds, kde,         &
                                 imsy, imey, jmsy, jmey, kmsy, kmey,     &
-                                ipsy, ipey, jpsy, jpey, kpsy, kpey  )
+                                ipsy, ipey, jpsy, jpey, kpsy, MIN(kde-1,kpey) )
+!                                ipsy, ipey, jpsy, jpey, kpsy, kpey  )
 
 # include "XPOSE_SPECTRAL_NUDGING_y2z.inc"
 
 
 #else
+! NUWRF WWANG...Changed last vertical dimension
      CALL spectral_nudging_filter_3dx( grid%dif_analysis, xwavenum,     &
                                 ids, ide, jds, jde, kds, kde,       &
                                 ims, ime, jms, jme, kms, kme,       &
-                                ips, ipe, jps, jpe, kps, kpe )
-
+                                ips, ipe, jps, jpe, kps, MIN(kde-1,kpe) )
+!                                ips, ipe, jps, jpe, kps, kpe )
+! NUWRF WWANG...Changed last vertical dimension
      CALL spectral_nudging_filter_3dy( grid%dif_analysis, ywavenum,      &
                                 ids, ide, jds, jde, kds, kde,       &
                                 ims, ime, jms, jme, kms, kme,       &
-                                ips, ipe, jps, jpe, kps, kpe  )
+                                ips, ipe, jps, jpe, kps, MIN(kde-1,kpe) )
+!                                ips, ipe, jps, jpe, kps, kpe  )
 #endif
 
 ! Calculate tendency
@@ -754,9 +761,25 @@ SUBROUTINE spectral_nudging_filter_3dx( f, nwave,            &
                                    its, ite, jts, jte, kts, kte
 
   REAL , DIMENSION( ims:ime , kms:kme, jms:jme ) , INTENT(INOUT) ::  f
-
-  REAL , DIMENSION(1:ide-ids+1,1:kte-kts+1) :: sheet
   INTEGER ::  i, j, j_end, k, nx, ny
+
+! NUWRF BEGIN
+!{{{WWANG, DEBUG:
+!  REAL , DIMENSION(1:ide-ids+1,1:kte-kts+1) :: sheet
+  REAL , DIMENSION(:,:), ALLOCATABLE :: sheet
+  INTEGER, PARAMETER :: PACK_MOD = 10    ! NX_PACK will be a multiple of PACK_MOD; Adjust the parameter to your needs
+  INTEGER :: NX_PACK, ALLOC_STATUS
+  
+  nx = ide-ids+1 
+  IF (MOD(nx, PACK_MOD) /= 0) THEN
+     NX_PACK = PACK_MOD * INT(nx/PACK_MOD+1)
+  ELSE
+     NX_PACK = nx
+  END IF
+  ALLOCATE(sheet(1:NX_PACK, 1:kte-kts+1), STAT=ALLOC_STATUS)
+  IF (ALLOC_STATUS /= 0) CALL wrf_error_fatal('Error allocating memory for sheet in spectral_nudging_filter_3dx!')
+!WWANG}}}
+! NUWRF END
 
   ! Variables will stay in domain form since this routine is meaningless
   ! unless tile extent is the same as domain extent in E/W direction, i.e.,
@@ -770,20 +793,26 @@ SUBROUTINE spectral_nudging_filter_3dx( f, nwave,            &
   END IF
 
 
-  nx = ide-ids+1 
+!NUWRF WWANG...Commented out nx statement
+  !nx = ide-ids+1 
   ny = kte-kts+1 ! we can filter extra level for variables that are non-Z-staggered
   j_end = MIN(jte, jde-1)
   IF (j_end == jde-1) j_end = jde
   DO j = jts, j_end
 
+     !NUWRF WWANG...Added sheet assignment
+        sheet = 0.0        ! Pad with 0.0, which makes sense because f(i,k,j) is expected to approach zeros towards the boundaries
         DO k=kts,kte
         DO i=ids,ide-1
            sheet(i-ids+1,k-kts+1) = f(i,k,j)
         END DO
-           sheet(ide,k-kts+1) = 0.
+        !NUWRF WWANG...Commented out sheet assignment
+!           sheet(ide,k-kts+1) = 0.
         END DO
 
-        CALL spectralnudgingfilterfft2dncar(nx,ny,nwave,sheet)
+!NUWRF WWANG...Changed argument
+        CALL spectralnudgingfilterfft2dncar(NX_PACK,ny,nwave,sheet)
+!        CALL spectralnudgingfilterfft2dncar(nx,ny,nwave,sheet)
 
         DO k=kts,kte
            DO i=ids,ide
@@ -791,6 +820,9 @@ SUBROUTINE spectral_nudging_filter_3dx( f, nwave,            &
            END DO
         END DO
   END DO ! outer j (latitude) loop
+
+!NUWRF WWANG...Added deallocate statement
+  DEALLOCATE(sheet)
 
 END SUBROUTINE spectral_nudging_filter_3dx
 !------------------------------------------------------------------------------
@@ -808,9 +840,25 @@ SUBROUTINE spectral_nudging_filter_3dy( f, nwave,   &
                                    its, ite, jts, jte, kts, kte
 
   REAL , DIMENSION( ims:ime , kms:kme, jms:jme ) , INTENT(INOUT) ::  f
-
-  REAL , DIMENSION(1:jde-jds+1,1:kte-kts+1) :: sheet
   INTEGER ::  i, j, i_end, k, nx, ny
+
+! NUWRF BEGIN
+!{{{WWANG, DEBUG:
+!  REAL , DIMENSION(1:jde-jds+1,1:kte-kts+1) :: sheet
+  REAL , DIMENSION(:,:), ALLOCATABLE :: sheet
+  INTEGER, PARAMETER :: PACK_MOD = 10    ! NX_PACK will be a multiple of PACK_MOD; Adjust the parameter to your needs
+  INTEGER :: NX_PACK, ALLOC_STATUS
+  
+  nx = jde-jds+1 
+  IF (MOD(nx, PACK_MOD) /= 0) THEN
+     NX_PACK = PACK_MOD * INT(nx/PACK_MOD+1)
+  ELSE
+     NX_PACK = nx
+  END IF
+  ALLOCATE(sheet(1:NX_PACK, 1:kte-kts+1), STAT=ALLOC_STATUS)
+  IF (ALLOC_STATUS /= 0) CALL wrf_error_fatal('Error allocating memory for sheet in spectral_nudging_filter_3dy!')
+!WWANG}}}
+!NUWRF END
 
   ! Variables will stay in domain form since this routine is meaningless
   ! unless tile extent is the same as domain extent in S/N direction, i.e.,
@@ -824,12 +872,15 @@ SUBROUTINE spectral_nudging_filter_3dy( f, nwave,   &
   END IF
 
 
-  nx = jde-jds+1
+! NUWRF WWANG...Removed nx statement
+  !nx = jde-jds+1
   ny = kte-kts+1 ! we can filter extra level for variables that are non-Z-staggered
   i_end = MIN(ite, ide-1)
   IF (i_end == ide-1) i_end = ide
   DO i = its, i_end
 
+     ! NUWRF WWANG...Added sheet assignment
+        sheet = 0.0        ! Pad with 0.0, which makes sense because f(i,k,j) is expected to approach zeros towards the boundaries
         DO k=kts,kte
         DO j=jds,jde
            sheet(j-jds+1,k-kts+1) = f(i,k,j)
@@ -837,7 +888,9 @@ SUBROUTINE spectral_nudging_filter_3dy( f, nwave,   &
            sheet(jde,k-kts+1) = 0.
         END DO
 
-        CALL spectralnudgingfilterfft2dncar(nx,ny,nwave,sheet)
+!NUWRF WWANG...Changed first argument
+!        CALL spectralnudgingfilterfft2dncar(nx,ny,nwave,sheet)
+        CALL spectralnudgingfilterfft2dncar(NX_PACK,ny,nwave,sheet)
 
         DO k=kts,kte
            DO j=jds,jde
@@ -845,6 +898,9 @@ SUBROUTINE spectral_nudging_filter_3dy( f, nwave,   &
            END DO
         END DO
   END DO ! outer i (longitude) loop
+
+!NUWRF WWANG...Added deallocate statement
+  DEALLOCATE(sheet)
 
 END SUBROUTINE spectral_nudging_filter_3dy
 
@@ -905,7 +961,15 @@ SUBROUTINE spectralnudgingfilterfft2dncar(nx,ny,nwave,fin)
      DO i=nh+1,n
          fp(i,j) = 0.
      ENDDO
+!NUWRF BEGIN
+   !{{{ WWANG:
+     IF (MOD(n,2) == 0) THEN
+         fp(n, j) = 0.
+     END IF
+   !WWANG}}}
+!NUWRF END
   ENDDO
+
 
   DO j=1,ny
     DO i=1,nx

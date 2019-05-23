@@ -165,10 +165,11 @@
         ELSE
           curtime = domain_get_current_time( grid )
           DO i = auxinput1_only, MAX_WRF_ALARMS
+             
             IF ( grid%alarms_created(i) .AND. .NOT. i .EQ. boundary_only ) THEN
               write(alarmname,'("WRF_ALARM_ISRINGING_",i2.2)')i
               CALL wrf_get_dom_ti_integer( fid, TRIM(alarmname), iring, 1, icnt, ierr )
-  
+
               write(alarmname,'("WRF_ALARM_SECS_TIL_NEXT_RING_",i2.2)')i
               CALL wrf_get_dom_ti_integer( fid, TRIM(alarmname), seconds, 1, icnt, ierr )
               IF ( ierr .EQ. 0 &
@@ -654,6 +655,19 @@
                 ! All is well.  Noah-MP and Noah have compatible wrfinput files.
              ELSE IF ( ( config_flags%sf_surface_physics == NOAHMPSCHEME ) .and. ( itmp == LSMSCHEME ) ) then
                 ! All is well.  Noah-MP and Noah have compatible wrfinput files.
+! EMK NUWRF BEGIN...Allow LIS data processed by REAL to go to WRF Noah LSM
+             else if ( ( config_flags%sf_surface_physics == LSMSCHEME ) .and. &
+                       ( itmp == NUWRFLISSCHEME ) ) then
+                call wrf_message("----------------- Warning -------------------")
+                write(wrf_err_message,'("WRF NOAH LSM selected, but REAL processed for LIS")')
+                call wrf_message(wrf_err_message)
+                WRITE(wrf_err_message,'("namelist    : sf_surface_physics = ",I10)') config_flags%sf_surface_physics
+                call wrf_message(wrf_err_message)
+                WRITE(wrf_err_message,'("input files : SF_SURFACE_PHYSICS = ",I10, " (from wrfinput files).")') itmp
+                call wrf_message(wrf_err_message)
+                write(wrf_err_message,'("We will proceed assuming LIS ran with Noah scheme")')
+                call wrf_message(wrf_err_message)                
+! EMK NUWRF END
              ELSE
                 call wrf_message("----------------- ERROR -------------------")
                 WRITE(wrf_err_message,'("namelist    : sf_surface_physics = ",I10)') config_flags%sf_surface_physics
@@ -1016,14 +1030,26 @@
 ! JM 20040511
 !
       SELECT CASE ( switch )
+!        CASE ( input_only, auxinput1_only, auxinput2_only,       &
+!               auxinput3_only, auxinput4_only, auxinput5_only,  &
+!               auxinput6_only, auxinput7_only, auxinput8_only,  &
+!               auxinput9_only, auxinput10_only )
+! NUWRF for CASA CO2
         CASE ( input_only, auxinput1_only, auxinput2_only,       &
                auxinput3_only, auxinput4_only, auxinput5_only,  &
                auxinput6_only, auxinput7_only, auxinput8_only,  &
-               auxinput9_only, auxinput10_only )
+               auxinput9_only, auxinput10_only, auxinput18_only )
+
 #if ( WRF_CHEM == 1 )
+!           IF( (config_flags%io_style_emissions .eq. 1) .and.                                &
+!              ((switch.eq.auxinput5_only) .or. (switch.eq.auxinput6_only) .or. &
+!               (switch.eq.auxinput7_only) .or. (switch.eq.auxinput8_only)) ) then
+! NUWRF for CASA CO2
            IF( (config_flags%io_style_emissions .eq. 1) .and.                                &
               ((switch.eq.auxinput5_only) .or. (switch.eq.auxinput6_only) .or. &
-               (switch.eq.auxinput7_only) .or. (switch.eq.auxinput8_only)) ) then
+               (switch.eq.auxinput7_only) .or. (switch.eq.auxinput8_only) &
+               .or. (switch.eq.auxinput18_only)) ) then
+
                CALL wrf_message( "**WARNING** Time in input file not being checked **WARNING**" )
            ELSE
 #endif

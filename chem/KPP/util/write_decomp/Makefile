@@ -16,7 +16,7 @@ MODULES =                           \
 	module_kpp_$(MECH)_Parameters.o       \
         module_kpp_$(MECH)_JacobianSP.o     
 
-
+# NU-WRF bug fix...Added './' before integr_edit.exe
 all:  
 	$(RM) decomp_uses.inc
 	echo USE $(MECH)_Parameters > decomp_uses.inc

@@ -206,7 +206,8 @@ CONTAINS
      TYPE(ESMF_Time),         ALLOCATABLE :: startTimes(:)
      TYPE(ESMF_Time),         ALLOCATABLE :: stopTimes(:)
      TYPE(ESMF_TimeInterval), ALLOCATABLE :: couplingIntervals(:)
-     CHARACTER (len=132) :: mess
+
+     CHARACTER (len=132) :: mess, str
 
 ! Unfortunately, implementing this is unnecessarily difficult due 
 ! to lack of Iterators for ESMF_State.  
@@ -259,11 +260,14 @@ CONTAINS
            ENDIF
          ENDIF
        ENDDO
+
        IF ( istate .EQ. 1 ) THEN
         ! this presupposes that 1 of the child states exist and has
         ! valid times in it.  Use that one.
           WRITE(mess,*)'WARNING: Only ',TRIM(itemNames(1)),&
                        ' is valid and has time info in it.  Using that.'
+!          write(mess,*) 'WARNING: Only ',TRIM(itemNames(1)), &
+!                          ' is valid and has time info in it.  Using that.'
           CALL wrf_message(mess) 
           CALL ESMF_StateGet( state, itemName=TRIM(itemNames(1)), &
                               nestedState=tmpState, rc=rc )
@@ -272,7 +276,7 @@ CONTAINS
        ELSE IF ( istate .GT. 1 ) THEN
           CALL ReconcileTimes( startTimes, stopTimes, couplingIntervals, &
                                startTime,  stopTime,  couplingInterval )
-       ELSE 
+       ELSE
           CALL wrf_error_fatal('no valid states with times found. giving up.')
        ENDIF
      ELSE
@@ -522,6 +526,16 @@ CONTAINS
 
 
    SUBROUTINE wrf_component_init1( gcomp, importState, exportState, clock, rc )
+     TYPE(ESMF_GridComp), INTENT(INOUT)  :: gcomp
+     TYPE(ESMF_State)     :: importState
+     TYPE(ESMF_State)     :: exportState
+     TYPE(ESMF_Clock)     :: clock
+     INTEGER, INTENT(  OUT)              :: rc
+      
+     call wrf_component_init1_internal(gcomp, importState, exportState, clock, rc)
+   end SUBROUTINE wrf_component_init1
+
+   SUBROUTINE wrf_component_init1_internal( gcomp, importState, exportState, clock, rc )
      TYPE(ESMF_GridComp), TARGET, INTENT(INOUT) :: gcomp
      TYPE(ESMF_State),    TARGET, INTENT(INOUT) :: importState
      TYPE(ESMF_State),    TARGET, INTENT(INOUT) :: exportState
@@ -594,7 +608,6 @@ CONTAINS
      ! Call WRF "init" routine, which, for a DM_PARALLEL run, will recognize 
      ! that ESMF has already called MPI_INIT and respond appropriately.  
      CALL wrf_init( no_init1=.TRUE. )
-
      ! For now, use settings from WRF component intialization to set up 
      ! top-level clock.  Per suggestion from ESMF Core team, these are passed 
      ! back as attributes on exportState.  
@@ -630,11 +643,21 @@ CONTAINS
                                ips, ipe, jps, jpe, kps, kpe, &
                                domdesc, bdy_mask )
 
-   END SUBROUTINE wrf_component_init1
-
+   END SUBROUTINE wrf_component_init1_internal
 
 
    SUBROUTINE wrf_component_init2( gcomp, importState, exportState, clock, rc )
+     TYPE(ESMF_GridComp),  INTENT(INOUT) :: gcomp
+     TYPE(ESMF_State)                    :: importState
+     TYPE(ESMF_State)                    :: exportState
+     TYPE(ESMF_Clock)                    :: clock
+     INTEGER,              INTENT(  OUT) :: rc
+
+     call wrf_component_init2_internal( gcomp, importState, exportState, clock, rc )
+
+   end SUBROUTINE wrf_component_init2
+
+   SUBROUTINE wrf_component_init2_internal( gcomp, importState, exportState, clock, rc )
      TYPE(ESMF_GridComp), TARGET, INTENT(INOUT) :: gcomp
      TYPE(ESMF_State),    TARGET, INTENT(INOUT) :: importState
      TYPE(ESMF_State),    TARGET, INTENT(INOUT) :: exportState
@@ -778,11 +801,20 @@ CONTAINS
 
      CALL wrf_debug ( 100, 'DEBUG wrf_component_init2():  end' )
 
-   END SUBROUTINE wrf_component_init2
-
+   END SUBROUTINE wrf_component_init2_internal
 
 
    SUBROUTINE wrf_component_run( gcomp, importState, exportState, clock, rc )
+     TYPE(ESMF_GridComp), INTENT(INOUT) :: gcomp
+     TYPE(ESMF_State)                   :: importState, exportState
+     TYPE(ESMF_Clock)                   :: clock
+     INTEGER,             INTENT(  OUT) :: rc
+
+     call wrf_component_run_internal( gcomp, importState, exportState, clock, rc )
+
+   end SUBROUTINE wrf_component_run
+
+   SUBROUTINE wrf_component_run_internal( gcomp, importState, exportState, clock, rc )
      TYPE(ESMF_GridComp), TARGET, INTENT(INOUT) :: gcomp
      TYPE(ESMF_State),    TARGET, INTENT(INOUT) :: importState, exportState
      TYPE(ESMF_Clock),    TARGET, INTENT(INOUT) :: clock
@@ -845,11 +877,21 @@ CONTAINS
 
      CALL wrf_debug ( 100 , 'DEBUG wrf_component_run():  end' )
 
-   END SUBROUTINE wrf_component_run
-
+   END SUBROUTINE wrf_component_run_internal
 
 
    SUBROUTINE wrf_component_finalize( gcomp, importState, exportState, clock, rc )
+     TYPE(ESMF_GridComp), INTENT(INOUT) :: gcomp
+     TYPE(ESMF_State)                   :: importState, exportState
+     TYPE(ESMF_Clock)                   :: clock
+     INTEGER,             INTENT(  OUT) :: rc
+
+     call wrf_component_finalize_internal( gcomp, importState, exportState, clock, rc )
+
+   end SUBROUTINE wrf_component_finalize
+
+
+   SUBROUTINE wrf_component_finalize_internal( gcomp, importState, exportState, clock, rc )
      TYPE(ESMF_GridComp), TARGET, INTENT(INOUT) :: gcomp
      TYPE(ESMF_State),    TARGET, INTENT(INOUT) :: importState, exportState
      TYPE(ESMF_Clock),    TARGET, INTENT(INOUT) :: clock
@@ -871,7 +913,6 @@ CONTAINS
      TYPE(ESMF_State),    POINTER :: p_importState
      TYPE(ESMF_State),    POINTER :: p_exportState
      TYPE(ESMF_Clock),    POINTER :: p_clock
-     INTEGER :: rc
      p_gcomp => gcomp
      p_importState => importState
      p_exportState => exportState
@@ -888,7 +929,7 @@ CONTAINS
 
      rc = ESMF_SUCCESS
 
-   END SUBROUTINE wrf_component_finalize
+   END SUBROUTINE wrf_component_finalize_internal
 
 
 

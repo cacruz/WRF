@@ -964,6 +964,10 @@ CONTAINS
         grid%ntsloc        = 0
         grid%ntsloc_domain = 0
 
+      ! EMK NUWRF
+      grid%lattsloc = 0
+      grid%lontsloc = 0
+
 #if (EM_CORE == 1)
 ! Allocate storage for track metadata
         ALLOCATE( grid%track_time_in( grid%track_loc_in ) )
@@ -2044,17 +2048,17 @@ CONTAINS
         is_stop_subtime = .FALSE.
         CALL domain_clock_get( grid, time_step=timeStep, &
                                      current_time=currentTime )
-        positive_timestep = ESMF_TimeIntervalIsPositive( timeStep )
+        positive_timestep = WESMF_TimeIntervalIsPositive( timeStep )
         IF ( positive_timestep ) THEN
 ! hack for bug in PGI 5.1-x
 !        IF ( currentTime .GE. grid%stop_subtime ) THEN
-          IF ( ESMF_TimeGE( currentTime, grid%stop_subtime ) ) THEN
+          IF ( WESMF_TimeGE( currentTime, grid%stop_subtime ) ) THEN
             is_stop_subtime = .TRUE.
           ENDIF
         ELSE
 ! hack for bug in PGI 5.1-x
 !        IF ( currentTime .LE. grid%stop_subtime ) THEN
-          IF ( ESMF_TimeLE( currentTime, grid%stop_subtime ) ) THEN
+          IF ( WESMF_TimeLE( currentTime, grid%stop_subtime ) ) THEN
             is_stop_subtime = .TRUE.
           ENDIF
         ENDIF
@@ -2229,11 +2233,11 @@ CONTAINS
           advanceCount = domain_get_advanceCount ( grid )
         ENDIF
         ! This duplication avoids assignment of time-manager objects 
-        ! which works now in ESMF 2.2.0 but may not work in the future 
+        ! which works now in WESMF 2.2.0 but may not work in the future 
         ! if these objects become "deep".  We have already been bitten 
         ! by this when the clock objects were changed from "shallow" to 
         ! "deep".  Once again, adherence to orthodox canonical form by 
-        ! ESMF would avoid all this crap.  
+        ! WESMF would avoid all this crap.  
         IF ( PRESENT( current_time ) ) THEN
           current_time = domain_get_current_time ( grid )
         ENDIF

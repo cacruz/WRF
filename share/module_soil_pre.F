@@ -766,6 +766,7 @@ print *,'WATER CHANGE = ',change_water
 
       adjust_soil : SELECT CASE ( sf_surface_physics )
 
+         ! NUWRF EMK...Skip if using LIS
          CASE ( SLABSCHEME,LSMSCHEME,NOAHMPSCHEME,RUCLSMSCHEME,PXLSMSCHEME,CLMSCHEME,SSIBSCHEME )
             CALL adjust_soil_temp_new ( tmn , sf_surface_physics , tsk , ht ,            &
                                         toposoil , landmask , st_input, st_levels_input, &

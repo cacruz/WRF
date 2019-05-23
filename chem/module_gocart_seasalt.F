@@ -63,9 +63,15 @@ CONTAINS
   do j=jts,jte
   do i=its,ite
 !
-! don't do dust over water!!!
+! dont do dust over water!!!
+! NUWRF EMK...Per Z. Tao
+! change geopotential height criteria to distinguish between sea and other water
 !
-     if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.1.e-3)then
+! increase geopotential height threshold to include more ocean coverage
+! in short term will make the threshold a namelist option to be adjusted regionally
+! in the long run, explore to use global salinity data as the mask -- Z. Tao (dec, 2015)
+!     if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.1.e-3)then
+     if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.2.0)then
      ilwi(1,1)=0
      if(config_flags%chem_opt == 2 .or. config_flags%chem_opt == 11 ) then
         tc(:)=1.e-16*conver

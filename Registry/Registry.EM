@@ -21,7 +21,8 @@ include registry.elec
 include registry.bdy_perturb
 include registry.hyb_coord
 include registry.new3d_wif
-
+# DOE CRM
+include registry.crm
 
 # added to output 5 for ESMF
 state   real   landmask            ij    misc          1     -     i0125rh056d=(interp_fcnm_imask)u=(copy_fcnm)   "LANDMASK"      "LAND MASK (1 FOR LAND, 0 FOR WATER)"  ""
@@ -36,6 +37,7 @@ state    real   SST_INPUT        ij     misc        1         -     rh   "SST_IN
 
 
 # Registry entries that are exclusive to Registry.EM
+
 
 # Chem Scalars
 rconfig   integer     chem_opt            namelist,physics	max_domains    0       rh       "chem_opt"              ""      ""
@@ -52,6 +54,7 @@ state   real    tr17_5     ikjftb  tracer        1         -     irhusdf=(bdy_in
 state   real    tr17_6     ikjftb  tracer        1         -     irhusdf=(bdy_interp:dt)    "tr17_6"         "tr17_6"     "Dimensionless"
 state   real    tr17_7     ikjftb  tracer        1         -     irhusdf=(bdy_interp:dt)    "tr17_7"         "tr17_7"     "Dimensionless"
 state   real    tr17_8     ikjftb  tracer        1         -     irhusdf=(bdy_interp:dt)    "tr17_8"         "tr17_8"     "Dimensionless"
+
 
 package   tracer_test1  tracer_opt==2       -             tracer:tr17_1,tr17_2,tr17_3,tr17_4,tr17_5,tr17_6,tr17_7,tr17_8
 

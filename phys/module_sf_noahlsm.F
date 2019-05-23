@@ -742,6 +742,7 @@ CONTAINS
                           RCS,RCT,RCQ,RCSOIL,EMISSI)
          ELSE
             RC = 0.0
+            PC = 0.0 ! EMK NUWRF...Make sure PC has a value!
          END IF
 ! ----------------------------------------------------------------------
 ! NOW DECIDE MAJOR PATHWAY BRANCH TO TAKE DEPENDING ON WHETHER SNOWPACK
@@ -2687,6 +2688,8 @@ CONTAINS
       REAL :: FLIMIT
 
       REAL,    INTENT(INOUT)                 :: SFHEAD1RT,INFXS1RT
+      ! EMK NUWRF
+      real, dimension(1:NSOIL) :: sh2o_tmp
 
 ! ----------------------------------------------------------------------
 ! EXECUTABLE CODE BEGINS HERE.
@@ -2776,7 +2779,11 @@ CONTAINS
                     DWSAT,DKSAT,SMCMAX,BEXP,RUNOFF1,                    &
                     RUNOFF2,DT,SMCWLT,SLOPE,KDT,FRZFACT,SICE,AI,BI,CI,  &
                     SFHEAD1RT,INFXS1RT)
-         CALL SSTEP (SH2O,SH2O,CMC,RHSTT,RHSCT,DT,NSOIL,SMCMAX,         &
+         ! EMK NUWRF
+!         CALL SSTEP (SH2O,SH2O,CMC,RHSTT,RHSCT,DT,NSOIL,SMCMAX,         &
+!                        CMCMAX,RUNOFF3,ZSOIL,SMC,SICE,AI,BI,CI,INFXS1RT)
+         sh2o_tmp = sh2o
+         CALL SSTEP (SH2O,SH2O_tmp,CMC,RHSTT,RHSCT,DT,NSOIL,SMCMAX,         &
                         CMCMAX,RUNOFF3,ZSOIL,SMC,SICE,AI,BI,CI,INFXS1RT)
 
       ELSE
@@ -2784,7 +2791,12 @@ CONTAINS
                     DWSAT,DKSAT,SMCMAX,BEXP,RUNOFF1,                    &
                     RUNOFF2,DT,SMCWLT,SLOPE,KDT,FRZFACT,SICE,AI,BI,CI,  &
                    SFHEAD1RT,INFXS1RT)
-         CALL SSTEP (SH2O,SH2O,CMC,RHSTT,RHSCT,DT,NSOIL,SMCMAX,         &
+
+! EMK NUWRF
+!         CALL SSTEP (SH2O,SH2O,CMC,RHSTT,RHSCT,DT,NSOIL,SMCMAX,         &
+!                     CMCMAX,RUNOFF3,ZSOIL,SMC,SICE,AI,BI,CI,INFXS1RT)
+         sh2o_tmp = sh2o
+         CALL SSTEP (SH2O,SH2O_tmp,CMC,RHSTT,RHSCT,DT,NSOIL,SMCMAX,         &
                      CMCMAX,RUNOFF3,ZSOIL,SMC,SICE,AI,BI,CI,INFXS1RT)
 !      RUNOF = RUNOFF
 

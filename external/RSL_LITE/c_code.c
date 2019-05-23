@@ -277,6 +277,9 @@ RSL_LITE_INIT_EXCH (
 #ifndef STUBMPI
   MPI_Comm comm, *comm0, dummy_comm ;
 
+  nbytes_x_recv = 0; /* EMK Bug Fix */
+  nbytes_y_recv = 0; /* EMK Bug Fix */
+
   comm0 = &dummy_comm ;
   *comm0 = MPI_Comm_f2c( *Fcomm0 ) ;
 
@@ -340,6 +343,9 @@ RSL_LITE_INIT_EXCH (
        buffer_for_proc ( xm , nbytes, RSL_SENDBUF ) ;
     }
   }
+#else  /* EMK Bug Fix */
+  nbytes_x_recv = 0; /* EMK Bug Fix */
+  nbytes_y_recv = 0; /* EMK Bug Fix */
 #endif
   yp_curs = 0 ; ym_curs = 0 ; xp_curs = 0 ; xm_curs = 0 ;
   yp_curs_recv = nbytes_y_recv ; ym_curs_recv = nbytes_y_recv ; 

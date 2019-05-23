@@ -165,8 +165,9 @@ MODULES =                                 \
         module_sorgam_vbs_cloudchem.o     \
         module_cam_mam_gas_wetdep_driver.o \
         module_cam_mam_mo_sethet.o         \
-        module_phot_fastj.o               \
-	module_chem_cup.o
+        module_phot_fastj.o                \
+	module_chem_cup.o                  \
+        module_casaco2_fluxes.o # NUWRF
 
 OBJS    =                           \
 	chemics_init.o              \

@@ -312,7 +312,7 @@ CONTAINS
       itf=MIN0(ite,ide-1)
       jtf=MIN0(jte,jde-1)
       ktf=MIN0(kte,kde-1)
-
+      call WRF_debug(100,'SFCLAY loop')
       DO J=jts,jte
         DO i=its,ite
            dz8w1d(I) = dz8w(i,kts,j)

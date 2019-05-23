@@ -56,6 +56,14 @@ CONTAINS
                      ,qg_curr                                         &
                      ,ng_curr,qh_curr,nh_curr,qr_curr,nr_curr         & !  Optional (gthompsn)
                      ,rho,ph,phb,g                                    &
+! NUWRF SRD
+                     ,t,p,pb                                          &
+                     ,ltg1_max,ltg2_max                               &
+                     ,msft                                            &
+                     ,qs_curr,qi_curr                                 &
+                     ,ht                                              &
+! NUWRF SRD
+
                                                                       )
 !----------------------------------------------------------------------
 
@@ -63,7 +71,7 @@ CONTAINS
   USE module_state_description, ONLY :                                  &
       KESSLERSCHEME, LINSCHEME, SBU_YLINSCHEME, WSM3SCHEME, WSM5SCHEME, &
       WSM6SCHEME, ETAMPNEW, THOMPSON, THOMPSONAERO,                     &
-      MORR_TWO_MOMENT, GSFCGCESCHEME, WDM5SCHEME, WDM6SCHEME,           &
+      MORR_TWO_MOMENT, MORR_FASTER, GSFCGCESCHEME, WDM5SCHEME, WDM6SCHEME,&
       NSSL_2MOM, NSSL_2MOMG, NSSL_2MOMCCN, NSSL_1MOM, NSSL_1MOMLFO,                 &
       MILBRANDT2MOM , CAMMGMPSCHEME, FAST_KHAIN_LYNN, FULL_KHAIN_LYNN    !,MILBRANDT3MOM, NSSL_3MOM
 
@@ -197,7 +205,7 @@ CONTAINS
 
    REAL, OPTIONAL, INTENT(IN)::  PREC_ACC_DT, CURR_SECS2
 
-   INTEGER :: i,j,k,its,ite,jts,jte,ij
+   INTEGER :: i,j,k,ij
    INTEGER :: idp,jdp,irc,jrc,irnc,jrnc,isnh,jsnh
 
    REAL              :: no_points
@@ -247,6 +255,43 @@ CONTAINS
 
    REAL :: wind_vel
    REAL :: depth
+
+! NUWRF SRD...Lightning threat diagnostics
+! We keep this here rather than in lightning_driver because these
+! are diagnostic only, use variables already calculated in this subroutine,
+! and do not affect any physics or chemistry.
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(IN) ::   &
+                                                              t  &
+                                       ,qs_curr,qi_curr          &
+                                                          ,p,pb
+   REAL, DIMENSION( ims:ime, jms:jme ), INTENT(IN) ::            &
+                                                            ht   &
+                                                          ,msft
+   REAL, DIMENSION( ims:ime , jms:jme ), INTENT(INOUT) ::        &
+                                ltg1_max,ltg2_max
+   INTEGER, DIMENSION( ips:ipe, jps:jpe ) ::      &
+                                                      ltg1_calc
+   INTEGER, DIMENSION( ips:ipe, jps:jpe ) ::      &
+                                                      totice_colint
+   REAL :: fraction
+   REAL :: tval2,tval1
+   REAL :: ltg1
+   REAL :: dbz,dbzr,dbzs,dbzg
+   REAL, PARAMETER :: dbzmin=-20.
+
+! Constants used in ltg threat calculations
+
+   REAL, PARAMETER    :: coef1=0.042*1000.*1.22
+   REAL, PARAMETER    :: coef2=0.20*1.22
+! NUWRF BEGIN
+! McCAUL/J.Case (3/8/2012) -- Change clim1 to reduce false alarms in threat1.
+!   REAL, PARAMETER    :: clim1=0.01*1.22
+   REAL, PARAMETER    :: clim1=1.50
+! NUWRF END
+   REAL, PARAMETER    :: clim2=0.40*1.22
+   REAL, PARAMETER    :: capa=0.28589641e0
+
+! NUWRF SRD END
 
       DOUBLE PRECISION:: hail_max
       REAL:: hail_max_sp
@@ -470,6 +515,8 @@ CONTAINS
          refd_max(i,j)    = 0.
          hail_maxk1(i,j)  = 0.
          hail_max2d(i,j)  = 0.
+         ltg1_max(i,j) = 0. ! NUWRF
+         ltg2_max(i,j) = 0. ! NUWRF
        ENDDO
        ENDDO
      ENDDO
@@ -487,6 +534,8 @@ CONTAINS
        w_colmean(i,j)   = 0.
        numcolpts(i,j)   = 0.
        grpl_colint(i,j) = 0.
+       totice_colint(i,j) = 0. ! NUWRF
+       ltg1_calc(i,j) = 0      ! NUWRF
      ENDDO
      ENDDO
    ENDDO
@@ -534,6 +583,31 @@ CONTAINS
        depth = ( ( ph(i,k+1,j) + phb(i,k+1,j) ) / g ) - &
                ( ( ph(i,k  ,j) + phb(i,k  ,j) ) / g )
        grpl_colint(i,j) = grpl_colint(i,j) + qg_curr(i,k,j) * depth * rho(i,k,j)
+       totice_colint(i,j) = totice_colint(i,j) + ( qi_curr(i,k,j) + \
+                            qs_curr(i,k,j) + qg_curr(i,k,j) ) * \
+                            depth * rho(i,k,j) ! NUWRF
+! BEGIN NUWRF
+       IF ( ltg1_calc(i,j) .EQ. 0 ) THEN
+         tval1 = (t(i,k,j)+300.)* \
+                 ((p(i,k,j)+pb(i,k,j))*1.e-5)**capa
+         tval2 = (t(i,k+1,j)+300.)* \
+                 ((p(i,k+1,j)+pb(i,k+1,j))*1.e-5)**capa
+
+         IF ( ((tval1+tval2)*0.5) .LT. 258.15 ) THEN
+           ltg1_calc(i,j) = 1
+
+           ltg1 = coef1*w(i,k,j)* \
+                  ((qg_curr(i,k,j)+qg_curr(i,k+1,j))*0.5)/msft(i,j)
+           IF ( ltg1 .LT. clim1 ) ltg1 = 0.
+
+           IF ( ltg1 .GT. ltg1_max(i,j) ) THEN
+             ltg1_max(i,j) = ltg1
+           ENDIF
+         ENDIF
+       ENDIF
+! END NUWRF
+
+
      ENDDO
      ENDDO
      ENDDO
@@ -567,6 +641,15 @@ CONTAINS
           grpl_max(i,j) = grpl_colint(i,j)
        ENDIF
 
+! NUWRF Calculate the max lightning threat 2
+
+       totice_colint(i,j) = coef2 * totice_colint(i,j) / msft(i,j)
+       IF ( totice_colint(i,j) .LT. clim2 ) totice_colint(i,j) = 0.
+
+       IF ( totice_colint(i,j) .GT. ltg2_max(i,j) ) THEN
+          ltg2_max(i,j) = totice_colint(i,j)
+       ENDIF
+
    ! Calculate the max radar reflectivity between output times
 
        IF ( refl_10cm(i,kms,j) .GT. refd_max(i,j) ) THEN
@@ -589,6 +672,8 @@ CONTAINS
 !.. particle per cubic meter of air is reached, from the upper size
 !.. limit, then this bin is considered the max size.
 !+---+-----------------------------------------------------------------+ 
+
+! EMK NUWRF FIXME...This will need work to support the 4ICE scheme
 
       WRITE(outstring,*) 'GT-Diagnostics, computing max-hail diameter'
       CALL wrf_debug (100, TRIM(outstring))
@@ -866,7 +951,7 @@ CONTAINS
 !      scheme_has_graupel = .true.
 !      either Hugh or Jason need to implement.
 
-     CASE (MORR_TWO_MOMENT)
+     CASE (MORR_TWO_MOMENT, MORR_FASTER)
        scheme_has_graupel = .true.
        xrho_g = 400.
        if (mpuse_hail .eq. 1) xrho_g = 900.

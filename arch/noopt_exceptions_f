@@ -6,6 +6,12 @@
 # mediation_force_domain.o : mediation_force_domain.F
 # mediation_interp_domain.o : mediation_interp_domain.F
 
+#EMK NUWRF
+module_first_rk_step_part1.o : module_first_rk_step_part1.F
+module_comm_dm_4.o : module_comm_dm_4.F
+#module_advect_em.o : module_advect_em.F # This probably should be optimized
+#EMK NUWRF END
+
 # compile these without high optimization to speed compile
 track_driver.o : track_driver.F
 convert_nmm.o : convert_nmm.F
@@ -80,11 +86,20 @@ output_wrf.o \
 solve_interface.o \
 start_domain.o \
 wrf_fddaobs_in.o \
+module_first_rk_step_part1.o \
 wrf_tsin.o :
 	$(RM) $@
 	$(SED_FTN) $*.F > $*.b 
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.b  > $*.f90
 	$(RM) $*.b
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
           echo COMPILING $*.F for 4DVAR ; \
           $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f90 > $*.f90.tmp ; \
@@ -112,6 +127,14 @@ module_sf_ruclsm.o :
 	$(SED_FTN) $*.F > $*.b 
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.b  > $*.f90
 	$(RM) $*.b
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	if $(FGREP) '!$$OMP' $*.f90 ; then \
           echo COMPILING $*.F WITH OMP ; \
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.F WITH OMP ; fi ; \
@@ -120,6 +143,16 @@ module_sf_ruclsm.o :
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.F WITHOUT OMP ; fi ; \
 	  $(FC) -c $(PROMOTION) $(FCREDUCEDOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(FCSUFFIX) $*.f90 ; \
         fi
+
+# NUWRF EMK...Avoid -O3 for 4ICE scheme
+module_mp_gsfcgce_4ice_nuwrf.o: module_mp_gsfcgce_4ice_nuwrf.F
+
+module_mp_gsfcgce_4ice_nuwrf.o :
+	$(RM) $@
+	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.F  > $*.bb
+	$(SED_FTN) $*.bb | $(CPP) > $*.f90
+	$(RM) $*.b $*.bb
+	$(FC) -c $(PROMOTION) $(FCREDUCEDOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(FCSUFFIX) $*.f90 
 
 # compile without OMP
 input_wrf.o \
@@ -154,11 +187,20 @@ module_comm_dm_0.o \
 module_comm_dm_1.o \
 module_comm_dm_2.o \
 module_comm_dm_3.o \
+module_comm_dm_4.o \
 module_comm_nesting_dm.o \
 module_configure.o :
 	$(RM) $@
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.F  > $*.bb
 	$(SED_FTN) $*.bb | $(CPP) $(TRADFLAG) > $*.f90
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
           echo COMPILING $*.F for 4DVAR ; \
           $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f90 > $*.f90.tmp ; \

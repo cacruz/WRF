@@ -43,6 +43,10 @@
       PP(X)=AMAX1(0.,X)                                                 
       PN(X)=AMIN1(0.,X)                                                 
 
+      Y(:,:,:) = 0 ! EMK TEST
+      W(:,:) = 0 ! EMK TEST
+      MXM(:,:) = 0 ! EMK TEST
+
       rr = nint(sqrt(float(nf)))
 !!      write(6,*) ' nf, rr are ',nf,rr
 

@@ -61,6 +61,10 @@ CONTAINS
               , SLWDN, SLWUP                        & ! goddard schemes
               , TSWDN, TSWUP                        & ! goddard schemes
               , SSWDN, SSWUP                        & ! goddard schemes
+              , REFC, REFR, REFI                    & ! goddard schemes
+              , REFS, REFG, REFH                    & ! goddard schemes
+              , COD2D_OUT                           & ! goddardrad_2014
+              , CTOP2D_OUT                          & ! goddardrad_2014
               , CLDFRA,CLDFRA_MP_ALL,CLDT,ZNU       &
 #if (EM_CORE == 1)
               , lradius,iradius                     &
@@ -76,7 +80,10 @@ CONTAINS
               , QI, F_QI                     &
               , QS, F_QS                     &
               , QG, F_QG                     &
+              , QH, F_QH                     &  !goddardrad_2014
+              ,goddardrad_2014_skip          &  !goddardrad_2014
               , QNDROP, F_QNDROP    &
+              , QNC, F_QNC, EFFCS          & ! crm 
               ,QNIFA,F_QNIFA                  &   ! trude
               ,QNWFA,F_QNWFA                  &   ! trude
               ,ACSWUPT   ,ACSWUPTC            &
@@ -144,6 +151,18 @@ CONTAINS
               ,aod5503d                                                   &
               ,taod5502d, taod5503d                                       & !  Trude
               ,mp_physics                                                 &
+              ,LWF0, LWF1, LWF2, LWF3,ZI_QT8                              & ! CRM
+              ,LWUPFD, LWDNFD, SWUPFD, SWDNFD                             & ! CRM
+!NUWRF JJS 20101021 vvvvv
+#if (WRF_CHEM == 1)
+              ,chem                                                       & ! inline gocart
+              ,aod_out                                                    & ! optional gocart
+              , AOD2D_OUT                                                 & ! goddardrad_2014
+              , ATOP2D_OUT                                                & ! goddardrad_2014
+              ,chem_opt                                                   &
+              ,gsfcrad_gocart_coupling                                    &
+#endif
+!NUWRF JJS 20101021 ^^^^^
                                                                           )
 
 
@@ -152,7 +171,7 @@ CONTAINS
 ! !USES:
    USE module_state_description, ONLY : RRTMSCHEME, GFDLLWSCHEME        &
                                        ,RRTMG_LWSCHEME, RRTMG_SWSCHEME  &
-                                       ,RRTMG_LWSCHEME_FAST, RRTMG_SWSCHEME_FAST  &
+                                       ,RRTMG_LWSCHEME_FAST, RRTMG_SWSCHEME_FAST &
                                        ,SWRADSCHEME, GSFCSWSCHEME       &
                                        ,GFDLSWSCHEME, CAMLWSCHEME, CAMSWSCHEME &
                                        ,HELDSUAREZ                      &
@@ -161,8 +180,27 @@ CONTAINS
 #endif
                                        ,goddardlwscheme                 & 
                                        ,goddardswscheme                 &  
+# if (EM_CORE == 1)
+                                       ,CAMMGMPSCHEME                   &
+                                       ,goddardlwscheme_2011 & !NUWRF
+                                       ,goddardswscheme_2011 & !NUWRF
+                                       ,goddardswscheme_2014 & !NUWRF
+                                       ,goddardlwscheme_2014 & !NUWRF
+                                       ,goddardswscheme_2017 & !NUWRF
+                                       ,goddardlwscheme_2017 & !NUWRF
+#if (WRF_CHEM == 1)
+
+                                       ,num_chem             & !NUWRF
+                                       ,p_bc1, p_bc2, p_oc1, p_oc2  & !NUWRF
+                                       ,p_dust_1, p_dust_2, p_dust_3 & !NUWRF
+                                       ,p_dust_4, p_dust_5          & !NUWRF
+                                       ,p_sulf, p_seas_1, p_seas_2  & !NUWRF
+                                       ,p_seas_3, p_seas_4          & !NUWRF
+#endif
+#endif
                                        ,KFCUPSCHEME                     & !BSINGH - Added KFCUPSCHEME for WRFCuP scheme
-                                       ,FLGLWSCHEME, FLGSWSCHEME
+                                       ,FLGLWSCHEME, FLGSWSCHEME &
+                                       ,CRM_LWSCHEME ! crm, rf02
 
    USE module_model_constants
 #ifndef HWRF
@@ -186,10 +224,16 @@ CONTAINS
    USE module_ra_hs         , ONLY : hsrad
 
    USE module_ra_goddard    , ONLY : goddardrad
+   USE module_ra_goddard_2011    , ONLY : goddardrad_2011 ! NUWRF
+   USE module_ra_goddard_2014    , ONLY : goddardrad_2014 ! NUWRF
+   USE module_ra_goddard_2017    , ONLY : goddardrad_2017 ! NUWRF
+
+
    USE module_ra_flg        , ONLY : RAD_FLG
 
    USE module_ra_aerosol    , ONLY : calc_aerosol_goddard_sw, &
                                      calc_aerosol_rrtmg_sw
+   USE module_crm_phy       , ONLY : crm_lw_rad
 
    !  This driver calls subroutines for the radiation parameterizations.
    !
@@ -594,13 +638,57 @@ CONTAINS
                                                           NCFRST, &  !Added
                                                           NCFRCV     !Added
 
+! NUWRF JJS 20101021 vvvvv
+! for inline Gocart coupling
+#if( WRF_CHEM == 1)
+
+ REAL, OPTIONAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem), &
+         INTENT(IN)               ::  chem
+ real, dimension(ims:ime, kms:kme, jms:jme), optional, intent(out) :: aod_out  !Aeorosol Optical Depth
+
+ real, dimension( ims:ime, jms:jme ), OPTIONAL, INTENT(OUT) :: &   !goddardrad_2014
+      aod2d_out    ,&  ! column aerosol optical depth
+      atop2d_out       ! aerosol top pressure [mb]  
+
+
+ integer :: i24h
+ INTEGER, PARAMETER :: num_go = 14  ! number of the gocart aerosol species
+ REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_go) :: aero
+ REAL, PARAMETER :: frac(4)=(/ 0.01053,0.08421,0.25263,0.65263 /) !fraction for fine dust
+ integer,intent(in) :: chem_opt ! EMK
+ integer,intent(in) :: gsfcrad_gocart_coupling ! EMK
+
+#endif
+! NUWRF JJS 20101021 ^^^^^
+
+! JJS 20090623  vvvvv
 ! Optional, only for Goddard LW and SW
-   REAL, DIMENSION(IMS:IME, JMS:JME, 1:8)       :: ERBE_out  !extra output for SDSU
+   REAL, DIMENSION(IMS:IME, JMS:JME, 1:8)       :: erbe_out  !extra output for SDSU
+
    REAL, DIMENSION(IMS:IME, JMS:JME), OPTIONAL, INTENT(INOUT) ::   & !BSINGH(PNNL)- Lahey compiler forced this specification to be intent-inout
                                                TLWDN, TLWUP,     &
                                                SLWDN, SLWUP,     &
                                                TSWDN, TSWUP,     &
                                                SSWDN, SSWUP        ! for Goddard schemes
+! NUWRF JJS 20090623  ^^^^^
+
+! NUWRF JJS 20140225  vvvvv
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),               OPTIONAL ,&
+         INTENT(INOUT)  :: refc, refr, refi, refs, refg, refh 
+! NUWRF JJS 20140225  ^^^^^
+
+  real, dimension( ims:ime, jms:jme, 1:4 )  :: sflxd    !NUWRF SW only for LIS
+
+!   REAL, DIMENSION(IMS:IME, JMS:JME, 1:4)    :: flxd  !NUWRF extra radiation output for LIS (CLM)
+       ! 1-surface downward UV+VIS beam radiation [W/m2]
+       ! 2-surface downward UV+VIS diffuse radiation [W/m2]
+       ! 3-surface downward NIR beam radiation [W/m2]
+       ! 4-surface downward NIR diffuse radiation [W/m2]
+
+
+ real, dimension( ims:ime, jms:jme ), OPTIONAL, INTENT(INOUT) :: &   !goddardrad_2014
+      cod2d_out    ,&  ! column optical depth
+      ctop2d_out       ! cloud top pressure [mb]  
 
 ! Added by ZCX for low and total cloud fraction
    REAL, DIMENSION( kms:kme ), OPTIONAL, INTENT(IN)   :: znu      ! eta values on half (mass)levels
@@ -656,11 +744,15 @@ CONTAINS
          OPTIONAL,                                                &
          INTENT(INOUT ) ::                                        &
                                                                pb &
-                                        ,qv,qc,qr,qi,qs,qg,qndrop,      &
-                                                      qnifa,qnwfa        ! Trude
+                                        ,qv,qc,qr,qi,qs,qg,qh,qndrop      & !qh: goddardrad_2014
+                                                      ,qnifa, qnwfa &     ! Trude
+                                                      ,effcs, qnc         ! KVW, crm
 
-   LOGICAL, OPTIONAL ::     f_qv,f_qc,f_qr,f_qi,f_qs,f_qg,f_qndrop,     &
-                                                f_qnifa,f_qnwfa          ! trude
+   LOGICAL, OPTIONAL ::     f_qv,f_qc,f_qr,f_qi,f_qs,f_qg,f_qh,f_qndrop   & !f_qh: goddardrad_2014
+                                                            ,f_qnc &      ! KVW, crm
+                                                  ,f_qnifa,f_qnwfa        ! trude
+
+   INTEGER,OPTIONAL,INTENT(IN) :: goddardrad_2014_skip   ! goddardrad_2014: ( 0 or 1 )
 !
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                  &
          OPTIONAL,                                                &
@@ -737,6 +829,15 @@ CONTAINS
      INTEGER, PARAMETER:: taer_ssa_opt = 3                               !  input option for aerosol ssa
      INTEGER, PARAMETER:: taer_asy_opt = 3                               !  input option for aerosol asy
 
+! **********************************************************************
+! crm 
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                &
+         OPTIONAL, INTENT(INOUT) ::            LWF0,LWF1,LWF2,LWF3
+   REAL, DIMENSION( ims:ime, jms:jme ),                &
+         OPTIONAL, INTENT(INOUT) ::            ZI_QT8
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                &
+         OPTIONAL, INTENT(INOUT) ::    LWUPFD, LWDNFD, SWUPFD, SWDNFD           
+! **********************************************************************
 
 #if ( HWRF == 1 )
    CHARACTER(len=255) :: wrf_err_message
@@ -1000,20 +1101,14 @@ CONTAINS
      ENDDO
      ENDDO
 
+! bug found here (toshii) RTHRATEN vertical k level is from kms to kme, but
+! k loop does from kts to kte + 1, which will cause bounds errors. 
      DO j=jts,jte
-     DO k=kts,kte+1
+     DO k=kts,kte+1  
      DO i=its,ite
         RTHRATEN(I,K,J)=0.
         RTHRATENLW(I,K,J)=0.
         RTHRATENSW(I,K,J)=0.
-!        SWUP(I,K,J) = 0.0
-!        SWDN(I,K,J) = 0.0
-!        SWUPCLEAR(I,K,J) = 0.0
-!        SWDNCLEAR(I,K,J) = 0.0
-!        LWUP(I,K,J) = 0.0
-!        LWDN(I,K,J) = 0.0
-!        LWUPCLEAR(I,K,J) = 0.0
-!        LWDNCLEAR(I,K,J) = 0.0
         CEMISS(I,K,J)=0.0
      ENDDO
      ENDDO
@@ -1107,6 +1202,70 @@ CONTAINS
           ENDDO
      ENDIF
 
+! these are half level parameters.....so, it shoudl start from kts to kte - 1
+!NUWRF JJS 20101021 vvvvv
+#if ( WRF_CHEM == 1)
+! Pack gocart aerosol species
+! All aerosol species in chem are in "ug/kg-dryair"
+!  and conerted to (g/m**3)
+
+   aero(:,:,:,:) = 0.
+   if ( (chem_opt == 300 .or. chem_opt == 301 .or. &
+         chem_opt == 302 .or. chem_opt == 303) .and. &
+         (gsfcrad_gocart_coupling == 1) ) then
+      do j = jts, jte
+         do k = kts, kte  !corrected memory order
+            do i = its, ite
+               ! aero(i,k,j, 1) = max(0.0, chem(i,k,j,p_sulf)*1.0e-6*rho(i,k,j))             !  1 = SO4
+               aero(i,k,j, 1) = max(0.0, chem(i,k,j,p_sulf)*1.0e-6*p(i,k,j)*96.0/(8.314*t(i,k,j)))  ! 1 = SO4
+               aero(i,k,j, 2) = max(0.0, (chem(i,k,j,p_bc1)+chem(i,k,j,p_bc2))*1.0e-6*rho(i,k,j))  ! 2 = BC1+BC2
+               aero(i,k,j, 3) = max(0.0, chem(i,k,j,p_oc1)*1.0e-6*rho(i,k,j)*1.4e0)          !  3 = OC1
+               aero(i,k,j, 4) = max(0.0, chem(i,k,j,p_oc2)*1.0e-6*rho(i,k,j)*1.4e0)          !  4 = OC2
+               aero(i,k,j, 5) = max(0.0, chem(i,k,j,p_seas_1)*1.0e-6*rho(i,k,j))           !  5 = SS1
+               aero(i,k,j, 6) = max(0.0, (chem(i,k,j,p_seas_2)+chem(i,k,j,p_seas_3)+  &
+                    chem(i,k,j,p_seas_4))*1.0e-6*rho(i,k,j))          !  6 = SS2+SS3+SS4
+               aero(i,k,j, 7) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(1))   !  7 = DU1 dust mode 1
+               aero(i,k,j, 8) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(2))   !  8 = DU1 dust mode 2
+               aero(i,k,j, 9) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(3))   !  9 = DU1 dust mode 3
+               aero(i,k,j,10) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(4))   ! 10 = DU1 dust mode 4
+               aero(i,k,j,11) = max(0.0, chem(i,k,j,p_dust_2)*1.0e-6*rho(i,k,j))           ! 11 = DU2 dust mode 5
+               aero(i,k,j,12) = max(0.0, chem(i,k,j,p_dust_3)*1.0e-6*rho(i,k,j))           ! 11 = DU3 dust mode 6
+               aero(i,k,j,13) = max(0.0, chem(i,k,j,p_dust_4)*1.0e-6*rho(i,k,j))           ! 11 = DU4 dust mode 7
+               aero(i,k,j,14) = max(0.0, chem(i,k,j,p_dust_5)*1.0e-6*rho(i,k,j))           ! 11 = DU5 dust mode 8
+            enddo ! i
+         enddo ! k
+      enddo ! j
+   end if ! if (gsfcrad_gocart_coupling == 1)
+#endif
+!NUWRF JJS 20101021 ^^^^^
+
+!JJS initlialize cloud droplet effective radius
+   if (itimestep.eq.1) then
+     refc(:,:,:) = 0.
+     refr(:,:,:) = 0.
+     refi(:,:,:) = 0.
+     refs(:,:,:) = 0.
+     refg(:,:,:) = 0.
+     refh(:,:,:) = 0.
+   endif 
+!JJS test print
+!   if ( wrf_dm_on_monitor() .and. xtime.eq.60.0 ) then
+!      print *,'inside radiation driver, xtime = ', xtime
+!      write(20+ID,*) 'refc'
+!      write(20+ID,*) refc
+!      write(30+ID,*) 'refr'
+!      write(30+ID,*) refr
+!      write(40+ID,*) 'refi'
+!      write(40+ID,*) refi
+!      write(50+ID,*) 'refs'
+!      write(50+ID,*) refs
+!      write(60+ID,*) 'refg'
+!      write(60+ID,*) refg
+!      write(70+ID,*) 'refh'
+!      write(70+ID,*) refh
+!   endif
+!JJS test print
+
 ! Choose how to compute cloud fraction (since 3.6)
 ! Initialize to zero 
      DO j=jts,jte
@@ -1116,6 +1275,9 @@ CONTAINS
      END DO
      END DO
      END DO
+
+!---------------
+! Calculate constant for short wave radiation
 
      IF ( ICLOUD == 1 ) THEN
 
@@ -1325,6 +1487,24 @@ CONTAINS
 
      lwrad_select: SELECT CASE(lw_physics)
 
+! *****************************************************************************
+! crm: Radiation scheme for DYCOMSII RF02
+
+        CASE (CRM_LWSCHEME)
+             CALL wrf_debug (100, 'CALL crm_lw')
+
+             CALL CRM_LW_RAD(                                       &
+                  RTHRATEN=RTHRATEN,OLR=RLWTOA,Z_I=ZI_QT8           &
+                 ,LWF0=LWF0,LWF1=LWF1,LWF2=LWF2,LWF3=LWF3           &
+                 ,P8W=p8w,P3D=p,PI3D=pi,T8W=t8w                     &
+                 ,Z=z,DZ8W=dz8w,RHO3D=rho                           &
+                 ,QV3D=QV,QC3D=QC,QR3D=QR                           &
+                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde &     
+                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
+                 ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
+                                                                    )
+! *****************************************************************************
+
         CASE (RRTMSCHEME)
              CALL wrf_debug (100, 'CALL rrtm')
 
@@ -1354,14 +1534,13 @@ CONTAINS
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
-
         CASE (goddardlwscheme)
 
              CALL wrf_debug (100, 'CALL goddard longwave radiation scheme ')
              IF (itimestep.eq.1) then
                 call wrf_message('running goddard lw radiation')
              ENDIF
-             CALL goddardrad(sw_or_lw='lw'                             &
+            CALL goddardrad(sw_or_lw='lw'                             &
                     ,rthraten=rthraten,gsf=glw,xlat=xlat,xlong=xlong   &
                     ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
                     ,dz8w=dz8w,rho_phy=rho,emiss=emiss                 &
@@ -1392,6 +1571,114 @@ CONTAINS
                     ,asyaer3d_sw=asyaer_sw                             & ! jararias, 2012/11
                                                                        )
 
+! NUWRF Version by Toshihisa Matsui and Jainn Shi 20090623
+        CASE (goddardlwscheme_2011)
+
+             CALL wrf_debug (100, 'CALL NUWRF goddard longwave radiation scheme ')
+             IF (itimestep.eq.1) then
+                print *,'running NUWRF goddard lw radiation'
+             ENDIF
+             CALL goddardrad_2011(sw_or_lw='lw'                             &
+                    ,rthraten=rthraten,gsf=glw,xlat=xlat,xlong=xlong   &
+                    ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
+                    ,dz8w=dz8w,rho_phy=rho,emiss=emiss,tsk=tsk         &
+                    ,cldfra3d=cldfra                                   &
+                    ,gmt=gmt,cp=cp,g=g,t8w=t8w                         &
+                    ,julday=julday,xtime=xtime                         &
+                    ,declin=declin,solcon=solcon                       &
+                    ,radfrq=radt,degrad=degrad                         &
+                    ,taucldi=taucldi,taucldc=taucldc                   &
+                    ,warm_rain=warm_rain                               &
+                    ,ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde &
+                    ,ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme &
+                    ,its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte &
+                    ,qv=qv                                           &
+                    ,qc=qc                                           &
+                    ,qr=qr                                           &
+                    ,qi=qi                                           &
+                    ,qs=qs                                           &
+                    ,qg=qg                                           &
+                    ,f_qv=f_qv,f_qc=f_qc,f_qr=f_qr                     &
+                    ,f_qi=f_qi,f_qs=f_qs,f_qg=f_qg                     &
+                    ,erbe_out=erbe_out                                 & !optional
+!JJS 20101021 vvvvv
+#if ( WRF_CHEM == 1)
+                    ,AERO=aero                                         &
+                    ,CHEM_OPT=chem_opt                                 &
+                    ,GSFCRAD_GOCART_COUPLING=gsfcrad_gocart_coupling   &
+#endif
+!JJS 20101021 ^^^^^
+                                                                    )
+
+
+        case (goddardlwscheme_2014)
+
+             CALL wrf_debug (100, 'CALL NUWRF goddard longwave radiation scheme 2014')
+             IF (itimestep.eq.1) then
+                print *,'running NUWRF goddard lw radiation 2014'
+             ENDIF
+
+             CALL goddardrad_2014(sw_or_lw='lw',dx=dx,iskip=goddardrad_2014_skip &
+                    ,rthraten=rthraten,gsf=glw,xlat=xlat,xlong=xlong   &
+                    ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
+                    ,dz8w=dz8w,rho_phy=rho,emiss=emiss,tsk=tsk         &
+                    ,cldfra3d=cldfra                                   &
+                    ,gmt=gmt,cp=cp,g=g,t8w=t8w                         &
+                    ,julday=julday,xtime=xtime                         &
+                    ,declin=declin,solcon=solcon                       &
+                    ,radfrq=radt,degrad=degrad                         &
+                    ,warm_rain=warm_rain                               &
+                    ,ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde &
+                    ,ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme &
+                    ,its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte &
+                    ,qv=qv,qc=qc,qi=qi,qr=qr,qs=qs,qg=qg,qh=qh         &
+                    ,f_qv=f_qv,f_qc=f_qc,f_qr=f_qr                     &
+                    ,f_qi=f_qi,f_qs=f_qs,f_qg=f_qg ,f_qh=f_qh          &
+                    ,rec3d=refc,rei3d=refi,rer3d=refr,res3d=refs       & !optional
+                    ,reg3d=refg,reh3d=refh                             & !optional 
+                    ,erbe_out=erbe_out                                 &
+!NUWRF EMK
+                    ,itimestep=itimestep                               &
+                    ,dt_in=dt                                          &
+!NUWRF EMK END
+#if ( WRF_CHEM == 1)
+                    ,AERO=aero                                         &
+                    ,CHEM_OPT=chem_opt                                 &
+                    ,GSFCRAD_GOCART_COUPLING=gsfcrad_gocart_coupling   &
+#endif
+                                                                       )
+        case (goddardlwscheme_2017)
+
+           !CALL wrf_debug (100, 'CALL NUWRF goddard longwave radiation scheme 2017')
+
+             CALL goddardrad_2017(sw_or_lw='lw',dx=dx                  &
+                    ,rthraten=rthraten,gsf=glw,xlat=xlat,xlong=xlong   &
+                    ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
+                    ,dz8w=dz8w,rho_phy=rho,emiss=emiss,tsk=tsk         &
+                    ,cldfra3d=cldfra                                   &
+                    ,gmt=gmt,cp=cp,g=g,t8w=t8w                         &
+                    ,julday=julday,xtime=xtime                         &
+                    ,declin=declin,solcon=solcon                       &
+                    ,radfrq=radt,degrad=degrad                         &
+                    ,warm_rain=warm_rain                               &
+                    ,ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde &
+                    ,ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme &
+                    ,its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte &
+                    ,qv=qv,qc=qc,qi=qi,qr=qr,qs=qs,qg=qg,qh=qh         &
+                    ,f_qv=f_qv,f_qc=f_qc,f_qr=f_qr                     &
+                    ,f_qi=f_qi,f_qs=f_qs,f_qg=f_qg ,f_qh=f_qh          &
+                    ,rec3d=refc,rei3d=refi,rer3d=refr,res3d=refs       & !optional
+                    ,reg3d=refg,reh3d=refh                             & !optional 
+                    ,erbe_out=erbe_out                                 &
+                    ,itimestep=itimestep, dt_in = dt                   &
+#if (WRF_CHEM == 1)
+                    ,AERO=aero                                         &
+                    ,CHEM_OPT=chem_opt                                 &
+                    ,GSFCRAD_GOCART_COUPLING=gsfcrad_gocart_coupling   &
+#endif
+                                                                       )
+
+                                                                       
         CASE (GFDLLWSCHEME)
 
              CALL wrf_debug (100, 'CALL gfdllw')
@@ -1694,7 +1981,11 @@ CONTAINS
         ENDDO
      ENDIF
 
-     IF (lw_physics .eq. goddardlwscheme) THEN
+!NUWRF JJS 20090623 vvvvv
+     IF ((lw_physics .eq. goddardlwscheme_2011) .or. &
+         (lw_physics .eq. goddardlwscheme_2014) .or. &
+         (lw_physics .eq. goddardlwscheme_2017) .or. &
+         (lw_physics .eq. goddardlwscheme     )    ) THEN
           IF ( PRESENT (tlwdn) ) THEN
         DO j=jts,jte
         DO i=its,ite
@@ -1706,6 +1997,7 @@ CONTAINS
         ENDDO    
           ENDIF
      ENDIF       
+!NUWRF JJS 20090623 ^^^^^
 
      IF ( PRESENT( AOD5502D ) ) THEN
      ! jararias, 2013/11
@@ -1868,6 +2160,135 @@ CONTAINS
                     ,asyaer3d_sw=asyaer_sw                             & ! jararias, 2012/11
                     ,aer_opt=aer_opt                                   &
                                                                        )
+
+! NUWRF by Toshihisa Matsui and Jainn Shi 20090624
+
+        CASE (goddardswscheme_2011)
+             CALL wrf_debug(100, 'CALL NUWRF goddard shortwave radiation scheme ')
+             IF (itimestep.eq.1) then
+                print *,'running NUWRF goddard sw radiation'
+             ENDIF
+             CALL goddardrad_2011(sw_or_lw='sw'                             &
+                    ,rthraten=rthraten,gsf=gsw,xlat=xlat,xlong=xlong   &
+                    ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
+                    ,dz8w=dz8w,rho_phy=rho,emiss=emiss,tsk=tsk         &
+                    ,cldfra3d=cldfra                                   &
+                    ,gmt=gmt,cp=cp,g=g,t8w=t8w                         &
+                    ,julday=julday,xtime=xtime                         &
+                    ,declin=declin,solcon=solcon                       &
+                    ,radfrq=radt,degrad=degrad                         &
+                    ,taucldi=taucldi,taucldc=taucldc                   &
+                    ,warm_rain=warm_rain                               &
+                    ,ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde &
+                    ,ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme &
+                    ,its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte &
+                    ,qv=qv                                           &
+                    ,qc=qc                                           &
+                    ,qr=qr                                           &
+                    ,qi=qi                                           &
+                    ,qs=qs                                           &
+                    ,qg=qg                                           &
+                    ,f_qv=f_qv,f_qc=f_qc,f_qr=f_qr                     &
+                    ,f_qi=f_qi,f_qs=f_qs,f_qg=f_qg                     &
+                    ,erbe_out=erbe_out                                 & !optional
+                    ,sflxd=sflxd                                       & !optional (for LIS)
+                    ,swddir=swddir,swddni=swddni,swddif=swddif         & ! jararias, 14/08/2013
+!JJS 20101021 vvvvv
+#if( WRF_CHEM == 1)
+                    ,aod_out=aod_out                                   & ! optional gocart
+                    ,aero=aero                                         &
+                    ,CHEM_OPT=chem_opt                                 &
+                    ,GSFCRAD_GOCART_COUPLING=gsfcrad_gocart_coupling   &
+#endif
+                                                                       )
+!JJS 20101021 ^^^^^
+
+
+
+
+        case (goddardswscheme_2014)
+
+             CALL wrf_debug(100, 'CALL NUWRF goddard shortwave radiation scheme 2014')
+             IF (itimestep.eq.1) then
+                print *,'running NUWRF goddard sw radiation 2014'
+             ENDIF
+
+             CALL goddardrad_2014(sw_or_lw='sw',dx=dx,iskip=goddardrad_2014_skip &
+                    ,rthraten=rthraten,gsf=gsw,xlat=xlat,xlong=xlong   &
+                    ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
+                    ,dz8w=dz8w,rho_phy=rho,emiss=emiss,tsk=tsk         &
+                    ,cldfra3d=cldfra                                   &
+                    ,gmt=gmt,cp=cp,g=g,t8w=t8w                         &
+                    ,julday=julday,xtime=xtime                         &
+                    ,declin=declin,solcon=solcon                       &
+                    ,radfrq=radt,degrad=degrad                         &
+                    ,warm_rain=warm_rain                               &
+                    ,ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde &
+                    ,ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme &
+                    ,its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte &
+                    ,qv=qv,qc=qc,qr=qr,qi=qi,qs=qs,qg=qg,qh=qh         & !optional
+                    ,f_qv=f_qv,f_qc=f_qc,f_qr=f_qr                     & !optional
+                    ,f_qi=f_qi,f_qs=f_qs,f_qg=f_qg ,f_qh=f_qh          & !optional
+                    ,rec3d=refc,rei3d=refi,rer3d=refr,res3d=refs       & !optional
+                    ,reg3d=refg,reh3d=refh                             & !optional 
+                    ,erbe_out=erbe_out                                 &
+!NUWRF EMK
+                    ,itimestep=itimestep                               &
+                    ,dt_in=dt                                          &
+!NUWRF EMK END
+                    ,cod2d_out=cod2d_out,ctop2d_out=ctop2d_out            & !optional
+                    ,sflxd=sflxd                                       & !optional
+                    ,swddir=swddir,swddni=swddni,swddif=swddif         & !optional 
+                    ,coszen=coszen                                     & !optional
+#if ( WRF_CHEM == 1)
+                    ,aod2d_out=aod2d_out, atop2d_out=atop2d_out            & ! optional
+                    ,AERO=aero                                         &
+                    ,CHEM_OPT=chem_opt                                 &
+                    ,GSFCRAD_GOCART_COUPLING=gsfcrad_gocart_coupling   &
+#endif
+                                                                       )
+
+        case (goddardswscheme_2017)
+
+             CALL wrf_debug(100, 'CALL NUWRF goddard shortwave radiation scheme 2017')
+
+             CALL goddardrad_2017(sw_or_lw='sw',dx=dx                  &
+                    ,rthraten=rthraten,gsf=gsw,xlat=xlat,xlong=xlong   &
+                    ,alb=albedo,t3d=t,p3d=p,p8w3d=p8w,pi3d=pi          &
+                    ,dz8w=dz8w,rho_phy=rho,emiss=emiss,tsk=tsk         &
+                    ,cldfra3d=cldfra                                   &
+                    ,gmt=gmt,cp=cp,g=g,t8w=t8w                         &
+                    ,julday=julday,xtime=xtime                         &
+                    ,declin=declin,solcon=solcon                       &
+                    ,radfrq=radt,degrad=degrad                         &
+                    ,warm_rain=warm_rain                               &
+                    ,ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde &
+                    ,ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme &
+                    ,its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte &
+                    ,qv=qv,qc=qc,qr=qr,qi=qi,qs=qs,qg=qg,qh=qh         & !optional
+                    ,f_qv=f_qv,f_qc=f_qc,f_qr=f_qr                     & !optional
+                    ,f_qi=f_qi,f_qs=f_qs,f_qg=f_qg ,f_qh=f_qh          & !optional
+                    ,rec3d=refc,rei3d=refi,rer3d=refr,res3d=refs       & !optional
+                    ,reg3d=refg,reh3d=refh                             & !optional 
+                    ,erbe_out=erbe_out                                 &
+                    ,cod2d_out=cod2d_out,ctop2d_out=ctop2d_out         & !optional
+                    ,sflxd=sflxd                                       & !optional
+                    ,swddir=swddir,swddni=swddni,swddif=swddif         & !optional 
+                    ,coszen=coszen                                     & !optional
+                    ,itimestep=itimestep, dt_in = dt                   &
+#if (WRF_CHEM == 1)
+                    ,aod2d_out=aod2d_out, atop2d_out=atop2d_out        & ! optional
+                    ,AERO=aero                                         &
+                    ,CHEM_OPT=chem_opt                                 &
+                    ,GSFCRAD_GOCART_COUPLING=gsfcrad_gocart_coupling   &
+#endif
+                                                                       )
+
+
+
+
+
+
 
         CASE (CAMSWSCHEME)
              CALL wrf_debug(100, 'CALL camrad sw')
@@ -2137,7 +2558,7 @@ CONTAINS
 
            ! Here in case we don't want to call a sw radiation scheme
            ! For example, the Held-Suarez idealized test case
-           IF (lw_physics /= HELDSUAREZ) THEN
+           IF (lw_physics /= HELDSUAREZ .and. lw_physics /= CRM_LWSCHEME) THEN 
              WRITE( wrf_err_message , * ) &
 'You have selected a longwave radiation option, but not a shortwave option (sw_physics = 0, lw_physics = ',lw_physics,')'
              CALL wrf_error_fatal ( wrf_err_message )
@@ -2157,7 +2578,11 @@ CONTAINS
 
      END SELECT swrad_select    
 
-     IF (sw_physics .eq. goddardswscheme) THEN
+!NUWRF JJS 20090623  vvvvv
+     IF ( (sw_physics .eq. goddardswscheme_2011) .or. &
+          (sw_physics .eq. goddardswscheme_2014) .or. &
+          (sw_physics .eq. goddardswscheme_2017) .or. &
+          (sw_physics .eq. goddardswscheme     )  ) THEN
           IF ( PRESENT (tswdn) ) THEN
         DO j=jts,jte
         DO i=its,ite
@@ -2169,6 +2594,7 @@ CONTAINS
         ENDDO
           ENDIF
      ENDIF
+!NUWRF JJS 20090623  ^^^^^
 
      IF (sw_physics .gt. 0 .and. .not.gfdl_sw .and. .not.flg_sw) THEN
         DO j=jts,jte
@@ -2189,9 +2615,13 @@ CONTAINS
 ! jararias, 14/08/2013
      ! surface direct and diffuse SW fluxes computation. Only for schemes other than RRTMG and Goddard
      ! Backup method in case sw scheme in use does not provide surface SW direct and diffuse irradiances
+! EMK NUWRF...Skip NUWRF Goddard SW schemes
      IF ((sw_physics .NE. RRTMG_SWSCHEME) .AND. (sw_physics .NE. RRTMG_SWSCHEME_FAST) &
            .AND. (sw_physics .NE. FLGSWSCHEME) .AND. (sw_physics .NE. CAMSWSCHEME) &  ! amontornes-bcodina (2014-04-20)
-           .AND. (sw_physics .ne. GODDARDSWSCHEME)) THEN
+           .AND. (sw_physics .ne. GODDARDSWSCHEME) &
+           .and. (sw_physics .ne. goddardswscheme_2011) &
+           .and. (sw_physics .ne. goddardswscheme_2014) &
+           .and. (sw_physics .ne. goddardswscheme_2017) ) THEN
         DO j=jts,jte
            DO i=its,ite
               IF (coszen(i,j).GT.1e-3) THEN
@@ -4693,3 +5123,4 @@ END SUBROUTINE aer_p_int
 !+---+-----------------------------------------------------------------+
 
 END MODULE module_radiation_driver
+

@@ -2,10 +2,12 @@
 
 .SUFFIXES: .c .o
 
-CC=cc
-
+# EMK NUWRF...Don't override compiler selections from parent makefile.
+#CC=cc
+#.c.o:
+#	$(CC) -c -O $<
 .c.o:
-	$(CC) -c -O $<
+	$(CC) -c $(CFLAGS) $<
 
 obj=wgrib_main.o seekgrib.o ibm2flt.o readgrib.o intpower.o cnames.o BDSunpk.o \
   flt2ieee.o wrtieee.o levels.o PDStimes.o missing.o  \

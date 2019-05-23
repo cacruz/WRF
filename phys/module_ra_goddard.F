@@ -820,6 +820,8 @@ contains
       do i = its, ite
          reff(i,k,1) = max( min(reff(i,k,1),125._fp_kind) ,   25._fp_kind) !ice
          reff(i,k,2) = max( min(reff(i,k,2), 20._fp_kind) ,    4._fp_kind) !liquid 
+         ! EMK NUWRF...Make sure array entry is initialized
+         reff(i,k,3) = 60._fp_kind
          reff(i,k,3) = max( min(reff(i,k,3), 60._fp_kind) , 1800._fp_kind) !rain (dummy not used)
       end do
    end do

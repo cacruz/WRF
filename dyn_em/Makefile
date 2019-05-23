@@ -4,7 +4,6 @@ LN      =       ln -sf
 MAKE    =       make -i -r
 RM      =       rm -f
 
-
 MODULES =                 		\
         module_advect_em.o   		\
 	module_diffusion_em.o  		\
@@ -26,8 +25,10 @@ MODULES =                 		\
 	module_sfs_driver.o		\
 	module_stoch.o			\
 	module_after_all_rk_steps.o	\
+        module_force_crm.o              \
+	ReconcileWithLis_mod.o          \
+	NetcdfUtils_mod.o               \
 	$(CASE_MODULE)
-
 # possible CASE_MODULE settings
 #	module_initialize_b_wave.o      \
 #	module_initialize_grav2d_x.o    \

@@ -113,6 +113,7 @@ echo $kdir
 
   cd $kdir
   echo model $model
+  echo make MODEL=$model KPP=$WKC_KPP WRFC_ROOT=$WRFC_ROOT  
   make MODEL=$model KPP=$WKC_KPP WRFC_ROOT=$WRFC_ROOT  
 
 # generate tuv photolysis inc files

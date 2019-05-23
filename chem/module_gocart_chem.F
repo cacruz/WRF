@@ -90,7 +90,13 @@ CONTAINS
        chpso4=0.
        chlso2_oh=0.
        chlso2_aq=0.
-       if (present(gd_cldf) ) then
+! EMK NUWRF...gd_cldf is *always* present even if a Grell cumulus scheme is
+! not used. Worse, if namelist variable cu_diag is set to zero, then gd_cldf
+! has dimensions of (1,1,1) (as of WRF 3.5.1). We replace the "if present" test
+! with a test for cu_diag (WRF will force cu_diag=1 for a Grell scheme, and
+! cu_diag=0 otherwise).
+!       if (present(gd_cldf) ) then
+       if (config_flags%cu_diag .eq. 1) then
           cldf(1,1,1)=gd_cldf(i,k,j)
        else
           cldf(1,1,1)=0.
@@ -157,7 +163,13 @@ CONTAINS
        chpso4=0.
        chlso2_oh=0.
        chlso2_aq=0.
-          if( present(gd_cldf) ) then
+! EMK NUWRF...gd_cldf is *always* present even if a Grell cumulus scheme is
+! not used. Worse, if namelist variable cu_diag is set to zero, then gd_cldf
+! has dimensions of (1,1,1) (as of WRF 3.5.1). We replace the "if present" test
+! with a test for cu_diag (WRF will force cu_diag=1 for a Grell scheme, and
+! cu_diag=0 otherwise).
+!          if (present(gd_cldf) ) then
+          if (config_flags%cu_diag .eq. 1) then
             cldf(1,1,1)=gd_cldf(i,k,j)
           else
             cldf(1,1,1)=0.

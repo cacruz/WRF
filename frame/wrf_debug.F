@@ -41,4 +41,47 @@ SUBROUTINE wrf_debug( level , str )
 #endif 
   ENDIF 
   RETURN 
-END SUBROUTINE wrf_debug 
+END SUBROUTINE wrf_debug
+      
+subroutine WRF_trace(fpath,line,msg,lunit)      
+   implicit none
+      
+   character(len=*), intent(in) :: fpath
+   integer, intent(in) :: line
+   character(len=*), intent(in), optional :: msg
+   integer, intent(in), optional :: lunit
+
+   integer :: lunit_
+   character(len=:), allocatable :: str
+   character(len=:), allocatable :: msg_
+   msg_ = ""
+   lunit_ = 6
+   if (present (msg)) msg_ = msg
+   if (present (lunit)) lunit_ = lunit
+   str = fname(fpath)
+   write(unit=lunit_,fmt='(a,1x,i4,1x,a)')'[DEBUG] '//str,line,msg_
+   flush(lunit_)
+
+contains
+      
+   function fname(fpath_)
+      character(len=*), intent(in) :: fpath_
+      character(:), allocatable :: fname
+      character(len=64) :: ok='._ABCDEFGHIJKLMNOPQRSTUVWXYZ'//&
+                              'abcdefghijklmnopqrstuvwxyz'//&
+                              '0123456789'
+      integer l1,l2
+      fname = fpath_
+      l2 = len(fpath_)
+      l1 = l2
+      do
+         if (index(ok,fpath_(l1:l1)) > 0) then 
+            l1 = l1 - 1
+         else
+            exit
+         end if
+      end do
+      fname = fpath_(l1+1:l2)
+   end function fname
+
+end subroutine WRF_trace

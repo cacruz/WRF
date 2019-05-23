@@ -1,4 +1,4 @@
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This routine prints out the current value of variables at all specified
 !   time series locations that are within the current patch.
 !
@@ -274,8 +274,9 @@ END SUBROUTINE calc_ts_locations
 
 SUBROUTINE calc_ts( grid )
 
-   USE module_domain
+   USE module_domain, ONLY : domain, domain_clock_get
    USE module_model_constants
+   USE module_state_description
 
    IMPLICIT NONE
 
@@ -447,6 +448,7 @@ END SUBROUTINE calc_ts
 
 SUBROUTINE write_ts( grid )
 
+!   USE module_dm ! EMK...Probably not needed
    USE module_domain, ONLY : domain
    USE module_dm, ONLY : wrf_dm_min_reals
    USE module_state_description
@@ -715,7 +717,7 @@ END SUBROUTINE write_ts
 #if (EM_CORE == 1)
 SUBROUTINE calc_p8w(grid, ix, iy, p8w, k_start, k_end)
 
-   USE module_domain
+   USE module_domain, ONLY : domain
    USE module_model_constants
 
    IMPLICIT NONE

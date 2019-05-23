@@ -3985,13 +3985,15 @@ END subroutine optical_prep_modal_soa_vbs
 ! Add in seasalt and dust from GOCART sectional distributions
        n = 0
        mass_seas = 0.0
-       do m =p_seas_1,  p_seas_3 ! loop over seasalt size bins less than 10 um diam
+!      do m =p_seas_1,  p_seas_3 ! loop over seasalt size bins less than 10 um diam
+       do m =p_seas_1,  p_seas_4 ! NUWRF modified by Z. Tao
        n = n+1
         mass_seas=mass_seas+seasfrc_goc8bin(n,isize)*chem(i,k,j,m)
        end do
        n = 0
        mass_soil = 0.0
-       do m =p_dust_1,  p_dust_1+ndust-2 ! loop over dust size bins less than 10 um diam
+!      do m =p_dust_1,  p_dust_1+ndust-2 ! loop over dust size bins less than 10 um diam
+       do m =p_dust_1,  p_dust_1+ndust-1 ! NUWRF modified by Z. Tao
        n = n+1
         mass_soil=mass_soil+dustfrc_goc8bin(n,isize)*chem(i,k,j,m)
        end do
@@ -4048,7 +4050,8 @@ END subroutine optical_prep_modal_soa_vbs
                        (ref_index_bc     * mass_bc  / dens_bc) +   &
                        (swref_index_nacl(ns)   * mass_na  / dens_na) +   &
                        (swref_index_nacl(ns)   * mass_cl  / dens_cl) +   &
-                       (ref_index_msa    * mass_msa / dens_msa) +  &
+! EMK NUWRF...Remove MSA
+!                       (ref_index_msa    * mass_msa / dens_msa) +  &
                        (swref_index_h2o(ns) * mass_h2o / dens_h2o) 
 !
 ! for some reason MADE/SORGAM occasionally produces zero aerosols so
@@ -4112,7 +4115,8 @@ END subroutine optical_prep_modal_soa_vbs
                        (ref_index_bc     * mass_bc  / dens_bc) +   &
                        (lwref_index_nacl(ns)   * mass_na  / dens_na) +   &
                        (lwref_index_nacl(ns)   * mass_cl  / dens_cl) +   &
-                       (ref_index_msa    * mass_msa / dens_msa) +  &
+! EMK NUWRF...Remove MSA
+!                       (ref_index_msa    * mass_msa / dens_msa) +  &
                        (lwref_index_h2o(ns) * mass_h2o / dens_h2o) 
 !
 ! for some reason MADE/SORGAM occasionally produces zero aerosols so

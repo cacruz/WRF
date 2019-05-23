@@ -1,5 +1,11 @@
 # compile these without high optimization to speed compile
 
+#EMK NUWRF
+module_first_rk_step_part1.o : module_first_rk_step_part1.F
+module_comm_dm_4.o : module_comm_dm_4.F
+#module_advect_em.o : module_advect_em.F # This probably should be optimized
+#EMK NUWRF END
+
 convert_nmm.o : convert_nmm.F
 init_modules_em.o : init_modules_em.F
 input_wrf.o : input_wrf.F
@@ -128,11 +134,20 @@ solve_interface.o \
 start_domain.o \
 start_domain_nmm.o \
 wrf_fddaobs_in.o \
+module_first_rk_step_part1.o \
 wrf_tsin.o :
 	$(RM) $@
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.F  > $*.bb
 	$(SED_FTN) $*.bb | $(CPP) $(TRADFLAG) > $*.f90
 	$(RM) $*.b $*.bb
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	@ if echo $(ARCHFLAGS) | $(FGREP) 'DVAR4D'; then \
           echo COMPILING $*.F for 4DVAR ; \
           $(WRF_SRC_ROOT_DIR)/var/build/da_name_space.pl $*.f90 > $*.f90.tmp ; \
@@ -146,6 +161,21 @@ wrf_tsin.o :
 	  $(FC) -c $(PROMOTION) $(FCNOOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(FCSUFFIX) $*.f90 ; \
         fi
 
+solve_em.o :
+	$(RM) $@
+	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.F  > $*.bb
+	$(SED_FTN) $*.bb | $(CPP) $(TRADFLAG) > $*.f90
+	$(RM) $*.b $*.bb
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	$(FC) -c $(PROMOTION) $(FCNOOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(OMP) $(SOLVE_EM_SPECIAL) $(FCSUFFIX) $*.f90
+
 module_sf_ruclsm.o : module_sf_ruclsm.F
 
 module_sf_ruclsm.o :
@@ -153,6 +183,14 @@ module_sf_ruclsm.o :
 	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.F  > $*.bb
 	$(SED_FTN) $*.bb | $(CPP) $(TRADFLAG) > $*.f90
 	$(RM) $*.b $*.bb
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	if $(FGREP) '!$$OMP' $*.f90 ; then \
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.F WITH OMP ; fi ; \
 	  $(FC) -c $(PROMOTION) $(FCREDUCEDOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(OMP) $(FCSUFFIX) $*.f90 ; \
@@ -160,6 +198,17 @@ module_sf_ruclsm.o :
           if [ -n "$(OMP)" ] ; then echo COMPILING $*.F WITHOUT OMP ; fi ; \
 	  $(FC) -c $(PROMOTION) $(FCREDUCEDOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(FCSUFFIX) $*.f90 ; \
         fi
+
+# NUWRF EMK...Avoid -O3 for 4ICE scheme
+module_mp_gsfcgce_4ice_nuwrf.o: module_mp_gsfcgce_4ice_nuwrf.F
+
+module_mp_gsfcgce_4ice_nuwrf.o :
+	$(RM) $@
+	$(CPP) -I$(WRF_SRC_ROOT_DIR)/inc $(CPPFLAGS) $(OMPCPP) $*.F  > $*.bb
+	$(SED_FTN) $*.bb | $(CPP) > $*.f90
+	$(RM) $*.b $*.bb
+	$(FC) -c $(PROMOTION) $(FCREDUCEDOPT) $(FCBASEOPTS) $(MODULE_DIRS) $(FCSUFFIX) $*.f90 
+
 
 # compile without OMP
 input_wrf.o \
@@ -238,6 +287,7 @@ module_comm_dm_0.o \
 module_comm_dm_1.o \
 module_comm_dm_2.o \
 module_comm_dm_3.o \
+module_comm_dm_4.o \
 module_comm_nesting_dm.o \
 module_configure.o :
 	$(RM) $@
@@ -249,4 +299,12 @@ module_configure.o :
           mv $*.f90.tmp $*.f90 ; \
         fi
 	$(RM) $*.b $*.bb
+	perl -pe 's/shr_kind_mod/wrf_shr_kind_mod/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/clm_varcon/wrf_clm_varcon/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimeconst/wrf_initimeconst/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
+	perl -pe 's/initimevar/wrf_initimevar/i' $*.f90 > $*.f90.new #NUWRF
+	mv $*.f90.new $*.f90 #NUWRF
 	$(FC) -c $(PROMOTION) $(FCSUFFIX) $(FCNOOPT) $(FCBASEOPTS) $(MODULE_DIRS) $*.f90

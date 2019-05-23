@@ -2921,7 +2921,6 @@ SUBROUTINE horizontal_diffusion_v_2( tendency, config_flags,              &
             msfvy(i,j)*zx_at_v(i,k,j)*(titau1avg(i,k+1,j)-titau1avg(i,k,j)) / tmpdz - &
             msfvy(i,j)*zy_at_v(i,k,j)*(titau2avg(i,k+1,j)-titau2avg(i,k,j)) / tmpdz   &
                                                                   )
-
    ENDDO
    ENDDO
    ENDDO
@@ -3114,6 +3113,7 @@ SUBROUTINE horizontal_diffusion_w_2( tendency, config_flags,              &
                                    zy_at_w(i,k,j)*(titau2avg(i,k,j)-titau2avg(i,k-1,j))  &
                                   )                                     &
            )
+
    ENDDO
    ENDDO
    ENDDO
@@ -3571,7 +3571,7 @@ SUBROUTINE vertical_diffusion_2   ( ru_tendf, rv_tendf, rw_tendf, rt_tendf,   &
 !  MODIFICA al flusso di momento alla parete
 !
   vflux: SELECT CASE( config_flags%isfflx )
-  CASE (0) ! Assume cd a constant, specified in namelist
+  CASE (0, 10) ! Assume cd a constant, specified in namelist !* crm: 10 added
     cd0 = config_flags%tke_drag_coefficient  ! constant drag coefficient
                                              ! set in namelist.input
 !
@@ -3612,7 +3612,8 @@ SUBROUTINE vertical_diffusion_2   ( ru_tendf, rv_tendf, rw_tendf, rt_tendf,   &
     ENDDO
     ENDDO
 
-  CASE (1,2) ! ustar computed from surface routine
+!* crm: 11 added 
+  CASE (1, 2, 11) ! ustar computed from surface routine
     DO j = j_start, j_end
     DO i = i_start, ite
        V0_u=0.
@@ -3708,7 +3709,8 @@ SUBROUTINE vertical_diffusion_2   ( ru_tendf, rv_tendf, rw_tendf, rt_tendf,   &
     ENDDO
     ENDDO
 
-  CASE (1) ! use surface heat flux computed from surface routine
+  !* crm: 10, 11 added
+  CASE (1, 10, 11) ! use surface heat flux computed from surface routine
     DO j = j_start, j_end
     DO i = i_start, i_end
 
@@ -3784,7 +3786,7 @@ SUBROUTINE vertical_diffusion_2   ( ru_tendf, rv_tendf, rw_tendf, rt_tendf,   &
   qflux: SELECT CASE( config_flags%isfflx )
   CASE (0)
 ! do nothing
-  CASE (1,2) ! with surface moisture flux
+  CASE (1,2, 10, 11) ! with surface moisture flux ! crm: 10,11 added
     IF ( im == P_QV ) THEN
        DO j = j_start, j_end
        DO i = i_start, i_end
@@ -5670,7 +5672,7 @@ END SUBROUTINE phy_bc
     K=KTS
 
   uflux: SELECT CASE( config_flags%isfflx )
-  CASE (0) ! Assume cd a constant, specified in namelist
+  CASE (0, 10) ! Assume cd a constant, specified in namelist !* crm: 10 added
 
     cd0 = config_flags%tke_drag_coefficient  ! drag coefficient set
                                              ! in namelist.input
@@ -5686,7 +5688,7 @@ END SUBROUTINE phy_bc
     END DO
     END DO
 
-  CASE (1,2) ! ustar computed from surface routine
+  CASE (1,2, 11) ! ustar computed from surface routine !* crm: 11 added
 
     DO j = j_start, j_end
     DO i = i_start, i_end
@@ -5744,7 +5746,7 @@ END SUBROUTINE phy_bc
     K=KTS
 
   vflux: SELECT CASE( config_flags%isfflx )
-  CASE (0) ! Assume cd a constant, specified in namelist
+  CASE (0, 10) ! Assume cd a constant, specified in namelist !* crm: 10 added
 
     cd0 = config_flags%tke_drag_coefficient   ! constant drag coefficient
                                               ! set in namelist.input
@@ -5760,7 +5762,7 @@ END SUBROUTINE phy_bc
     END DO
     END DO
 
-  CASE (1,2) ! ustar computed from surface routine
+  CASE (1, 2, 11) ! ustar computed from surface routine !* crm: 11 added
 
     DO j = j_start, j_end
     DO i = i_start, i_end

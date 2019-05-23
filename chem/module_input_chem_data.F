@@ -376,7 +376,8 @@ SUBROUTINE setup_gasprofile_maps(chem_opt, numgas)
   case (MOZART_MOSAIC_4BIN_AQ_KPP)
      call wrf_debug("setup_profile_maps: nothing done for mozart_mosaic_4bin_aq_kpp")
 
- case (CO2_TRACER,GHG_TRACER)
+! NUWRF
+ case (CO2_TRACER,GHG_TRACER,CASACO2_TRACER)
      call wrf_debug("setup_profile_maps: nothing done for the GHG options")
 
   case default
@@ -744,6 +745,9 @@ SUBROUTINE input_chem_profile (si_grid)
       si_grid%chem(ims:ime,kms:kme,jms:jme,p_oc1 ) = 1.e-2
       si_grid%chem(ims:ime,kms:kme,jms:jme,p_oc2 ) = 1.e-2
       si_grid%chem(ims:ime,kms:kme,jms:jme,p_p25 ) = 1.
+! NUWRF
+   ELSE IF ( si_grid%chem_opt==CASACO2_TRACER) THEN
+      si_grid%chem(ims:ime,kms:kme,jms:jme,p_casaco2 ) = 380.
    ELSE IF ( si_grid%chem_opt==CO2_TRACER .OR. si_grid%chem_opt==GHG_TRACER ) THEN
        ! Do nothing, since for GHGs initialization is done in chemics_init.F
    ELSE
@@ -1386,6 +1390,25 @@ end if
 
 END SUBROUTINE bdy_chem_value_ghg
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!**********************************************************************
+SUBROUTINE bdy_chem_value_casa ( chem, nch )
+! This subroutine is called to set the boundary constant values for
+! casaco2 gases when gas_bc_opt=18
+
+    IMPLICIT NONE
+
+    REAL,    intent(OUT)  :: chem
+    INTEGER, intent(IN)   :: nch        ! index number of chemical species
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+if( nch==p_casaco2 ) then 
+    chem = 380.
+else
+   chem = 1.e-12
+end if
+
+END SUBROUTINE bdy_chem_value_casa
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
    SUBROUTINE flow_dep_bdy_chem  (  chem,                                       &
                                chem_bxs,chem_btxs,                                  &
@@ -1530,9 +1553,12 @@ END SUBROUTINE bdy_chem_value_ghg
           i_bdy_method = 8
       else if (config_flags%chem_opt == CHEM_VOLC_4BIN) then
           i_bdy_method = 8
-      else if (config_flags%chem_opt==CO2_TRACER .OR. config_flags%chem_opt==GHG_TRACER) then
+      else if (config_flags%chem_opt==CO2_TRACER .OR. config_flags%chem_opt==GHG_TRACER ) then
           i_bdy_method = 16
 !         CALL wrf_message( "For GHGs strongly recommended to include LBCs from a global model!" )
+! NUWRF
+      else if (config_flags%chem_opt==CASACO2_TRACER ) then  
+          i_bdy_method = 18
       else if (config_flags%chem_opt == cbmz_cam_mam3_noaq .or. &
                config_flags%chem_opt == cbmz_cam_mam3_aq  ) then
           if ((ic .ge. p_so4_a1) .and. (ic .le. p_num_a3)) then
@@ -1544,6 +1570,7 @@ END SUBROUTINE bdy_chem_value_ghg
               i_bdy_method = 501
           end if
       end if
+      
       if (have_bcs_chem) i_bdy_method =6
       if (ic .lt. param_first_scalar) i_bdy_method = 0
 
@@ -1605,6 +1632,9 @@ END SUBROUTINE bdy_chem_value_ghg
                    CALL bdy_chem_value_gcm ( chem(i,k,j),chem_bys(i,k,1),chem_btys(i,k,1),dt,ic)
                 else if (i_bdy_method .eq. 16) then
                    CALL bdy_chem_value_ghg ( chem(i,k,j), ic ) 
+                ! NUWRF
+                else if (i_bdy_method .eq. 18) then
+                   CALL bdy_chem_value_casa ( chem(i,k,j), ic ) 
                 else if (i_bdy_method .eq. 15) then
                    CALL bdy_chem_value_cb05 (   &
                         1, chem(i,k,j), k, ic, config_flags, numgas )
@@ -1663,6 +1693,9 @@ END SUBROUTINE bdy_chem_value_ghg
                    chem(i,k,j) = 0.
                 else if (i_bdy_method .eq. 16) then
                    CALL bdy_chem_value_ghg ( chem(i,k,j), ic )  ! For GHGs
+! NUWRF
+                else if (i_bdy_method .eq. 18) then
+                   CALL bdy_chem_value_casa ( chem(i,k,j), ic )  ! For CASACO2
                 else if (i_bdy_method .eq. 15) then
                    CALL bdy_chem_value_cb05 (   &
                         2, chem(i,k,j), k, ic, config_flags, numgas )
@@ -1722,6 +1755,9 @@ END SUBROUTINE bdy_chem_value_ghg
                    chem(i,k,j) = 0.
                 else if (i_bdy_method .eq. 16) then
                    CALL bdy_chem_value_ghg ( chem(i,k,j), ic )  ! For GHGs
+! NUWRF
+                else if (i_bdy_method .eq. 18) then
+                   CALL bdy_chem_value_casa ( chem(i,k,j), ic )  ! For casa
                 else if (i_bdy_method .eq. 15) then
                    CALL bdy_chem_value_cb05 (   &
                         3, chem(i,k,j), k, ic, config_flags, numgas )
@@ -1781,6 +1817,9 @@ END SUBROUTINE bdy_chem_value_ghg
                    chem(i,k,j) = 0.
                 else if (i_bdy_method .eq. 16) then
                    CALL bdy_chem_value_ghg ( chem(i,k,j), ic ) ! For GHGs
+! NUWRF
+                else if (i_bdy_method .eq. 18) then
+                   CALL bdy_chem_value_casa ( chem(i,k,j), ic ) ! For CASAco2
                 else if (i_bdy_method .eq. 15) then
                    CALL bdy_chem_value_cb05 (   &
                         4, chem(i,k,j), k, ic, config_flags, numgas )
@@ -2167,6 +2206,7 @@ END SUBROUTINE bdy_chem_value_ghg
    integer FUNCTION get_last_gas(chem_opt)
      implicit none
      integer, intent(in) :: chem_opt
+    CHARACTER (LEN=80) :: message
 
      ! Determine the index of the last gas species, which depends
      ! upon the gas mechanism.
@@ -2234,8 +2274,16 @@ END SUBROUTINE bdy_chem_value_ghg
 
      case (CO2_TRACER,GHG_TRACER) ! No gas chemistry or deposition for GHGs
         get_last_gas = 0
+
+! NUWRF
+     case (CASACO2_TRACER) 
+         get_last_gas = p_casaco2
+!     write(message,*) 'get_last_gas for CASACO2=',get_last_gas,'chem_opt=',chem_opt
+!        call wrf_message(trim(message))
+
      case ( CBMZ_CAM_MAM3_NOAQ, CBMZ_CAM_MAM3_AQ, CBMZ_CAM_MAM7_NOAQ, CBMZ_CAM_MAM7_AQ )
         get_last_gas = p_soag
+
      case default
         call wrf_error_fatal("get_last_gas: could not decipher chem_opt value")
 

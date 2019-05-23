@@ -3,7 +3,7 @@
 CC_TOOLS = cc
 CFLAGS = $(CC_TOOLS_CFLAGS) #-ansi
 LDFLAGS =
-DEBUG = -g 
+#DEBUG = -g 
 OBJ = registry.o my_strtok.o reg_parse.o data.o type.o misc.o \
       gen_defs.o gen_allocs.o gen_mod_state_descr.o gen_scalar_indices.o \
       gen_args.o gen_config.o sym.o symtab_gen.o \
@@ -11,13 +11,13 @@ OBJ = registry.o my_strtok.o reg_parse.o data.o type.o misc.o \
       gen_streams.o
 
 registry : $(OBJ) standard.exe
-	$(CC_TOOLS) -o registry $(DEBUG) $(LDFLAGS) $(OBJ)
+	$(CC_TOOLS) -o registry $(LDFLAGS) $(OBJ)
 
 standard.exe : standard.o
-	$(CC_TOOLS) -o standard.exe $(DEBUG) $(LDFLAGS) standard.o
+	$(CC_TOOLS) -o standard.exe $(LDFLAGS) standard.o
 
 .c.o :
-	$(CC_TOOLS) $(CFLAGS) -c $(DEBUG) $<
+	$(CC_TOOLS) $(CFLAGS) -c $<
 
 clean:
 	/bin/rm -f $(OBJ) gen_comms.c standard.o

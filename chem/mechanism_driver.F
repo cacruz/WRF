@@ -104,7 +104,19 @@
 ! select chemical mechanism
 !
    chem_select: SELECT CASE(config_flags%chem_opt)
-     CASE (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2)
+     ! NUWRF:  Put GOCARTRACM_KPP, GOCARTRADM2_KPP,GOCARTRADM2 in different 
+     ! case per Z. Tao
+     ! NUWRF EMK 10 November 2014: Restored GOCARTRACM_KPP and GOCARTRADM2_KPP.
+     ! Zhining Tao reports that he only tested GOCARTRADM2 before changing
+     ! the code. The community WRF-Chem calls gocart_chem_driver for all three
+     ! cases, and inspection shows that gocart_chem_driver applies chemical
+     ! reactions absent in the corresponding gas physics mechanism.
+     ! NOTE: Code inspection also does not find any GOCARTRADM2_KPP code!    
+     ! NUWRF EMK: GOCARTRADM2_KPP removed in WRF 3.7.1.
+!   CASE (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2_KPP,GOCARTRADM2)
+!     CASE (GOCART_SIMPLE)
+!     CASE (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2_KPP)
+     CASE (GOCART_SIMPLE,GOCARTRACM_KPP)
        CALL wrf_debug(15,'calling gocart chem from mechanism_driver')
        call gocart_chem_driver(curr_secs,dtstepc,config_flags,        &
          gmt,julday,t_phy,moist,                                      &
@@ -119,9 +131,10 @@
             max(chem(its:ite,kts:kte,jts:jte,p_so2),epsilc)
        vch2o2_old(its:ite,kts:kte,jts:jte) = &
             max(chem(its:ite,kts:kte,jts:jte,p_h2o2),epsilc)
-
-
-     CASE (RADM2, RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM)
+! NUWRF
+! Added GOCARTRADM2, based on case study results by Z. Tao
+!     CASE (RADM2, RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM)
+     CASE (RADM2, RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM, GOCARTRADM2)
        CALL wrf_debug(15,'calling radm2_driver from mechanism_driver')
        if (config_flags%chem_opt /= RADM2) then
           vcsulf_old(its:ite,kts:kte,jts:jte) = &
@@ -137,10 +150,37 @@
                ids,ide, jds,jde, kds,kde,                              &
                ims,ime, jms,jme, kms,kme,                              &
                its,ite, jts,jte, kts,kte                               )
+       ! NUWRF EMK Added GOCART chemistry for GOCARTRADM2 by Z. Tao  12/2015
+       if(config_flags%chem_opt == GOCARTRADM2) then
+         call gocart_chem_driver(curr_secs,dtstepc,config_flags,        &
+         gmt,julday,t_phy,moist,                                      &
+         chem,rho_phy,dz8w,p8w,backg_oh,backg_h2o2,backg_no3,         &
+         gd_cldfr,dx,g,xlat,xlong,ttday,tcosz, &
+         ids,ide, jds,jde, kds,kde,                                        &
+         ims,ime, jms,jme, kms,kme,                                        &
+         its,ite, jts,jte, kts,kte                  ) 
+         vcsulf_old(its:ite,kts:kte,jts:jte) = &
+            max(chem(its:ite,kts:kte,jts:jte,p_sulf),epsilc)
+         vcso2_old(its:ite,kts:kte,jts:jte) = &
+            max(chem(its:ite,kts:kte,jts:jte,p_so2),epsilc)
+         vch2o2_old(its:ite,kts:kte,jts:jte) = &
+            max(chem(its:ite,kts:kte,jts:jte,p_h2o2),epsilc)
+       end if
 
-     CASE (RACMSORG_KPP,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM_KPP,RACM_ESRLSORG_AQCHEM_KPP,RACM_ESRLSORG_KPP,RACM_SOA_VBS_KPP)
+     ! NUWRF...Added GOCARTRACM_KPP, GOCARTRADM2_KPP
+     ! NUWRF EMK 10 November 2014...Removed GOCARTRACM_KPP and GOCARTRADM2_KPP,
+     ! as these were never tested.
+    CASE (RACMSORG_KPP,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM_KPP,RACM_ESRLSORG_AQCHEM_KPP,RACM_ESRLSORG_KPP,RACM_SOA_VBS_KPP)
+!    CASE (RACMSORG_KPP,RADM2SORG_KPP,RACMSORG_AQ,RACMSORG_AQCHEM_KPP,RACM_ESRLSORG_AQCHEM_KPP,RACM_ESRLSORG_KPP,RACM_SOA_VBS_KPP, &
+!           GOCARTRACM_KPP,GOCARTRADM2_KPP)
        vcsulf_old(its:ite,kts:kte,jts:jte) = &
           max(chem(its:ite,kts:kte,jts:jte,p_sulf),epsilc)
+!       ! EMK NUWRF Fix...chem_driver will use the vcso2_old values in the
+!       ! GOCARTRACM_KPP case, so we must assign values.
+!       if (config_flags%chem_opt == GOCARTRACM_KPP) then
+!          vcso2_old(its:ite,kts:kte,jts:jte) = &
+!               max(chem(its:ite,kts:kte,jts:jte,p_so2),epsilc) 
+!       end if
 
      CASE (CBMZ, CBMZ_BB, CBMZ_MOSAIC_4BIN, CBMZ_MOSAIC_8BIN,      &
                  CBMZ_MOSAIC_4BIN_AQ,     CBMZ_MOSAIC_8BIN_AQ,     &

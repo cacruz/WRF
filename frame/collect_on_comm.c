@@ -74,8 +74,16 @@ col_on_comm ( int * Fcomm, int * typesize ,
   *comm = MPI_Comm_f2c( *Fcomm ) ;
   MPI_Comm_size ( *comm, &ntasks ) ;
   MPI_Comm_rank ( *comm, &mytask ) ;
+  recvcounts = NULL;
   recvcounts = (int *) malloc( ntasks * sizeof(int)) ;
+  if (recvcounts == NULL) {
+    printf("ERROR allocating recvcounts in collect_on_comm!!!\n");
+  }
+  displace = NULL;
   displace   = (int *) malloc( ntasks * sizeof(int)) ;
+  if (displace == NULL) {
+    printf("ERROR allocating displace in collect_on_comm!!!\n");
+  }
   root_task = ( sw == 0 ) ? 0 : ntasks-1 ;
 
   /* collect up recvcounts */

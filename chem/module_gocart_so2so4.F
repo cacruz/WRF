@@ -3,7 +3,8 @@ MODULE module_gocart_so2so4
 CONTAINS
 
   subroutine so2so4(ils,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,gd,          &
-          gd_cldfr,NUM_CHEM,NUM_MOIST,                                              &
+          gd_cldfr, cu_diag, &
+         NUM_CHEM,NUM_MOIST,                                              &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
@@ -21,7 +22,7 @@ CONTAINS
    REAL,  DIMENSION( ims:ime , kms:kme , jms:jme ),                        &
           OPTIONAL,                                                        &
           INTENT(IN   ) ::                     gd_cldfr
-
+   integer, intent(in) :: cu_diag ! EMK NUWRF
    integer :: i,k,j
    real :: tc2,tc3,h2o2,cldf
           do j=jts,jte
@@ -31,7 +32,13 @@ CONTAINS
 !         if(p_qc.gt.1)then
 !            if(moist(i,k,j,p_qc).gt.0 )cldf=1.
 !         endif
-          if(ils.eq.0 .and. present(gd_cldfr) ) then
+! EMK NUWRF...gd_cldf is *always* present even if a Grell cumulus scheme is
+! not used. Worse, if namelist variable cu_diag is set to zero, then gd_cldf
+! has dimensions of (1,1,1) (as of WRF 3.5.1). We replace the "if present" test
+! with a test for cu_diag (WRF will force cu_diag=1 for a Grell scheme, and
+! cu_diag=0 otherwise).
+!          if(ils.eq.0 .and. present(gd_cldfr) ) then
+          if(ils.eq.0 .and. cu_diag .eq. 1 ) then
             cldf=gd_cldfr(i,k,j)
           elseif(p_qc.gt.1 )then
                if(moist(i,k,j,p_qc).gt.0 )cldf=1.

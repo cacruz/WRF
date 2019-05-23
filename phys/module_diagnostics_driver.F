@@ -39,9 +39,10 @@ CONTAINS
                                           SKIP_PRESS_DIAGS, SKIP_Z_DIAGS,              &
                                           P_QG, P_QH, P_QV,                            &
                                           P_QNG, P_QH, P_QNH, P_QR, P_QNR,             &
+                                          P_QS,P_QI,P_QC, & ! NUWRF
                      KESSLERSCHEME, LINSCHEME, SBU_YLINSCHEME, WSM3SCHEME, WSM5SCHEME, &
                      WSM6SCHEME, ETAMPNEW, THOMPSON, THOMPSONAERO,                     &
-                     MORR_TWO_MOMENT, GSFCGCESCHEME, WDM5SCHEME, WDM6SCHEME,           &
+                     MORR_TWO_MOMENT, MORR_FASTER, GSFCGCESCHEME, WDM5SCHEME, WDM6SCHEME,           &
                      NSSL_2MOM, NSSL_2MOMCCN, NSSL_1MOM, NSSL_1MOMLFO,                 &
                      MILBRANDT2MOM , CAMMGMPSCHEME, FAST_KHAIN_LYNN, FULL_KHAIN_LYNN    !,MILBRANDT3MOM, NSSL_3MOM, MORR_MILB_P3
 
@@ -76,6 +77,8 @@ CONTAINS
       USE module_diag_pld, ONLY : pld
       USE module_diag_zld, ONLY : zld
       USE module_diag_afwa, ONLY : afwa_diagnostics_driver
+      ! NUWRF
+      use module_diag_downscale, only: cal_tpwtwp,ivt_driver,calc_freezing_level
       USE module_diag_rasm, ONLY : mean_output_calc, diurnalcycle_output_calc
       USE module_diag_hailcast, ONLY : hailcast_diagnostic_driver
 
@@ -327,6 +330,16 @@ CONTAINS
                 ,HAIL_MAXK1=grid%hail_maxk1,HAIL_MAX2D=grid%hail_max2d &  !  gthompsn
                 ,QG_CURR=moist(ims,kms,jms,P_QG)                     &
                 ,RHO=grid%rho,PH=grid%ph_2,PHB=grid%phb,G=g          &
+!NUWRF SRD BEGIN
+                ,T=grid%t_2      &                                        
+                ,P=grid%p,PB=grid%pb                                   &  
+                ,LTG1_MAX=grid%ltg1_max,LTG2_MAX=grid%ltg2_max         &  
+                ,MSFT=grid%msft                                        &  
+!                ,QR_CURR=moist(ims,kms,jms,P_QR)                       &  
+                ,QS_CURR=moist(ims,kms,jms,P_QS)                       &  
+                ,QI_CURR=moist(ims,kms,jms,P_QI)                       &  
+                ,HT=grid%ht       &                            
+!NUWRF SRD END
       ! Dimension arguments
                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde   &
                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme   &
@@ -404,6 +417,16 @@ CONTAINS
                 ,QR_CURR=moist(ims,kms,jms,P_QR)                     &  !  gthompsn
                 ,NR_CURR=scalar(ims,kms,jms,P_QNR)                   &  !  gthompsn
                 ,RHO=grid%rho,PH=grid%ph_2,PHB=grid%phb,G=g          &
+!NUWRF SRD BEGIN
+                ,T=grid%t_2      &                                        
+                ,P=grid%p,PB=grid%pb                                   &  
+                ,LTG1_MAX=grid%ltg1_max,LTG2_MAX=grid%ltg2_max         &  
+                ,MSFT=grid%msft                                        &  
+!                ,QR_CURR=moist(ims,kms,jms,P_QR)                       &  
+                ,QS_CURR=moist(ims,kms,jms,P_QS)                       &  
+                ,QI_CURR=moist(ims,kms,jms,P_QI)                       &  
+                ,HT=grid%ht       &                            
+!NUWRF SRD END
       ! Dimension arguments
                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde   &
                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme   &
@@ -414,7 +437,7 @@ CONTAINS
                 ,NUM_TILES=grid%num_tiles                            &
                                                                     )
 
-        CASE (MORR_TWO_MOMENT)
+        CASE (MORR_TWO_MOMENT, MORR_FASTER)
 
       CALL diagnostic_output_calc(                                   &
                  DPSDT=grid%dpsdt   ,DMUDT=grid%dmudt                &
@@ -480,6 +503,16 @@ CONTAINS
                 ,QG_CURR=moist(ims,kms,jms,P_QG)                     &
                 ,NG_CURR=scalar(ims,kms,jms,P_QNG)                   &  !  gthompsn
                 ,RHO=grid%rho,PH=grid%ph_2,PHB=grid%phb,G=g          &
+!NUWRF SRD BEGIN
+                ,T=grid%t_2      &                                        
+                ,P=grid%p,PB=grid%pb                                   &  
+                ,LTG1_MAX=grid%ltg1_max,LTG2_MAX=grid%ltg2_max         &  
+                ,MSFT=grid%msft                                        &  
+!                ,QR_CURR=moist(ims,kms,jms,P_QR)                       &  
+                ,QS_CURR=moist(ims,kms,jms,P_QS)                       &  
+                ,QI_CURR=moist(ims,kms,jms,P_QI)                       &  
+                ,HT=grid%ht       &                            
+!NUWRF SRD END
       ! Dimension arguments
                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde   &
                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme   &
@@ -556,6 +589,16 @@ CONTAINS
                 ,QG_CURR=moist(ims,kms,jms,P_QG)                     &
                 ,QH_CURR=moist(ims,kms,jms,P_QH)                     &  !  gthompsn
                 ,RHO=grid%rho,PH=grid%ph_2,PHB=grid%phb,G=g          &
+!NUWRF SRD BEGIN
+                ,T=grid%t_2      &                                        
+                ,P=grid%p,PB=grid%pb                                   &  
+                ,LTG1_MAX=grid%ltg1_max,LTG2_MAX=grid%ltg2_max         &  
+                ,MSFT=grid%msft                                        &  
+!                ,QR_CURR=moist(ims,kms,jms,P_QR)                       &  
+                ,QS_CURR=moist(ims,kms,jms,P_QS)                       &  
+                ,QI_CURR=moist(ims,kms,jms,P_QI)                       &  
+                ,HT=grid%ht       &                            
+!NUWRF SRD END
       ! Dimension arguments
                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde   &
                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme   &
@@ -634,6 +677,16 @@ CONTAINS
                 ,QH_CURR=moist(ims,kms,jms,P_QH)                     &  !  gthompsn
                 ,NH_CURR=scalar(ims,kms,jms,P_QNH)                   &  !  gthompsn
                 ,RHO=grid%rho,PH=grid%ph_2,PHB=grid%phb,G=g          &
+!NUWRF SRD BEGIN
+                ,T=grid%t_2      &                                        
+                ,P=grid%p,PB=grid%pb                                   &  
+                ,LTG1_MAX=grid%ltg1_max,LTG2_MAX=grid%ltg2_max         &  
+                ,MSFT=grid%msft                                        &  
+!                ,QR_CURR=moist(ims,kms,jms,P_QR)                       &  
+                ,QS_CURR=moist(ims,kms,jms,P_QS)                       &  
+                ,QI_CURR=moist(ims,kms,jms,P_QI)                       &  
+                ,HT=grid%ht       &                            
+!NUWRF SRD END
       ! Dimension arguments
                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde   &
                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme   &
@@ -738,6 +791,16 @@ CONTAINS
                 ,HAIL_MAXK1=grid%hail_maxk1,HAIL_MAX2D=grid%hail_max2d &  !  gthompsn
                 ,QG_CURR=moist(ims,kms,jms,P_QG)                     &
                 ,RHO=grid%rho,PH=grid%ph_2,PHB=grid%phb,G=g          &
+!NUWRF SRD BEGIN
+                ,T=grid%t_2      &                                        
+                ,P=grid%p,PB=grid%pb                                   &  
+                ,LTG1_MAX=grid%ltg1_max,LTG2_MAX=grid%ltg2_max         &  
+                ,MSFT=grid%msft                                        &  
+!                ,QR_CURR=moist(ims,kms,jms,P_QR)                       &  
+                ,QS_CURR=moist(ims,kms,jms,P_QS)                       &  
+                ,QI_CURR=moist(ims,kms,jms,P_QI)                       &  
+                ,HT=grid%ht       &                            
+!NUWRF SRD END
       ! Dimension arguments
                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde   &
                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme   &
@@ -751,6 +814,83 @@ CONTAINS
 
 
    END SELECT mp_select
+
+      ! NUWRF...Calculate DSCALE diagnostics
+      ! EMK NUWRF...Calculate integrated microphysics values
+      !$OMP PARALLEL DO   &
+      !$OMP PRIVATE ( ij )
+      DO ij = 1 , grid%num_tiles
+         CALL wrf_debug ( 200 , ' cal_tpwtwp: Integrated microphysics...' )
+         call cal_tpwtwp(dz8w=dz8w, &
+              rho=grid%rho, &
+              qv=moist(:,:,:,P_QV), &
+              ql=moist(:,:,:,P_QC), &
+              qi=moist(:,:,:,P_QI), &
+              qr=moist(:,:,:,P_QR), &
+              qs=moist(:,:,:,P_QS), &
+              qg=moist(:,:,:,P_QG), &
+              qh=moist(:,:,:,P_QH), &
+              tpw=grid%tpw, &
+              lwp=grid%lwp, &
+              iwp=grid%iwp, &
+              clwp=grid%clwp, &
+              rwp=grid%rwp, &
+              ciwp=grid%ciwp, &
+              fpwp=grid%fpwp, &
+              IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+              IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+              ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+              JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+              KTS=kps,KTE=kpe                                      )
+         
+      END DO
+      !$OMP END PARALLEL DO
+
+      ! EMK NUWRF...Calculate integrated vapor transport
+      !$OMP PARALLEL DO   &
+      !$OMP PRIVATE ( ij )
+      DO ij = 1 , grid%num_tiles
+         CALL wrf_debug ( 200 , ' ivt_driver: Integrated vapor transport...' )
+         call ivt_driver(mean_ivt_u=grid%mean_ivt_u, &
+              mean_ivt_v=grid%mean_ivt_v, &
+              sum_ivt_u=grid%sum_ivt_u, &
+              sum_ivt_v=grid%sum_ivt_v, &
+              ivt_count=grid%ivt_count, &
+              u=grid%u_2, &
+              v=grid%v_2, &
+              qvapor=moist(:,:,:,P_QV), &
+              rho=grid%rho, &
+              dz8w=dz8w, &
+              curr_secs2=curr_secs2, &
+              dt=grid%dt, &
+              ivt_interval=config_flags%ivt_interval, &
+              is_restart=config_flags%restart, &
+              ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde, &
+              ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme, &
+              ITS=grid%i_start(ij),ITE=grid%i_end(ij),     &
+              JTS=grid%j_start(ij),JTE=grid%j_end(ij),     &
+              KTS=kps,KTE=kpe                              )
+      END DO
+      !$OMP END PARALLEL DO
+      
+      ! EMK NUWRF...Calculate freezing level
+      ! FIXME...Is this redundant with AFWA diagnostic?
+      !$OMP PARALLEL DO   &
+      !$OMP PRIVATE ( ij )
+      DO ij = 1 , grid%num_tiles
+         CALL wrf_debug ( 200 , ' Calling calc_freezing_level...')
+         call calc_freezing_level( &
+              freezing_level=grid%freezing_level, &
+              t_phy=grid%t_phy, &
+              z=grid%z, &
+              ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde, &
+              ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme, &
+              ITS=grid%i_start(ij),ITE=grid%i_end(ij),     &
+              JTS=grid%j_start(ij),JTE=grid%j_end(ij),     &
+              KTS=kps,KTE=kpe                              )
+      END DO
+      !$OMP END PARALLEL DO
+!NUWRF END
 
 
       !  Climate-oriented diagnostic quantities.

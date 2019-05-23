@@ -11,9 +11,10 @@ MODULE module_bioemi_simple
       CHARACTER (4),PARAMETER :: mminlu_loc = 'USGS'
       INTEGER :: ixxxlu(nlu)
 
-
+! modified by Z. Tao to allocate portion of monoterpene emissions for GOCART SOA formation
+!
     CONTAINS
-      SUBROUTINE bio_emissions(id,ktau,dtstep,DX,                         &
+      SUBROUTINE bio_emissions(id,ktau,dtstep,stepbioe, DX,               &
                config_flags,                                              &
                gmt,julday,t_phy,moist,p8w,t8w,                            &
                e_bio,p_phy,chem,rho_phy,dz8w,ne_area,                     &
@@ -57,6 +58,7 @@ MODULE module_bioemi_simple
                                                      znt
       REAL,      INTENT(IN   ) ::                                         &
                              dtstep,dx,gmt
+      INTEGER,   INTENT(IN   ) :: stepbioe				!Z. Tao add this newly passed parameter
 !--- deposition and emissions stuff
 ! .. Parameters ..
    TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
@@ -132,6 +134,21 @@ MODULE module_bioemi_simple
 !                aef_n,ixxxlu,vegflag,isice_temp,iswater_temp
 !         PRINT *, eiso, emter, eovoc, e_n, eisoc, eovocc
 !     endif
+
+! by Z. Tao: assuming 10% of monoterpene emissions (ug C/m^2-hr) forms GOCART SOA
+!	              90% goes to gas phase species used in biosplit
+!	the unit for SOA OC is ug-C/kg-dryair
+!
+	aerosol_addemiss_select: SELECT CASE(config_flags%chem_opt)
+	CASE (GOCART_SIMPLE,GOCARTRACM_KPP,GOCARTRADM2)
+	  if (config_flags%bio_emiss_soa == 1) then
+! NUWRF EMK...Changed p_oc1 to p_oc2 per Z. Tao
+	    chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2)                          &
+                     +0.1*emterc*stepbioe*dtstep/3600./rho_phy(i,kts,j)/dz8w(i,kts,j)
+            emter = emter*0.9
+	  end if
+	CASE DEFAULT
+	END SELECT aerosol_addemiss_select
 
 !     PRINT *, eiso, emter, eovoc, e_n, eisoc, eovocc                 
       CALL biosplit(iland,eiso,emter,eovoc,e_n,emiss_bio,ne_area,vegfrac, &

@@ -396,7 +396,7 @@ CONTAINS
     if ( scm_qv_t_tend ) then
        do k = kms,kme-1
           qv_t_tend_interp(k) = interp_0(qv_t_tend,z_force,z(ids,k,jds),num_force_layers) 
-          write(*,'(i3, f20.15)') k, qv_t_tend_interp(k)
+!          write(*,'(i3, f20.15)') k, qv_t_tend_interp(k) ! EMK NUWRF
        enddo
     endif
 

@@ -45,7 +45,8 @@ module wrf_data
 #else
   integer                , parameter      :: MaxVars          = 3000
 #endif
-  integer                , parameter      :: MaxTimes         = 10000
+!  integer                , parameter      :: MaxTimes         = 10000
+  integer                , parameter      :: MaxTimes         = 16200 ! EMK NUWRF for DSCALE
   integer                , parameter      :: DateStrLen       = 19
   integer                , parameter      :: VarNameLen       = 31
   integer                , parameter      :: NO_DIM           = 0

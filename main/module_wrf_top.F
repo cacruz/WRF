@@ -168,6 +168,8 @@ CONTAINS
 !</DESCRIPTION>
 
 #ifdef DM_PARALLEL
+   ! EMK NUWRF...Initialize configbuf
+   configbuf(:) = 0
    CALL wrf_get_dm_communicator( save_comm )
    CALL wrf_set_dm_communicator( mpi_comm_allcompute )
    IF ( wrf_dm_on_monitor() ) THEN

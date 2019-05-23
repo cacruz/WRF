@@ -448,7 +448,7 @@ CONTAINS
       type(ESMF_TimeInterval), intent(out), optional :: dayOfYear_intvl
       integer,                 intent(out), optional :: rc
       REAL(ESMF_KIND_R8) :: rsec
-      INTEGER(ESMF_KIND_I4) :: year, seconds, Sn, Sd
+      INTEGER(ESMF_KIND_I4) :: year, seconds
       INTEGER(ESMF_KIND_I8), PARAMETER :: SECONDS_PER_DAY = 86400_ESMF_KIND_I8
 
       CALL ESMF_TimeGet(time=time, yy=yy, yy_i8=yy_i8, &
@@ -474,9 +474,10 @@ CONTAINS
             ! 64-bit IEEE 754 has 52-bit mantisssa -- only need 25 bits to hold
             ! number of seconds in a year...
             rsec = REAL( seconds, ESMF_KIND_R8 )
+
             IF ( PRESENT( Sd ) ) THEN
               IF ( Sd /= 0 ) THEN
-                rsec = rsec + ( REAL( Sn, ESMF_KIND_R8 ) / REAL( Sd, ESMF_KIND_R8 ) )
+                  rsec = rsec + ( REAL( Sn, ESMF_KIND_R8 ) / REAL( Sd, ESMF_KIND_R8 ) )
               ENDIF
             ENDIF
             dayOfYear_r8 = rsec / REAL( SECONDS_PER_DAY, ESMF_KIND_R8 )

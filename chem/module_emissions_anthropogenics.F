@@ -233,6 +233,15 @@ CONTAINS
           chem(i,k,j,p_oc1) = chem(i,k,j,p_oc1) + conv_rho_aer*emis_ant(i,k,j,p_e_oc)
           chem(i,k,j,p_bc1) = chem(i,k,j,p_bc1) + conv_rho_aer*emis_ant(i,k,j,p_e_bc)
         endif
+
+! NUWRF RACM only
+! By Z. Tao for offline biogenic emissions input
+!
+        if(p_api.gt.1)chem(i,k,j,p_api)=chem(i,k,j,p_api)		&
+                  	+emis_ant(i,k,j,p_e_api)*conv_rho
+        if(p_lim.gt.1)chem(i,k,j,p_lim)=chem(i,k,j,p_lim)		&
+                  	+emis_ant(i,k,j,p_e_lim)*conv_rho
+
        endif
       END DO                                                          
  100  continue

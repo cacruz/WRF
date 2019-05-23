@@ -206,6 +206,9 @@ CONTAINS
       INTEGER,   INTENT(OUT)   ::  ncopied
 !      TYPE(model_config_rec_type) :: model_config_rec
       INTEGER :: nbytes
+      ! EMK TEST...Initialize values
+      model_config_rec%last_item_in_struct = 0
+      model_config_rec%first_item_in_struct = 0
       CALL wrf_num_bytes_between ( model_config_rec%last_item_in_struct ,   &
                                    model_config_rec%first_item_in_struct ,  &
                                    nbytes )

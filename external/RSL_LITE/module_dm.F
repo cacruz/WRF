@@ -57,6 +57,8 @@ MODULE module_dm
                                      , ntasks_x_store, mytask_store          &
                                      , mytask_x_store, mytask_y_store      
    INTEGER ntasks, ntasks_y, ntasks_x, mytask, mytask_x, mytask_y
+   ! EMK NUWRF...Make sure local_communicator is SAVED
+   integer, save :: local_communicator
 
    INTEGER, DIMENSION(max_domains) :: local_communicator_stack, local_communicator_periodic_stack &
                                      ,local_iocommunicator_stack                                  &
@@ -66,7 +68,6 @@ MODULE module_dm
                                      ,local_communicator_x_store, local_communicator_y_store
 
    INTEGER :: mpi_comm_allcompute         = MPI_UNDEFINED
-   INTEGER :: local_communicator          = MPI_UNDEFINED
    INTEGER :: local_communicator_periodic = MPI_UNDEFINED
    INTEGER :: local_iocommunicator        = MPI_UNDEFINED
    INTEGER :: local_communicator_x        = MPI_UNDEFINED
@@ -213,6 +214,9 @@ CONTAINS
       INTEGER, DIMENSION(2) :: dims, coords
       LOGICAL, DIMENSION(2) :: isperiodic
       LOGICAL :: reorder_mesh
+
+      ! CC NUWRF - initialize local_communicator
+      local_communicator = MPI_UNDEFINED
 
       CALL instate_communicators_for_domain(1)
 
@@ -851,6 +855,9 @@ CONTAINS
 #endif
          CALL find_grid_by_id ( id, head_grid, nest_grid )
 
+         ! EMK NUWRF...Initialize data member
+         intermediate_grid%have_displayed_alloc_stats = .FALSE.
+
          nest_grid%intermediate_grid => intermediate_grid  ! nest grid now has a pointer to this baby
          intermediate_grid%parents(1)%ptr => nest_grid     ! the intermediate grid considers nest its parent
          intermediate_grid%num_parents = 1
@@ -976,6 +983,10 @@ CONTAINS
 
 #if ( ! NMM_CORE == 1 )
 
+    ! EMK TEST
+    ipex = 0
+    jpex = 0
+    
 ! xy decomposition
 
     ips = -1

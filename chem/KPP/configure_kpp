@@ -67,6 +67,8 @@ fi
 
 CC_FLAGS="-O"
 
+#CC_FLAGS=`grep -e CFLAGS_LOCAL ./configure.wrf | cut -d# -f1 | grep -v make | grep -e "=" | grep -v CC_TOOLS | grep -v "CFLAGS " | cut -d= -f2-`
+#CFLAGS_LOCAL=`grep -e CFLAGS_LOCAL ./configure.wrf | grep -v make | grep -e "=" | grep -v CC_TOOLS | grep -v "CFLAGS "`
 
 
 export FLEX
@@ -123,7 +125,6 @@ cat <<END1 >chem/${WKC_DIRNAME}/configure.kpp
 # this file is in parts based on the original Makefile.defs from KPP
 
 
-
 $PCC
 $PSCC
 
@@ -149,8 +150,8 @@ FLEX_LIB_DIR = $FLEX_LIB_DIR
 
 
 
-
-CC_FLAGS=$CC_FLAGS
+#$CFLAGS_LOCAL
+#CC_FLAGS=\$(CFLAGS_LOCAL)        
 
 ##############################################################################
 

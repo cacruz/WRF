@@ -8,8 +8,13 @@
 select((select(STDOUT), $|=1)[0]);
 $sw_perl_path = perl ;
 $sw_netcdf_path = "" ;
+$sw_gribapi_path = "" ;
+$sw_hdf4_path = "" ;
+$sw_hdf5_path = "" ;
+$sw_hdfeos_path = "" ;
+$sw_zlib_path = "" ;
 $sw_pnetcdf_path = "" ;
-$sw_hdf5_path=""; 
+$sw_boxmg_path=""; 
 $sw_phdf5_path=""; 
 $sw_jasperlib_path=""; 
 $sw_jasperinc_path=""; 
@@ -28,6 +33,7 @@ $sw_4dvar_flag = "" ;
 $sw_wrfplus_path = "" ;
 $sw_wavelet_flag = "" ;
 $WRFCHEM = 0 ;
+$WRFELEC = 0 ;
 $sw_os = "ARCH" ;           # ARCH will match any
 $sw_mach = "ARCH" ;         # ARCH will match any
 $sw_wrf_core = "" ;
@@ -43,7 +49,7 @@ $sw_usenetcdff = "" ;    # UNIDATA switches around library names a bit
 $sw_usenetcdf = "" ;    
 $sw_time = "" ;          # name of a timer to time fortran compiles, e.g. timex or time
 $sw_ifort_r8 = 0 ;
-$sw_hdf5 = "-lhdf5 -lhdf5_hl";
+$sw_hdf5 = "-lhdf5_hl -lhdf5 -ldl"; # EMK...HDF5 1.8.11 adds -ldl requirement
 $sw_zlib = "-lz";
 $sw_dep_lib_path = "";
 $sw_gpfs_path = "";
@@ -59,6 +65,26 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   if ( substr( $ARGV[0], 1, 5 ) eq "perl=" )
   {
     $sw_perl_path = substr( $ARGV[0], 6 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 8 ) eq "gribapi=" )
+  {
+    $sw_gribapi_path = substr( $ARGV[0], 9 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 5 ) eq "hdf4=" )
+  {
+    $sw_hdf4_path = substr( $ARGV[0], 6 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
+  {
+    $sw_hdf5_path = substr( $ARGV[0], 6 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 7 ) eq "hdfeos=" )
+  {
+    $sw_hdfeos_path = substr( $ARGV[0], 8 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 5 ) eq "zlib=" )
+  {
+    $sw_zlib_path = substr( $ARGV[0], 6 ) ;
   }
   if ( substr( $ARGV[0], 1, 7 ) eq "netcdf=" )
   {
@@ -94,6 +120,10 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   if ( substr( $ARGV[0], 1, 8 ) eq "pnetcdf=" )
   {
     $sw_pnetcdf_path = substr( $ARGV[0], 9 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 6 ) eq "boxmg=" )
+  {
+    $sw_boxmg_path = substr( $ARGV[0], 7 ) ;
   }
   if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
   {
@@ -185,6 +215,21 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
       $sw_exp_core = "-DEXP_CORE=0" ;
       $sw_coamps_core = "-DCOAMPS_CORE=1" ;
     }
+  }
+  if ( substr( $ARGV[0], 1, 13 ) eq "compileflags=" )
+  {
+    $sw_compileflags = substr( $ARGV[0], 14 ) ;
+    $sw_compileflags =~ s/!/ /g ;
+#   look for each known option
+    $where_index = index ( $sw_compileflags , "-DWRF_ELEC" ) ;
+    if ( $where_index eq -1 ) 
+    {
+      $WRFELEC  = 0 ;
+    }
+    else
+    {
+      $WRFELEC = 1 ;
+    } 
   }
   if ( substr( $ARGV[0], 1, 13 ) eq "compileflags=" )
   {
@@ -445,7 +490,13 @@ while ( <CONFIGURE_DEFAULTS> )
   {
     $_ =~ s/CONFIGURE_PERL_PATH/$sw_perl_path/g ;
     $_ =~ s/CONFIGURE_NETCDF_PATH/$sw_netcdf_path/g ;
+    $_ =~ s/CONFIGURE_GRIBAPI_PATH/$sw_gribapi_path/g ;
+    $_ =~ s/CONFIGURE_HDF4_PATH/$sw_hdf4_path/g ;
+    $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
+    $_ =~ s/CONFIGURE_HDFEOS_PATH/$sw_hdfeos_path/g ;
+    $_ =~ s/CONFIGURE_ZLIB_PATH/$sw_zlib_path/g ;
     $_ =~ s/CONFIGURE_PNETCDF_PATH/$sw_pnetcdf_path/g ;
+    $_ =~ s/CONFIGURE_BOXMG_PATH/$sw_boxmg_path/g ;
     $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
     $_ =~ s/CONFIGURE_PHDF5_PATH/$sw_phdf5_path/g ;
     $_ =~ s/CONFIGURE_LDFLAGS/$sw_ldflags/g ;
@@ -483,6 +534,38 @@ while ( <CONFIGURE_DEFAULTS> )
        $_ =~ s/#// ;
        $_ =~ s/#// ;
     }
+    if ( $sw_gribapi_path ) 
+      { $_ =~ s:CONFIGURE_GRIBAPI_LIB_PATH:-L$sw_gribapi_path/lib -lgrib_api_f90 -lgrib_api : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_GRIBAPI_LIB_PATH//g ;
+	 }
+    if ( $sw_hdf4_path ) 
+      { $_ =~ s:CONFIGURE_HDF4_LIB_PATH:-L$sw_hdf4_path/lib -lmfhdf -ldf -ljpeg : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_HDF4_LIB_PATH//g ;
+	 }
+    if ( $sw_hdf5_path ) 
+      { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5_fortran -lhdf5: ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_HDF5_LIB_PATH//g ;
+	 }
+    if ( $sw_hdfeos_path ) 
+      { $_ =~ s:CONFIGURE_HDFEOS_LIB_PATH:-L$sw_hdfeos_path/lib -lhdfeos -lGctp : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_HDFEOS_LIB_PATH//g ;
+	 }
+
+    if ( $sw_zlib_path ) 
+      { $_ =~ s:CONFIGURE_ZLIB_LIB_PATH:-L$sw_zlib_path/lib -lz : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_ZLIB_LIB_PATH//g ;
+	 }
+
     if ( $sw_netcdf_path ) 
       { $_ =~ s/CONFIGURE_WRFIO_NF/wrfio_nf/g ;
 	$_ =~ s:CONFIGURE_NETCDF_FLAG:-DNETCDF: ;
@@ -493,6 +576,7 @@ while ( <CONFIGURE_DEFAULTS> )
         } else {
 	  $_ =~ s:CONFIGURE_NETCDF_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_netcdf -lwrfio_nf -L$sw_netcdf_path/lib $sw_usenetcdff $sw_usenetcdf : ;
         }
+
 	 }
     else                   
       { $_ =~ s/CONFIGURE_WRFIO_NF//g ;
@@ -528,12 +612,24 @@ while ( <CONFIGURE_DEFAULTS> )
 
       { $_ =~ s/CONFIGURE_WRFIO_PHDF5/wrfio_phdf5/g ;
 	$_ =~ s:CONFIGURE_PHDF5_FLAG:-DPHDF5: ;
-	$_ =~ s:CONFIGURE_PHDF5_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_phdf5 -lwrfio_phdf5 -L$sw_phdf5_path/lib -lhdf5_fortran -lhdf5 -lm -lz -L$sw_phdf5_path/lib -lsz: ;
+	$_ =~ s:CONFIGURE_PHDF5_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_phdf5 -lwrfio_phdf5 -L$sw_phdf5_path/lib -lhdf5_fortran -lhdf5 -lm -lz: ;
 	 }
     else                   
       { $_ =~ s/CONFIGURE_WRFIO_PHDF5//g ;
 	$_ =~ s:CONFIGURE_PHDF5_FLAG::g ;
 	$_ =~ s:CONFIGURE_PHDF5_LIB_PATH::g ;
+      }
+
+     if ( $sw_boxmg_path ) 
+     
+       {     #  printf "set CONFIGURE_BOXMG_LIB_PATH sw_boxmg_path\n";
+         $_ =~ s:CONFIGURE_BOXMG_LIB_PATH:-L$ENV{BOXMGLIBDIR}/lib -lboxmg_opt_sgl -lboxmg-extras_opt_sgl: ;
+         $_ =~ s:BOXMGINCPATH:-I$ENV{BOXMGLIBDIR}/include -I$ENV{BOXMGLIBDIR}/extras/msg/include: ;
+	}
+     else                   
+       {  #  printf "not setting CONFIGURE_BOXMG_LIB_PATH sw_boxmg_path=$sw_boxmg_path\n";
+	           $_ =~ s:CONFIGURE_BOXMG_LIB_PATH::g ;
+	           $_ =~ s:BOXMGINCPATH::g ;
 	 }
 
     if ( $sw_jasperlib_path && $sw_jasperinc_path ) 
@@ -615,7 +711,7 @@ while ( <CONFIGURE_DEFAULTS> )
     if ( ! (substr( $_, 0, 5 ) eq "#ARCH") ) { @machopts = ( @machopts, $_ ) ; }
     if ( substr( $_, 0, 10 ) eq "ENVCOMPDEF" )
     {
-      @machopts = ( @machopts, "WRF_CHEM\t=\t$WRFCHEM \n" ) ;
+      @machopts = ( @machopts, "WRF_CHEM\t=\t$WRFCHEM\nWRF_ELEC\t=\t$WRFELEC \n" ) ;
     }
   }
 
@@ -650,6 +746,7 @@ while ( <CONFIGURE_DEFAULTS> )
         $validresponse = 0 ;
         #only allow parallel netcdf if the user has chosen parallel option
         if ( $paropt ne 'dmpar' && $paropt ne 'dm+sm' ) { $sw_pnetcdf_path = "" ; }
+	if ( $paropt ne 'dmpar' && $paropt ne 'dm+sm' ) { $sw_boxmg_path = "" ; }
         #
         until ( $validresponse ) {
           if ( $ENV{WRF_DA_CORE} eq "1" || $sw_da_core eq "-DDA_CORE=1" ) {

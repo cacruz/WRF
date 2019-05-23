@@ -279,7 +279,12 @@ CONTAINS
 !-----------------------------------------------------------------
 ! this does aerosol species (dust,seas, bc,oc) for gocart only
 !-----------------------------------------------------------------
-          IF ( config_flags%chem_opt == MOZCART_KPP ) then
+
+! NU-WRF
+! Add GOCARTRADM2 by Z. Tao in Apr. 2011
+!
+          IF ( config_flags%chem_opt == MOZCART_KPP .or.		  &
+	       config_flags%chem_opt == GOCARTRADM2 ) then
             call gocart_drydep_driver( dtstep,                            &
                   config_flags, numgas,                                   &
                   t_phy, moist, p8w, t8w, rmol,aer_res_def,               &
@@ -1366,9 +1371,13 @@ CONTAINS
    IF((config_flags%dust_opt .EQ. 1) .OR. (config_flags%dust_opt .GE. 3) .OR. &
       (config_flags%seas_opt .GE. 1) ) THEN
    settling_select: SELECT CASE(config_flags%chem_opt)
+
+! 
+! NU-WRF Add GOCARTRADM2 by Z. Tao in Apr. 2011
 !!! TUCCELLA
    CASE (DUST,GOCART_SIMPLE,GOCARTRACM_KPP,MOZCART_KPP,RADM2SORG,RADM2SORG_AQ, &
-         RADM2SORG_AQCHEM,RACMSORG_AQCHEM_KPP,RACM_ESRLSORG_AQCHEM_KPP,RACM_SOA_VBS_AQCHEM_KPP)
+         RADM2SORG_AQCHEM,RACMSORG_AQCHEM_KPP,RACM_ESRLSORG_AQCHEM_KPP,RACM_SOA_VBS_AQCHEM_KPP, &
+	 GOCARTRADM2)
        CALL wrf_debug(15,'call gocart settling routine')
          call gocart_settling_driver(dtstep,config_flags,t_phy,moist,  &
          chem,rho_phy,dz8w,p8w,p_phy,         &

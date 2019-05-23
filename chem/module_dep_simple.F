@@ -234,8 +234,13 @@ tile_lon_loop : &
             CALL rc( rcx, ta, rad, rhchem, iland, &
                      iseason, numgas, wetflag, rainflag, highnh3, &
                      iprt, moist(i,kts,j,p_qv), p8w(i,kts,j), config_flags%chem_opt )
+!            print*,'EMK: numgas,p_casaco2,rcx = ', &
+!                     numgas,p_casaco2,rcx(p_casaco2)
+
+            ! NUWRF EMK: Skip for CASA CO2. Preserve the surface resistance.
             if( config_flags%chem_opt /= MOZART_KPP .and. &
                 config_flags%chem_opt /= MOZCART_KPP .and. &
+                config_flags%chem_opt .ne. CASACO2_TRACER .and. & ! EMK NUWRF
                 config_flags%chem_opt /= MOZART_MOSAIC_4BIN_KPP .and. &
                 config_flags%chem_opt /= MOZART_MOSAIC_4BIN_AQ_KPP)  then
                srfres(1:numgas-2) = rcx(1:numgas-2)
@@ -1491,7 +1496,6 @@ is_nh3: if( p_nh3 > 1 ) then
 !--------------------------------------------------
 
         USE module_model_constants, only: karman
-
 !--------------------------------------------------
 ! .. Scalar Arguments ..
 !--------------------------------------------------
@@ -1545,6 +1549,7 @@ is_nh3: if( p_nh3 > 1 ) then
 !--------------------------------------------------
         DO l = 1, numgas
           depv(l) = ustar*vk/(2.0*scpr23(l)+polint)
+
         END DO
         vgpart = ustar*vk/polint
         aer_res = polint/(karman*max(ustar,1.0e-4))
@@ -1917,6 +1922,17 @@ is_cbm4_kpp : &
         if (config_flags%chem_opt /= CBM4_KPP .or. &
              config_flags%chem_opt /= CB05_SORG_AQ_KPP .or. &
              config_flags%chem_opt /= CB05_SORG_VBS_AQ_KPP) then
+
+           ! NUWRF EMK for CASA CO2
+           if (config_flags%chem_opt == CASACO2_TRACER) then
+              if(p_casaco2 > 1) then ! Based on p_co2 code further below
+                 hstar(p_casaco2) = 1.86E-1
+                 dhr(p_casaco2)   = 1636.
+                 f0(p_casaco2)    = 0.
+                 dvj(p_casaco2)   = 0.151
+              end if
+           end if
+
            if( config_flags%chem_opt == MOZART_KPP .or. &
                config_flags%chem_opt == MOZCART_KPP .or. &
                config_flags%chem_opt == MOZART_MOSAIC_4BIN_KPP .or. &
@@ -3378,6 +3394,7 @@ is_cbm4_kpp : &
 ! Ratio of diffusion coefficient
 !--------------------------------------------------
           scpr23(l) = (sc/0.72)**(2./3.)               ! (Schmidt # / Prandtl #)**
+
         END DO
 
 ! start of addition
@@ -3793,6 +3810,11 @@ is_cbm4_kpp : &
        end DO
     end if is_cbm4_kpp
 
+    
+!    print*,'EMK: p_casaco2,scpr23,dvj,hstar = ', &
+!         p_casaco2,scpr23(p_casaco2),dvj(p_casaco2), &
+!         hstar(p_casaco2)
+    
 
 
 !     DATA FOR AEROSOL PARTICLE DEPOSITION FOR THE MODEL OF

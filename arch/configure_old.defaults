@@ -230,7 +230,7 @@ LD              =       f90
 CC              =       cc
 SCC		=	$(CC)
 CFLAGS          =       -64 -DLANDREAD_STUB -DNCARIBM_NOC99
-FCOPTIM         =       -O3
+FCOPTIM         =       -O2 -g
 RWORDSIZE       =       CONFIGURE_RWORDSIZE
 FCDEBUG         =       # -g
 FCBASEOPTS      =       -freeform -I. -64 -cpp -OPT:Olimit=5269 $(FCDEBUG) -w
@@ -355,7 +355,7 @@ PROMOTION	=	-r$(RWORDSIZE) -i4
 CFLAGS          =       -n32 -mips4
 FCDEBUG         =       # -g
 FCBASEOPTS      =       -freeform -I. -w
-FCFLAGS         =       -freeform -I. -O3 -OPT:roundoff=3:IEEE_arithmetic=3 -OPT:fold_arith_limit=2001
+FCFLAGS         =       -freeform -I. -O2 -g -OPT:roundoff=3:IEEE_arithmetic=3 -OPT:fold_arith_limit=2001
 ARCHFLAGS       =       $(COREDEFS) -DIWORDSIZE=4 -DDWORDSIZE=8 -DRWORDSIZE=$(RWORDSIZE) -DLWORDSIZE=4 CONFIGURE_NETCDF_FLAG \
 			$(DA_ARCHFLAGS) \
                         -DGRIB1 CONFIGURE_GRIB2_FLAG -DINTIO -DLIMIT_ARGS
@@ -468,7 +468,7 @@ SCC		=	$(CC)
 RWORDSIZE       =       CONFIGURE_RWORDSIZE
 PROMOTION	=	-r$(RWORDSIZE) -i4
 CFLAGS          =       -64 -DLANDREAD_STUB -DNCARIBM_NOC99
-FCOPTIM         =       -O3
+FCOPTIM         =       -O2 -g
 FCDEBUG         =       # -g
 FCBASEOPTS      =       -freeform -I. -64 -cpp -OPT:Olimit=5269 $(FCDEBUG) -w
 FCFLAGS         =       $(FCOPTIM) $(FCBASEOPTS) $(OMP)
@@ -727,7 +727,7 @@ RWORDSIZE       =       CONFIGURE_RWORDSIZE
 RSIZEBITS	=	`expr $(RWORDSIZE) \* 8`
 PROMOTION	=	-xtypemap=real:$(RSIZEBITS),integer:32
 CFLAGS          =	-DNCARIBM_NOC99
-FCOPTIM		=	-O3 -xlibmopt
+FCOPTIM		=	-O2 -g -xlibmopt
 FCDEBUG		=	#-g
 FCBASEOPTS	=	-fnonstd -free -xpp=cpp $(FCDEBUG) $(OMP) -w
 FCFLAGS         =       $(FCOPTIM) $(FCBASEOPTS)
@@ -1954,7 +1954,7 @@ RWORDSIZE         = CONFIGURE_RWORDSIZE
 FCDEBUG         =       # -g
 FCBASEOPTS      =       -f free -N 255 -I. -x omp -dy
 FCFLAGS_LOWOPT  =       $(FCBASEOPTS) -O1
-FCFLAGS         =       $(FCBASEOPTS) -Ofp3 -O3 -Ogen_private_callee
+FCFLAGS         =       $(FCBASEOPTS) -Ofp3 -O2 -g -Ogen_private_callee
 #if using 64bit precision
 #PROMOTION	=	-sreal64 -dp -sinteger32
 CFLAGS          =       -I$(WRF_SRC_ROOT_DIR)/external/RSL_LITE -DMAXDOM_MAKE=$(MAX_DOMAINS) \
@@ -2098,7 +2098,7 @@ ARCHFLAGS       =       $(COREDEFS) CONFIGURE_NETCDF_FLAG -DGRIB1 CONFIGURE_GRIB
                         -DIWORDSIZE=4 -DDWORDSIZE=8 -DRWORDSIZE=$(RWORDSIZE) -DLWORDSIZE=4 
 PROMOTION	=	-r$(RWORDSIZE) -i4
 CFLAGS          =       $(ARCHFLAGS) +DS2.0a -DNOUNDERSCORE
-FCOPTIM         =       +O3 +DA2.0N +DS2.0a +Odataprefetch +Olibcalls +DO11.0EP9806 +noppu \
+FCOPTIM         =       +O2 -g +DA2.0N +DS2.0a +Odataprefetch +Olibcalls +DO11.0EP9806 +noppu \
 			+save +fastallocatable +Ofltacc +extend_source +source=free +FPD
 FCDEBUG         =       # -g
 FCBASEOPTS      =       +U77 +source=free -I. +DS2.0a +noppu +Onoopenmp $(FCDEBUG)
@@ -2213,7 +2213,7 @@ ARCHFLAGS       =       $(COREDEFS) CONFIGURE_NETCDF_FLAG -DGRIB1 CONFIGURE_GRIB
                         -DIWORDSIZE=4 -DDWORDSIZE=8 -DRWORDSIZE=$(RWORDSIZE) -DLWORDSIZE=4 
 PROMOTION	=	-r$(RWORDSIZE) -i4
 CFLAGS          =       $(ARCHFLAGS) +DSitanium2 -DNOUNDERSCORE
-FCOPTIM         =       +O3 +Odataprefetch +Olibcalls +DO11.23 +noppu \
+FCOPTIM         =       +O2 -g +Odataprefetch +Olibcalls +DO11.23 +noppu \
 			+save +fastallocatable +Ofltacc +extend_source +source=free +FPD
 FCDEBUG         =       # -g
 FCBASEOPTS      =       +U77 +source=free -I. +DSitanium2 +noppu +Onoopenmp $(FCDEBUG)
@@ -2329,7 +2329,7 @@ ARCHFLAGS       =       $(COREDEFS) CONFIGURE_NETCDF_FLAG -DGRIB1 CONFIGURE_GRIB
                         -DIWORDSIZE=4 -DDWORDSIZE=8 -DRWORDSIZE=$(RWORDSIZE) -DLWORDSIZE=4 
 PROMOTION	=	-r$(RWORDSIZE) -i4
 CFLAGS          =       $(ARCHFLAGS) +DS2.0a -DNOUNDERSCORE
-FCOPTIM         =       +O3 +DA2.0N +DS2.0a +Odataprefetch +Olibcalls +DO11.0EP9806 +noppu \
+FCOPTIM         =       +O2 -g +DA2.0N +DS2.0a +Odataprefetch +Olibcalls +DO11.0EP9806 +noppu \
 			+save +fastallocatable +Ofltacc +extend_source +source=free +FPD
 FCDEBUG         =       # -g
 FCBASEOPTS      =       +U77 +source=free -I. +DS2.0a $(FCDEBUG)
@@ -2445,7 +2445,7 @@ SCC		=	$(CC)
 RWORDSIZE       = CONFIGURE_RWORDSIZE
 PROMOTION	=	-qrealsize=$(RWORDSIZE) -qintsize=4
 CFLAGS          =       -DNOUNDERSCORE -DLANDREAD_STUB -I /usr/include/sys -DMACOS
-FCOPTIM         =       -O3 -qarch=auto #-qfloat=nomaf
+FCOPTIM         =       -O2 -g -qarch=auto #-qfloat=nomaf
 FCDEBUG         =       # -qnoopt -qfullpath
 FCBASEOPTS      =       -qsave $(FCDEBUG) -qmaxmem=32767 -qspillsize=32767 -w 
 FCFLAGS         =       $(FCOPTIM) $(FCBASEOPTS)

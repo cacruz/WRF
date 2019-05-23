@@ -46,7 +46,6 @@ CONTAINS
             ,halo_em_tke_5_sub,halo_obs_nudge_sub,period_bdy_em_a1_sub,period_bdy_em_phy_bc_sub &
             ,period_bdy_em_fdda_bc_sub,period_bdy_em_chem_sub,halo_em_phys_cu_sub,halo_em_helicity_sub
 #endif
-
     USE module_driver_constants
     USE module_diffusion_em, ONLY : phy_bc, cal_deform_and_div, compute_diff_metrics, &
                                     vertical_diffusion_2, horizontal_diffusion_2, calculate_km_kh, &
@@ -56,7 +55,9 @@ CONTAINS
     USE module_bc, ONLY : set_physical_bc3d, set_physical_bc2d
     USE module_physics_addtendc, ONLY : update_phy_ten
 
-    USE module_sfs_driver !JDM
+    USE module_force_crm  !* compute forcings
+
+    USE module_sfs_driver     !JDM
     USE module_stoch, ONLY : update_stoch_ten, perturb_physics_tend,RAND_PERT_UPDATE
 
 
@@ -136,9 +137,19 @@ CONTAINS
     INTEGER  iswater
     INTEGER  rk_step 
 
+! NUWRF EMK BEGIN
+! Define benchmarking timers if -DBENCH is compiled
+#include <bench_solve_em_def.h>
+! NUWRF EMK END
+
 #if ( WRF_DFI_RADAR == 1 )
     INTEGER  i_start,i_end,j_start,j_end,i,j,k
 #endif
+
+! NUWRF EMK BEGIN
+! Initialize timers if compiled with -DBENCH
+#include <bench_solve_em_init.h>
+! NUWRF EMK END
 
  ! initialize all tendencies to zero in order to update physics
  ! tendencies first (separate from dry dynamics).
@@ -705,7 +716,34 @@ BENCH_START(update_phy_ten_tim)
        !$OMP END PARALLEL DO
 BENCH_END(update_phy_ten_tim)
 
-      IF (grid%skebs_on==1) then
+! ###############################################################################
+!* crm: Couple LS tendency to mass and update 
+
+      if (config_flags%crm_force_opt .eq. 1 ) then
+        !$OMP PARALLEL DO   &
+        !$OMP PRIVATE ( ij )
+        DO ij = 1 , grid%num_tiles
+        
+          CALL wrf_debug ( 200 , ' call update_crm_lsten' )
+          CALL update_crm_lsten (config_flags,grid%mut,grid%muu,grid%muv,pi_phy, &
+                     grid%rulsten,grid%rvlsten,grid%rthlsten,grid%rqvlsten,      &
+                     ph_tendf,t_tendf, ru_tendf,rv_tendf,moist_tend,  &
+                     scalar_tend, mu_tendf,                           &
+                     num_moist,num_scalar,rk_step,                    &
+                     grid%adv_moist_cond,                             &
+                     ids,ide, jds,jde, kds,kde,                        &
+                     ims,ime, jms,jme, kms,kme,                        &
+                     grid%i_start(ij), min(grid%i_end(ij),ide-1),      &
+                     grid%j_start(ij), min(grid%j_end(ij),jde-1),      &
+                     k_start    , min(k_end,kde-1)                     )
+
+        ENDDO
+        !$OMP END PARALLEL DO
+        endif
+!* crm end
+! ###############################################################################
+
+        IF (grid%skebs_on==1) then
           !$OMP PARALLEL DO   &
           !$OMP PRIVATE ( ij )
           DO ij = 1 , grid%num_tiles
@@ -946,6 +984,11 @@ BENCH_END(hor_diff_tim)
        ENDIF  ! obs_nudge_opt .eq. 1
 ! 
 !***********************************************************************
+
+! NUWRF EMK BEGIN
+! Finish timers if compiled with -DBENCH.
+#include <bench_solve_em_end.h>
+! NUWRF EMK END
 
   END SUBROUTINE first_rk_step_part2
 

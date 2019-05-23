@@ -582,6 +582,8 @@
        CALL wrf_debug(15,'Dust only mode: only doing emissions, settling, and subgrid transport chem_driver')
     CASE (CO2_TRACER,GHG_TRACER)
       CALL wrf_debug(15,'Greenhouse gas mode: fluxes and transport of GHG')
+    CASE (CASACO2_TRACER)
+      CALL wrf_debug(15,'CASA CO2 Greenhouse gas mode: fluxes and transport of CASACO2')
     CASE DEFAULT
        if(config_flags%tracer_opt > 0 )then
        CALL wrf_debug(15,'only doing tracer transport in chem_driver')
@@ -752,11 +754,14 @@
               adapt_step_flag, curr_secs,                                                  &
               grid%plumerisefire_frq,grid%stepfirepl,                                      &
               grid%bioemdt,grid%stepbioe,                                                  &
+              grid%stepcasa,                                                               & !add by Z. Tao
               config_flags,                                                                &
               grid%gmt,ijulian,rri,t_phy,moist,p8w,t8w,u_phy,v_phy,vvel,               &
               grid%e_bio,p_phy,chem,rho,dz8w,grid%ne_area,emis_ant,emis_vol,grid%tsk,      &
-              grid%erod,grid%erod_dri,grid%lai_vegmask,                                    &
-              g,emis_seas,emis_dust,tracer,                                                &
+! NUWRF EMK...Rename "erod" to "erod_static" for better identification.
+!              grid%erod,g,emis_seas,emis_dust,tracer, &
+              grid%erod_static,grid%erod_dri,grid%lai_vegmask,                             &
+              g,emis_seas,emis_dust,tracer, &
               emis_seas2,      &
               ebu, ebu_in,grid%mean_fct_agtf,grid%mean_fct_agef,grid%mean_fct_agsv,       &
               grid%mean_fct_aggr,grid%firesize_agtf, &
@@ -814,6 +819,18 @@
               grid%biomt_par,grid%emit_par,grid%ebio_co2oce,                               &
               eghg_bio,                                                                    &
               grid%dust_flux, grid%seas_flux,                                              &
+           ! NU-WRF...Stuff from LIS
+              grid%lisPorosity,  &
+!NUWRF EMK...New Seasonal MODIS-DeepBlue and instantaneous EROD variables
+              grid%erod_timestep, grid%erod_tmp, &
+              grid%erod_mdb_sand, grid%erod_mdb_silt, grid%erod_mdb_clay, &
+!NUWRF EMK...New monthly EROD based on topo depression and bareness
+!              grid%erod_dyn_climo_sand, grid%erod_dyn_climo_silt, &
+!              grid%erod_dyn_climo_clay, &
+              grid%bareness_dyn_climo, &
+!NUWRF EMK...New dynamic bareness for dynamic (non-climo) EROD
+              grid%bareness_dyn, grid%topodep, &
+              grid%julyr, &
               ids,ide, jds,jde, kds,kde,                                                   &
               ims,ime, jms,jme, kms,kme,                                                   &
               its,ite,jts,jte,kts,kte)
@@ -852,7 +869,16 @@
            config_flags%chem_opt /= DUST .and. &
            config_flags%chem_opt /= CHEM_TRACE2 .and. &
            config_flags%chem_opt /= CO2_TRACER  .and. &
+           config_flags%chem_opt /= CASACO2_TRACER  .and. &
            config_flags%chem_opt /= GHG_TRACER ) then
+! EMK NUWRF...Only use optical driver for radiation scheme other than 2011 or
+! 2014 Goddard, per Toshi Matsui
+         if (config_flags%ra_lw_physics .ne. GODDARDLWSCHEME_2011 .and. &
+             config_flags%ra_lw_physics .ne. GODDARDLWSCHEME_2014 .and. &
+             config_flags%ra_lw_physics .ne. GODDARDLWSCHEME_2017 .and. &
+             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME_2011 .and. &
+             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME_2014 .and. &
+             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME_2017) then
          call wrf_debug(15,'calling optical driver')
          call optical_driver (grid%id,curr_secs,grid%dt,config_flags,haveaer,         &
               chem,dz8w,rri,rh,                                                       &
@@ -877,6 +903,7 @@
               ids,ide, jds,jde, kds,kde,                                              &
               ims,ime, jms,jme, kms,kme,                                              &
               its,ite, jts,jte, kts,kte)
+      end if ! EMK NUWRF
       endif
 
 !
@@ -890,6 +917,7 @@
            config_flags%chem_opt /= DUST .and. &
            config_flags%chem_opt /= CHEM_TRACE2 .and. &
            config_flags%chem_opt /= CO2_TRACER  .and. &
+           config_flags%chem_opt /= CASACO2_TRACER  .and. &
            config_flags%chem_opt /= GHG_TRACER  ) then
          call wrf_debug(15,'calling photolysis driver')
          call photolysis_driver (grid%id,curr_secs,ktau,grid%dt,                      &
@@ -1152,6 +1180,7 @@
           config_flags%chem_opt /= DUST .and. &
           config_flags%chem_opt /= CHEM_TRACE2 .and. &
           config_flags%chem_opt /= CO2_TRACER  .and. &
+          config_flags%chem_opt /= CASACO2_TRACER  .and. &
           config_flags%chem_opt /= GHG_TRACER ) then
 
 !
@@ -1239,6 +1268,7 @@ CALL kpp_mechanism_driver (chem,                                                
          CALL wrf_debug(15,'gocart so2-so4 conversion')
          CALL  so2so4(0,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
               grid%qc_cu, grid%gd_cldfr,                                    &
+              config_flags%cu_diag, & ! EMK NUWRF
               NUM_CHEM,NUM_MOIST,                                                &
               ids,ide, jds,jde, kds,kde,                                         &
               ims,ime, jms,jme, kms,kme,                                         &
@@ -1252,6 +1282,7 @@ CALL kpp_mechanism_driver (chem,                                                
          CALL wrf_debug(15,'gocart so2-so4 conversion')
          CALL  so2so4(1,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
               grid%qc_cu, grid%gd_cldfr,                                    &
+              config_flags%cu_diag, & ! EMK NUWRF
               NUM_CHEM,NUM_MOIST,                                                &
               ids,ide, jds,jde, kds,kde,                                         &
               ims,ime, jms,jme, kms,kme,                                         &
@@ -1274,6 +1305,7 @@ CALL kpp_mechanism_driver (chem,                                                
          CALL wrf_debug(15,'gocart so2-so4 conversion')
          CALL  so2so4(0,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
               grid%qc_cu, grid%gd_cldfr,                                    &
+              config_flags%cu_diag, & ! EMK NUWRF
               NUM_CHEM,NUM_MOIST,                                                &
               ids,ide, jds,jde, kds,kde,                                         &
               ims,ime, jms,jme, kms,kme,                                         &
@@ -1287,6 +1319,7 @@ CALL kpp_mechanism_driver (chem,                                                
          CALL wrf_debug(15,'gocart so2-so4 conversion')
          CALL  so2so4(1,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,           &
               grid%qc_cu, grid%gd_cldfr,                                    &
+              config_flags%cu_diag, & ! EMK NUWRF
               NUM_CHEM,NUM_MOIST,                                                &
               ids,ide, jds,jde, kds,kde,                                         &
               ims,ime, jms,jme, kms,kme,                                         &
@@ -1553,6 +1586,7 @@ end if !Chemistry time step check
           CALL wrf_debug(15,'gocart so2-so4 conversion')
           CALL  so2so4(0,chem,p_so2,p_sulf,p_h2o2,p_QC,T_PHY,MOIST,         &
          grid%qc_cu, grid%gd_cldfr,                                    &
+         config_flags%cu_diag, & ! EMK NUWRF
          NUM_CHEM,NUM_MOIST,                                                &
          ids,ide, jds,jde, kds,kde,                                         &
          ims,ime, jms,jme, kms,kme,                                         &

@@ -12,6 +12,9 @@ SUBROUTINE solve_interface ( grid )
    USE module_trajectory, only : trajectory_driver
 #endif
 
+   use module_state_description ! EMK TEST
+   use module_checkerror ! EMK TEST
+
    IMPLICIT NONE
 
    INTERFACE
@@ -35,9 +38,39 @@ SUBROUTINE solve_interface ( grid )
    INTEGER     :: idum1, idum2
    CHARACTER(len=256) :: dbg_msg
 
+   !EMK TEST BEGIN
+   integer :: i,j,k
+   integer :: ids, ide, jds, jde, kds, kde,    &
+                             ims, ime, jms, jme, kms, kme,    &
+                             ips, ipe, jps, jpe, kps, kpe,    &
+                             imsx, imex, jmsx, jmex, kmsx, kmex,    &
+                             ipsx, ipex, jpsx, jpex, kpsx, kpex,    &
+                             imsy, imey, jmsy, jmey, kmsy, kmey,    &
+                             ipsy, ipey, jpsy, jpey, kpsy, kpey
+   !EMK TEST END
+
+
    CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
    CALL set_scalar_indices_from_config ( grid%id , idum1 , idum2 )
 
+   !EMK TEST BEGIN
+   CALL get_ijk_from_grid (  grid ,                   &
+                             ids, ide, jds, jde, kds, kde,    &
+                             ims, ime, jms, jme, kms, kme,    &
+                             ips, ipe, jps, jpe, kps, kpe,    &
+                             imsx, imex, jmsx, jmex, kmsx, kmex,    &
+                             ipsx, ipex, jpsx, jpex, kpsx, kpex,    &
+                             imsy, imey, jmsy, jmey, kmsy, kmey,    &
+                             ipsy, ipey, jpsy, jpey, kpsy, kpey )
+!    do j=jps,jpe
+!       do k = kps,kpe
+!          do i=ips,ipe
+!             call checkerror('solve_interface','condensate_kg/kg',i,k,j, &
+!                    grid%moist(i,k,j,P_QC))
+!          end do
+!       end do
+!    end do
+   ! EMK TEST END
 #if (EM_CORE == 1 && DA_CORE != 1)
    CALL solve_em  ( grid , config_flags  &
 !
