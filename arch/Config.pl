@@ -8,8 +8,12 @@
 select((select(STDOUT), $|=1)[0]);
 $sw_perl_path = perl ;
 $sw_netcdf_path = "" ;
+$sw_gribapi_path = "" ;
+$sw_hdf4_path = "" ;
+$sw_hdf5_path = "" ;
+$sw_hdfeos_path = "" ;
+$sw_zlib_path = "" ;
 $sw_pnetcdf_path = "" ;
-$sw_hdf5_path=""; 
 $sw_phdf5_path=""; 
 $sw_jasperlib_path=""; 
 $sw_jasperinc_path=""; 
@@ -27,7 +31,9 @@ $sw_cloudcv_flag = "" ;
 $sw_4dvar_flag = "" ;
 $sw_wrfplus_path = "" ;
 $sw_wavelet_flag = "" ;
+$WRFLIS = 1 ;
 $WRFCHEM = 0 ;
+$WRFELEC = 0 ;
 $sw_os = "ARCH" ;           # ARCH will match any
 $sw_mach = "ARCH" ;         # ARCH will match any
 $sw_wrf_core = "" ;
@@ -42,7 +48,7 @@ $sw_usenetcdff = "" ;    # UNIDATA switches around library names a bit
 $sw_usenetcdf = "" ;    
 $sw_time = "" ;          # name of a timer to time fortran compiles, e.g. timex or time
 $sw_ifort_r8 = 0 ;
-$sw_hdf5 = "-lhdf5_hl -lhdf5";
+$sw_hdf5 = "-lhdf5_hl -lhdf5 -ldl"; # NUWRF adds -ldl
 $sw_zlib = "-lz";
 $sw_dep_lib_path = "";
 $sw_gpfs_path = "";
@@ -58,6 +64,26 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   if ( substr( $ARGV[0], 1, 5 ) eq "perl=" )
   {
     $sw_perl_path = substr( $ARGV[0], 6 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 8 ) eq "gribapi=" )
+  {
+    $sw_gribapi_path = substr( $ARGV[0], 9 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 5 ) eq "hdf4=" )
+  {
+    $sw_hdf4_path = substr( $ARGV[0], 6 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
+  {
+    $sw_hdf5_path = substr( $ARGV[0], 6 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 7 ) eq "hdfeos=" )
+  {
+    $sw_hdfeos_path = substr( $ARGV[0], 8 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 5 ) eq "zlib=" )
+  {
+    $sw_zlib_path = substr( $ARGV[0], 6 ) ;
   }
   if ( substr( $ARGV[0], 1, 7 ) eq "netcdf=" )
   {
@@ -94,10 +120,10 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   {
     $sw_pnetcdf_path = substr( $ARGV[0], 9 ) ;
   }
-  if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
-  {
-    $sw_hdf5_path = substr( $ARGV[0], 6 ) ;
-  }
+#  if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
+#  {
+#    $sw_hdf5_path = substr( $ARGV[0], 6 ) ;
+#  }
   if ( substr( $ARGV[0], 1, 6 ) eq "phdf5=" )
   {
     $sw_phdf5_path = substr( $ARGV[0], 7 ) ;
@@ -177,6 +203,21 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
       $sw_wrfplus_core = "-DWRFPLUS=0" ;
       $sw_nmm_core = "-DNMM_CORE=1" ;
     }
+  }
+  if ( substr( $ARGV[0], 1, 13 ) eq "compileflags=" )
+  {
+    $sw_compileflags = substr( $ARGV[0], 14 ) ;
+    $sw_compileflags =~ s/!/ /g ;
+#   look for each known option
+    $where_index = index ( $sw_compileflags , "-DWRF_ELEC" ) ;
+    if ( $where_index eq -1 ) 
+    {
+      $WRFELEC = 0 ;
+    }
+    else
+    {
+      $WRFELEC = 1 ;
+    } 
   }
   if ( substr( $ARGV[0], 1, 13 ) eq "compileflags=" )
   {
@@ -443,8 +484,13 @@ while ( <CONFIGURE_DEFAULTS> )
   {
     $_ =~ s/CONFIGURE_PERL_PATH/$sw_perl_path/g ;
     $_ =~ s/CONFIGURE_NETCDF_PATH/$sw_netcdf_path/g ;
-    $_ =~ s/CONFIGURE_PNETCDF_PATH/$sw_pnetcdf_path/g ;
+    $_ =~ s/CONFIGURE_GRIBAPI_PATH/$sw_gribapi_path/g ;
+    $_ =~ s/CONFIGURE_HDF4_PATH/$sw_hdf4_path/g ;
     $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
+    $_ =~ s/CONFIGURE_HDFEOS_PATH/$sw_hdfeos_path/g ;
+    $_ =~ s/CONFIGURE_ZLIB_PATH/$sw_zlib_path/g ;
+    $_ =~ s/CONFIGURE_PNETCDF_PATH/$sw_pnetcdf_path/g ;
+#    $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
     $_ =~ s/CONFIGURE_PHDF5_PATH/$sw_phdf5_path/g ;
     $_ =~ s/CONFIGURE_LDFLAGS/$sw_ldflags/g ;
     $_ =~ s/CONFIGURE_COMPILEFLAGS/$sw_compileflags/g ;
@@ -481,6 +527,37 @@ while ( <CONFIGURE_DEFAULTS> )
        $_ =~ s/#// ;
        $_ =~ s/#// ;
     }
+    if ( $sw_gribapi_path ) 
+      { $_ =~ s:CONFIGURE_GRIBAPI_LIB_PATH:-L$sw_gribapi_path/lib -lgrib_api_f90 -lgrib_api : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_GRIBAPI_LIB_PATH//g ;
+	 }
+    if ( $sw_hdf4_path ) 
+      { $_ =~ s:CONFIGURE_HDF4_LIB_PATH:-L$sw_hdf4_path/lib -lmfhdf -ldf -ljpeg : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_HDF4_LIB_PATH//g ;
+	 }
+#    if ( $sw_hdf5_path ) 
+#      { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5_fortran -lhdf5: ;
+#	 }
+#    else                   
+#      { $_ =~ s/CONFIGURE_HDF5_LIB_PATH//g ;
+#	 }
+    if ( $sw_hdfeos_path ) 
+      { $_ =~ s:CONFIGURE_HDFEOS_LIB_PATH:-L$sw_hdfeos_path/lib -lhdfeos -lGctp : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_HDFEOS_LIB_PATH//g ;
+	 }
+
+    if ( $sw_zlib_path ) 
+      { $_ =~ s:CONFIGURE_ZLIB_LIB_PATH:-L$sw_zlib_path/lib -lz : ;
+	 }
+    else                   
+      { $_ =~ s/CONFIGURE_ZLIB_LIB_PATH//g ;
+	 }
     if ( $sw_netcdf_path ) 
       { $_ =~ s/CONFIGURE_WRFIO_NF/wrfio_nf/g ;
 	$_ =~ s:CONFIGURE_NETCDF_FLAG:-DNETCDF: ;
@@ -514,6 +591,7 @@ while ( <CONFIGURE_DEFAULTS> )
 	 }
 
     if ( $sw_hdf5_path ) 
+#      { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5_fortran -lhdf5 -lm -lz: ;
       { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lm -lz: ;
         $_ =~ s:CONFIGURE_HDF5_FLAG:-DHDF5: ;
          }
@@ -612,7 +690,7 @@ while ( <CONFIGURE_DEFAULTS> )
     if ( ! (substr( $_, 0, 5 ) eq "#ARCH") ) { @machopts = ( @machopts, $_ ) ; }
     if ( substr( $_, 0, 10 ) eq "ENVCOMPDEF" )
     {
-      @machopts = ( @machopts, "WRF_CHEM\t=\t$WRFCHEM \n" ) ;
+      @machopts = ( @machopts, "WRF_CHEM\t=\t$WRFCHEM\nWRF_ELEC\t=\t$WRFELEC\nWRF_LIS\t=\t$WRFLIS\n" ) ;
     }
   }
 

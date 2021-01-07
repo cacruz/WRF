@@ -21,6 +21,9 @@ ARCHFLAGS       =    $(COREDEFS) -DIWORDSIZE=$(IWORDSIZE) -DDWORDSIZE=$(DWORDSIZ
                       CONFIGURE_WAVELET_FLAG \
                       CONFIGURE_NESTOPT \
                       -DUSE_ALLOCATABLES \
+                      -DWRF_LIS \
+                      -DWRF_ELEC \
+                      -DFVCOM_COUPLE \
                       -Dwrfmodel \
                       -DGRIB1 \
                       -DINTIO \
@@ -56,6 +59,24 @@ INCLUDE_MODULES =    $(MODULE_SRCH_FLAG) \
                       CONFIGURE_RTTOV_INC
 REGISTRY        =    Registry
 CC_TOOLS_CFLAGS = CONFIGURE_NMM_CORE
+
+#EMK BEGIN...Merge NUWRF and WRF 3.2.1
+#NOWIN LIB_BUNDLED     = \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/fftpack/fftpack5 -lfftpack \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_grib1 -lio_grib1 \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_grib_share -lio_grib_share \
+#NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_int -lwrfio_int \
+#NOWIN                     $(ESMF_IO_LIB) \
+#NOWIN                     CONFIGURE_COMMS_LIB \
+#NOWIN                     $(WRF_SRC_ROOT_DIR)/frame/module_internal_header_util.o \
+#NOWIN                     $(WRF_SRC_ROOT_DIR)/frame/pack_utils.o \
+#NOWIN                     $(WRF_ESMF_LIBS)
+#EMK END...Merge NUWRF and WRF 3.2.1
+
+#EMK BEGIN...Merge NUWRF and WRF 3.2.1
+#NOWIN LIB_EXTERNAL    = \
+#NOWIN                      CONFIGURE_NETCDF_LIB_PATH CONFIGURE_PNETCDF_LIB_PATH CONFIGURE_GRIB2_LIB CONFIGURE_ATMOCN_LIB  CONFIGURE_GRIBAPI_LIB_PATH CONFIGURE_HDFEOS_LIB_PATH CONFIGURE_HDF4_LIB_PATH CONFIGURE_HDF5_LIB_PATH CONFIGURE_ZLIB_LIB_PATH
+#EMK END...Merge NUWRF and WRF 3.2.1
 
 LIB             =    $(LIB_BUNDLED) $(LIB_EXTERNAL) $(LIB_LOCAL) $(LIB_WRF_HYDRO)
 LDFLAGS         =    $(OMP) $(FCFLAGS) $(LDFLAGS_LOCAL) CONFIGURE_LDFLAGS
