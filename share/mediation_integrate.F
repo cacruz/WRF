@@ -177,7 +177,8 @@ SUBROUTINE med_before_solve_io ( grid , config_flags )
        rc = 1  ! dummy statement
 #if ( WRF_CHEM == 1 )
 ! - Get chemistry data
-     ELSE IF( ialarm .EQ. AUXINPUT5_ALARM .AND. config_flags%chem_opt > 0 ) THEN
+     ELSE IF( ialarm .EQ. AUXINPUT5_ALARM .AND. config_flags%chem_opt > 0 &
+          .and. config_flags%chem_opt .ne. ECASACO2) THEN ! NUWRF, CASA
        IF( config_flags%emiss_inpt_opt /= 0 ) THEN
          IF( WRFU_AlarmIsRinging( grid%alarms( ialarm ), rc=rc ) .OR.  &
          ((config_flags%restart) .AND. ( currTime .EQ. startTime ))) THEN
@@ -217,11 +218,22 @@ SUBROUTINE med_before_solve_io ( grid , config_flags )
            CALL WRFU_AlarmRingerOff( grid%alarms( ialarm ), rc=rc )
            call wrf_debug(15,' Back from CALL med_read_wrf_volc_emiss ')
          ENDIF
-       ELSE
+       ENDIF
+! NUWRF...CASA CO2 Support
+     ELSE IF( ialarm .EQ. AUXINPUT18_ALARM .AND. config_flags%chem_opt==ECASACO2 ) THEN
+       IF( config_flags%emiss_inpt_opt == EMISS_INPT_CASA ) THEN
          IF( WRFU_AlarmIsRinging( grid%alarms( ialarm ), rc=rc ) ) THEN
-           CALL med_auxinput_in ( grid, ialarm, config_flags )
+           call wrf_debug(15,' CALL med_read_wrf_casaco2 ')
+           CALL med_read_wrf_chem_casa_emiss ( grid , config_flags )
            CALL WRFU_AlarmRingerOff( grid%alarms( ialarm ), rc=rc )
+           call wrf_debug(15,' Back from CALL med_read_wrf_chem_casa_emiss ')
          ENDIF
+! EMK...Don't read anything if emissions turned off.
+!       ELSE
+!         IF( WRFU_AlarmIsRinging( grid%alarms( ialarm ), rc=rc ) ) THEN
+!           CALL med_auxinput_in ( grid, ialarm, config_flags )
+!           CALL WRFU_AlarmRingerOff( grid%alarms( ialarm ), rc=rc )
+!         ENDIF
        ENDIF
 #endif
 #if ( EM_CORE == 1 )
@@ -422,6 +434,9 @@ SUBROUTINE med_after_solve_io ( grid , config_flags )
    USE module_domain    , ONLY : domain
    USE module_timing
    USE module_configure , ONLY : grid_config_rec_type
+   USE module_utility, ONLY: WRFU_AlarmIsRinging, &
+                             WRFU_AlarmRingerOff ! EMK for NUWRF 1.1
+   USE module_streams, ONLY:  AUXHIST5_ALARM ! EMK for NUWRF 1.1
   ! Model layer
 
    IMPLICIT NONE
@@ -429,6 +444,16 @@ SUBROUTINE med_after_solve_io ( grid , config_flags )
   ! Arguments
    TYPE(domain)                               :: grid
    TYPE (grid_config_rec_type) , INTENT(IN)   :: config_flags
+
+  ! NUWRF - start
+  INTEGER                                    :: rc
+      
+   IF( WRFU_AlarmIsRinging( grid%alarms( AUXHIST5_ALARM ), rc=rc ) ) THEN
+     CALL med_hist_out ( grid , 5, config_flags )
+     CALL WRFU_AlarmRingerOff( grid%alarms( AUXHIST5_ALARM ), rc=rc )
+   ENDIF
+  ! NUWRF - end
+
 
    ! Compute time series variables
    CALL calc_ts(grid)
@@ -1478,9 +1503,13 @@ SUBROUTINE med_last_solve_io ( grid , config_flags )
   ! Driver layer
    USE module_state_description
    USE module_domain    , ONLY : domain, domain_clock_get
+   USE module_domain    , ONLY : domain_clockisstoptime ! NUWRF
    USE module_configure , ONLY : grid_config_rec_type
    USE module_utility
    USE module_streams
+#ifdef WRF_LIS
+   USE LISWRFGridCompMod, only : LISWRF_import ! NUWRF
+#endif
 #if ( WRFPLUS == 1 )
    USE mediation_pertmod_io , ONLY : save_xtraj, save_tl_pert
 #endif
@@ -1500,6 +1529,15 @@ SUBROUTINE med_last_solve_io ( grid , config_flags )
    INTEGER :: hr, min, sec, ms,julyr,julday
    REAL :: GMT
 !end of zhang's doing
+#endif
+
+#ifdef WRF_LIS
+! EMK NUWRF 
+TYPE(WRFU_Time) :: imp_currentTime
+INTEGER         :: imp_month, imp_day, imp_hr, imp_minute, imp_sec, imp_rc
+INTEGER         :: imp_julyr, imp_julday, imp_ms
+CHARACTER*80    :: imp_mesg
+! EMK NUWRF 
 #endif
 
 ! #if (EM_CORE == 1)
@@ -1541,6 +1579,42 @@ SUBROUTINE med_last_solve_io ( grid , config_flags )
 
    ! Write out time series
    CALL write_ts( grid )
+
+#ifdef WRF_LIS
+! EMK NUWRF...Subroutine integrate will call med_last_solve_io for the
+! top level grid after all the child domains
+! have been integrated (thanks to the power of recursion). So, if this
+! is the top level grid and it has reached the stop time,
+! then we can safely shut down LIS.
+   if (grid%id .eq. 1) then
+      if (domain_clockisstoptime(grid)) then
+         if (config_flags%sf_surface_physics .eq. NUWRFLISSCHEME) then
+            call domain_clock_get( grid, current_time=imp_currentTime, &
+                                   current_timestr=imp_mesg )
+
+            call WRFU_TimeGet( imp_currentTime, &
+                               YY=imp_julyr, &
+                               dayOfYear=imp_julday, &
+                               MM=imp_month,DD=imp_day,&
+                               H=imp_hr, M=imp_minute, S=imp_sec, MS=imp_ms, &
+                               rc=imp_rc)
+
+            if ( rc /= WRFU_SUCCESS ) then
+               CALL wrf_error_fatal('WRFU_TimeGet failed')
+            endif
+
+            LISWRF_import(grid%id)%yr = imp_julyr  !yy
+            LISWRF_import(grid%id)%mo = imp_month  !mo
+            LISWRF_import(grid%id)%da = imp_day    !dd
+            LISWRF_import(grid%id)%hr = imp_hr     !hr
+            LISWRF_import(grid%id)%mn = imp_minute !mn
+            LISWRF_import(grid%id)%ss = imp_sec    !ss
+            call LISWRFfinalize_coupled()
+         end if
+      end if
+   end if
+! EMK NUWRF 
+#endif
 
    RETURN
 END SUBROUTINE med_last_solve_io
@@ -2175,7 +2249,7 @@ integer myproc,i,j,k
          CALL wrf_debug( 100 , bdyname // ' is already opened' )
        ENDIF
        CALL wrf_debug( 100 , 'med_latbound_in: calling input_boundary ' )
-       CALL input_boundary ( grid%lbc_fid, grid , config_flags , ierr )
+       CALL input_boundary ( grid%lbc_fid, grid , config_flags , ierr )  ! CC NUWRF: grid or head_grid?
 
 ! #if (EM_CORE == 1)
        IF ( (config_flags%dfi_opt .NE. DFI_NODFI) .AND. (head_grid%dfi_stage .NE. DFI_FST) ) THEN
@@ -2189,7 +2263,7 @@ integer myproc,i,j,k
        IF ( config_flags%dyn_opt .NE. dyn_em_ad ) THEN
           DO WHILE (currentTime .GE. grid%next_bdy_time )         ! next_bdy_time is set by input_boundary from bdy file
              CALL wrf_debug( 100 , 'med_latbound_in: calling input_boundary ' )
-             CALL input_boundary ( grid%lbc_fid, grid , config_flags , ierr )
+             CALL input_boundary ( grid%lbc_fid, grid , config_flags , ierr ) ! CC NUWRF: grid or head_grid?
           ENDDO
        ELSE
           DO WHILE (currentTime .GT. grid%next_bdy_time )         ! next_bdy_time is set by input_boundary from bdy file
@@ -2539,6 +2613,147 @@ SUBROUTINE med_read_wrf_chem_input ( grid , config_flags )
    CALL wrf_debug (100 , 'mediation_integrate: med_read_wrf_chem_input: exit' )
 
 END SUBROUTINE med_read_wrf_chem_input
+!========================================
+! NUWRF: Read CASACO2 fluxes
+!========================================
+!------------------------------------------------------------------------
+! Chemistry emissions input control. Three options are available and are
+! set via the namelist variable io_style_emissions:
+!
+!   0 = Emissions are not read in from a file. They will contain their
+!       default values, which can be set in the Registry.
+!       (Intended for debugging of chem code)
+!
+!   1 = Emissions are read in from two 12 hour files that are cycled.
+!       With this choice, auxinput18_inname should be set to
+!       the value "wrfchemi_hhZ_d<domain>". 
+!
+!   2 = Emissions are read in from files identified by date and that have
+!       a length defined by frames_per_auxinput5. Both
+!       auxinput18_inname should be set to 
+!       "CO2_chemi_<date>.nc"
+!------------------------------------------------------------------------
+SUBROUTINE med_read_wrf_chem_casa_emiss ( grid , config_flags )
+   ! Driver layer
+   USE module_domain	, ONLY : domain , domain_clock_get
+   USE module_io_domain
+   USE module_timing
+   USE module_configure	, ONLY : grid_config_rec_type
+   ! Model layer
+   USE module_bc_time_utilities
+#ifdef DM_PARALLEL
+   USE module_dm
+#endif
+   USE module_date_time
+   USE module_utility
+   
+   IMPLICIT NONE
+   
+   ! Arguments
+   TYPE(domain)                               :: grid
+   
+   !  TYPE (grid_config_rec_type) , INTENT(IN)   :: config_flags
+   TYPE (grid_config_rec_type)            :: config_flags
+   Type (WRFU_Time )                      :: stopTime, currentTime
+   Type (WRFU_TimeInterval )              :: stepTime
+   
+   ! Local data
+   LOGICAL, EXTERNAL                      :: wrf_dm_on_monitor
+   
+   INTEGER                                :: ierr, efid
+   INTEGER                                :: ihr, ihrdiff, i
+   REAL                                   :: time, tupdate
+   real, allocatable :: dumc0(:,:,:)
+   CHARACTER (LEN=256)                    :: message, current_date_char, date_string
+   CHARACTER (LEN=80)                     :: inpname
+   CHARACTER (LEN=2)                     :: domain_string
+   
+#include <wrf_io_flags.h>
+   
+   CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
+   
+   ! This "if" should be commented out when using emission files for nested
+   ! domains. Also comment out the "ENDIF" line noted below.
+   !    IF ( grid%id .EQ. 1 ) THEN  
+   
+   CALL domain_clock_get( grid, current_time=currentTime,          &
+        current_timestr=current_date_char, &
+        stop_time=stopTime,                &
+        time_step=stepTime )
+   
+   time = float(grid%itimestep) * grid%dt
+   
+   !---
+   ! io_style_emissions option 0: no emissions read in...
+   !---
+   if( config_flags%io_style_emissions == 0 ) then
+      ! Do nothing.
+      !---
+      ! io_style_emissions option 2: use dated emission files whose length is
+      !                             set via frames_per_auxinput5...
+      !---
+   else if( config_flags%io_style_emissions == 2 ) then
+      WRITE(message,*)'mediation_integrate: med_read_wrf_chem_casa_emissions: Read emissions for time ',TRIM(current_date_char)
+      CALL wrf_message( TRIM(message) )
+      !
+      ! Code to read  emission files...
+      !
+      if( grid%auxinput18_oid == 0 ) then 
+         write(domain_string, "(I2.2)") grid%id 
+         inpname=trim(grid%emi_inname)//'d'//domain_string//'_'//trim(current_date_char)
+         WRITE(message,*)'mediation_integrate: med_read_wrf_chem_casa_emissions: Open file ',TRIM(inpname)
+         CALL wrf_message( TRIM(message) )
+         CALL open_r_dataset ( grid%auxinput18_oid, TRIM(inpname) , grid , config_flags, &
+              "DATASET=AUXINPUT18", ierr ) 
+         
+         IF ( ierr .NE. 0 ) THEN
+            WRITE( message , * ) 'med_read_wrf_chem_casa_emissions: error opening ', TRIM( inpname )
+            CALL wrf_error_fatal( TRIM( message ) )
+            WRITE( message , * ) 'med_read_wrf_chem_casa_emissions: Filename format: CO2_<domain>_<date> '
+            CALL wrf_error_fatal( TRIM( message ) )
+         ENDIF
+      end if
+
+      !
+      ! Read the emissions data.
+      !
+      CALL wrf_debug (15 , 'mediation_integrate: calling input_auxinput18' )
+      CALL input_auxinput18 ( grid%auxinput18_oid, grid , config_flags , ierr )
+      
+      write(message,'(A)') 'Finished reading casaco2 emissions'
+      CALL wrf_message( TRIM(message) )
+      IF ( ierr .NE. 0 ) THEN
+         WRITE( message , * ) 'med_read_wrf_chem_casa_emissions: error reading ', TRIM( inpname )
+         CALL wrf_error_fatal( TRIM( message ) )
+      ENDIF
+      !
+      ! If reached the indicated number of frames in the emissions file, close it.
+      !
+      grid%emissframes = grid%emissframes + 1
+      IF ( grid%emissframes >= config_flags%frames_per_auxinput18 ) THEN
+         CALL wrf_debug (15 , 'mediation_integrate: closing input_auxinput18' )
+         CALL close_dataset ( grid%auxinput18_oid , config_flags , "DATASET=AUXINPUT18" )         
+         grid%emissframes = 0
+         grid%auxinput18_oid = 0
+      ENDIF
+
+      !---
+      ! unknown io_style_emissions option...
+      !---
+   else
+      call wrf_error_fatal("Unknown emission style selected via io_style_casa_emissions.")
+   end if
+   
+   ! The following line should be commented out when using emission files
+   ! for nested domains. Also comment out the "if" noted above.
+   !   ENDIF
+   
+   CALL wrf_debug (15 , 'mediation_integrate: med_read_wrf_chem_casa_emissions: exit' )
+
+END SUBROUTINE med_read_wrf_chem_casa_emiss
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 !------------------------------------------------------------------------
 ! Chemistry emissions input control. Three options are available and are
 ! set via the namelist variable io_style_emissions:

@@ -42,6 +42,10 @@
    USE module_diag_zld, ONLY : zld
    USE module_trad_fields, ONLY : trad_fields
 
+   ! NUWRF...Diagnostics used by NASA Regional Climate Downscaling project
+   use module_diag_downscale, only: cal_tpwtwp, calc_dz8w, calc_rho, &
+        calc_t_phy, calc_freezing_level, calc_z
+
 !!debug
 !USE module_compute_geop
 
@@ -85,6 +89,11 @@
    REAL :: tempfac
 #endif
 
+! EMK NUWRF...Set local arrays for hydrometeor integration
+   REAL,DIMENSION(grid%sm31:grid%em31,grid%sm32:grid%em32,grid%sm33:grid%em33) :: &
+                      dz8w,rho,t_phy,z
+
+
    REAL :: qvf1, qvf2, qvf
    REAL :: pfu, pfd, phm
    REAL :: MPDT
@@ -122,7 +131,6 @@
 
 !..Need to fill special height var for setting up initial condition.  G. Thompson
    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: z_at_q
-   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dz8w   !mchen
 
 !  CCN for MP=18 initializatio
    REAL :: ccn_max_val
@@ -145,7 +153,6 @@
 #if (WRF_CHEM != 1)
          ALLOCATE(CLDFRA_OLD(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; CLDFRA_OLD = 0.
 #endif
-   ALLOCATE(dz8w(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; dz8w = 0.
    ALLOCATE(z_at_q(IMS:IME,KMS:KME,JMS:JME),STAT=I)  ; z_at_q = 0.
    CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
 
@@ -1203,6 +1210,8 @@ endif
               grid%lhveg, grid%lhtran, & !end of CLM variables
                       grid%TSK_SAVE,                        & !Optional fractional seaice
                       grid%itimestep, grid%fdob,            &
+                      moist(:,:,:,P_QV),grid%phb,grid%ph_2,grid%alt,grid%p,  & ! Tsai
+                      grid%pb,config_flags%BACKIN,config_flags%CCNTY,        & ! Tsai
                       t00, p00, a,                      & ! for obs_nudge base state
                       grid%TYR, grid%TYRA, grid%TDLY, grid%TLAG, grid%NYEAR, grid%NDAY,grid%tmn_update, &
                       grid%achfx, grid%aclhf, grid%acgrdflx,                  &
@@ -1789,6 +1798,7 @@ endif
 
          CALL chem_init (grid%id,chem,emis_ant,scalar,grid%dt,grid%bioemdt,grid%photdt,     &
                          grid%chemdt,                                       &
+                         grid%casafxdt, grid%stepcasa,                                      &           ! NUWRF add by Z. Tao
                          grid%stepbioe,grid%stepphot,grid%stepchem,grid%stepfirepl,      &
                          grid%plumerisefire_frq,z_at_w,grid%xlat,grid%xlong,g,           &
                          grid%aerwrf,config_flags,grid,            &
@@ -1945,6 +1955,85 @@ endif
                          ims , ime , jms , jme , &
                          its , ite , jts , jte , &
                          its , ite , jts , jte   )
+
+! EMK NUWRF BEGIN...Calculate integrated microphysics values
+  !$OMP PARALLEL DO   &   
+  !$OMP PRIVATE ( ij )       
+   DO ij = 1 , grid%num_tiles
+      call calc_dz8w(phb=grid%phb, &
+           ph=grid%ph_2, &
+           dz8w=dz8w, &
+           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+           ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+           JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+           KTS=kts,KTE=kte                                      )
+      call calc_rho(alt=grid%alt, &
+           moist=moist, &
+           rho=rho, &
+           n_moist=num_moist, &
+           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+           ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+           JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+           KTS=kts,KTE=kte                                      )           
+      CALL wrf_debug ( 200 , ' cal_tpwtwp: Integrated microphysics...' )
+      call cal_tpwtwp(dz8w=dz8w, &
+           rho=rho, &
+           qv=moist(:,:,:,P_QV), &
+           ql=moist(:,:,:,P_QC), &
+           qi=moist(:,:,:,P_QI), &
+           qr=moist(:,:,:,P_QR), &
+           qs=moist(:,:,:,P_QS), &
+           qg=moist(:,:,:,P_QG), &
+           qh=moist(:,:,:,P_QH), &
+           tpw=grid%tpw, &
+           lwp=grid%lwp, &
+           iwp=grid%iwp, &
+           clwp=grid%clwp, &
+           rwp=grid%rwp, &
+           ciwp=grid%ciwp, &
+           fpwp=grid%fpwp, &
+           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+           ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+           JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+           KTS=kts,KTE=kte                                      )
+      
+      ! Also calculate freezing level
+      call calc_t_phy( &
+           t_phy=t_phy, &
+           t=grid%t_2, &
+           p=grid%p, &
+           pb=grid%pb, &
+           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+           ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+           JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+           KTS=kts,KTE=kte                                      )
+      call calc_z( &
+           z=z, &
+           phb=grid%phb, &
+           ph=grid%ph_2, &
+           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+           ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+           JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+           KTS=kts,KTE=kte                                      )           
+      CALL wrf_debug ( 200 , ' INIT, calling calc_freezing_level...')
+      call calc_freezing_level( &
+           freezing_level=grid%freezing_level, &
+           t_phy=t_phy, &
+           z=z, &
+           ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde, &
+           ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme, &
+           ITS=grid%i_start(ij),ITE=grid%i_end(ij),     &
+           JTS=grid%j_start(ij),JTE=grid%j_end(ij),     &
+           KTS=kps,KTE=kpe                              )
+   END DO
+   !$OMP END PARALLEL DO        
+! EMK NUWRF END...Calculate integrated microphysics values
+
 
 #if (WRF_CHEM != 1)
       DEALLOCATE(CLDFRA_OLD)

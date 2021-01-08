@@ -146,6 +146,24 @@ module_initialize_les.o : \
 		../share/module_bc.o \
 		module_init_utilities.o
 
+#! crm 
+module_force_crm.o: \
+		module_init_utilities.o \
+		../frame/module_dm.o \
+		../share/module_model_constants.o
+
+module_initialize_crm.o : \
+		../frame/module_domain.o \
+		../frame/module_configure.o  \
+		../frame/module_state_description.o \
+		../frame/module_timing.o \
+		../frame/module_dm.o \
+		../share/module_io_domain.o \
+		../share/module_model_constants.o \
+		../share/module_bc.o \
+		module_init_utilities.o
+#! crm end
+
 module_initialize_seabreeze2d_x.o : \
 		../frame/module_domain.o \
 		../frame/module_configure.o  \
@@ -204,6 +222,9 @@ module_initialize_real.o :  \
 		../share/module_bc.o \
 		../share/module_soil_pre.o \
 		../share/module_optional_input.o
+		../share/module_optional_input.o \
+		ReconcileWithLis_mod.o \
+		NetcdfUtils_mod.o
 
 module_initialize_squall2d_x.o : \
 		../frame/module_domain.o \
@@ -247,6 +268,7 @@ start_em.o:     module_bc_em.o \
 		../phys/module_physics_init.o \
 		../phys/module_diag_pld.o \
 		../phys/module_diag_zld.o \
+		../phys/module_diag_downscale.o \
 		../phys/module_diag_trad_fields.o \
                 ../phys/module_fr_fire_driver_wrf.o \
 		$(CF)
@@ -277,7 +299,9 @@ solve_em.o:     module_small_step_em.o \
 		../phys/module_microphysics_driver.o \
 		../phys/module_microphysics_zero_out.o \
 		../phys/module_physics_addtendc.o \
-		../phys/module_checkerror.o
+		../phys/module_checkerror.o \
+                ../phys/module_crm_stat.o 
+                # added crm_stat #
 
 module_convtrans_prep.o : 
 
@@ -293,7 +317,9 @@ module_first_rk_step_part1.o : \
 		../phys/module_pbl_driver.o \
 		../phys/module_fr_fire_driver_wrf.o \
 		../frame/module_comm_dm.o \
-		../phys/module_fddagd_driver.o
+		../phys/module_fddagd_driver.o \
+                module_force_crm.o
+                # added force_crm #
 
 module_first_rk_step_part2.o : \
                 module_em.o \
@@ -327,6 +353,18 @@ adapt_timestep_em.o: \
 
 #		../chem/module_chem_utilities.o \
 # 		../chem/module_input_chem_data.o
+
+# NUWRF                                                                          
+ReconcileWithLis_mod.o: \
+               ../frame/module_domain.o \
+               ../frame/module_domain_type.o \
+               ../frame/module_wrf_error.o \
+               ../share/module_soil_pre.o \
+               ../share/module_date_time.o \
+               NetcdfUtils_mod.o                                                  
+
+NetcdfUtils_mod.o: \
+               ../frame/module_wrf_error.o
 
 # End of DEPENDENCIES for dyn_em
 

@@ -6,6 +6,7 @@ RM      =       rm -f
 
 
 MODULES = \
+	module_diag_csi.o \
 	module_cam_shr_kind_mod.o \
 	module_cam_support.o \
 	module_cam_shr_const_mod.o \
@@ -97,12 +98,15 @@ MODULES = \
         module_mp_p3.o \
         module_mp_jensen_ishmael.o \
         module_mp_morr_two_moment_aero.o \
+        module_mp_morr_faster.o \
 	module_mp_milbrandt2mom.o \
+	module_mp_nudge_light.o \
 	module_mp_nssl_2mom.o \
 	module_mp_wdm5.o \
 	module_mp_wdm6.o \
 	module_mp_wdm7.o \
 	module_mp_cammgmp_driver.o \
+	module_mp_ntu.o  \
 	module_ra_sw.o  \
 	module_ra_clWRF_support.o  \
 	module_ra_gsfcsw.o \
@@ -192,7 +196,9 @@ MODULES = \
 	module_wind_fitch.o \
 	module_sf_lake.o \
 	module_diagnostics_driver.o \
-	module_irrigation.o
+	module_irrigation.o \
+	module_crm_stat.o \
+	module_crm_phy.o
 
 FIRE_MODULES = \
         module_fr_fire_driver.o \
@@ -204,6 +210,7 @@ FIRE_MODULES = \
         module_fr_fire_util.o
 
 DIAGNOSTIC_MODULES_EM = \
+	module_diag_downscale.o \
 	module_diag_afwa.o \
 	module_diag_cl.o \
 	module_diag_functions.o \

@@ -8,7 +8,8 @@ CONTAINS
 
 ! !INTERFACE:
    SUBROUTINE radiation_driver (                                          &
-               ACFRCV ,ACFRST ,ALBEDO                                     &
+               p_top                                                      &
+              ,ACFRCV ,ACFRST ,ALBEDO                                     &
               ,CFRACH ,CFRACL ,CFRACM                                     &
               ,CUPPT  ,CZMEAN ,DT                                         &
               ,DZ8W   ,EMISS  ,GLW                                        &
@@ -24,7 +25,6 @@ CONTAINS
               ,swint_opt                                                  &
               ,solar_opt                                                  &
               ,P8W    ,P ,PI                                              &
-              ,p_top                                                      &
               ,RADT   ,RA_CALL_OFFSET                                     &
               ,RHO    ,RLWTOA                                             &
               ,RSWTOA ,RTHRATEN                                           &
@@ -170,11 +170,14 @@ CONTAINS
               ,mp_physics                                                 &
               ,EFCG,EFCS,EFIG,EFIS,EFSG,aercu_opt                         &
               ,EFSS,QS_CU                                                 &
+              ,QNC, EFFCS                                                 & ! crm 
+              ,LWF0, LWF1, LWF2, LWF3,ZI_QT8                              & ! CRM
+              ,LWUPFD, LWDNFD, SWUPFD, SWDNFD                             & ! CRM
 #if (WRF_CHEM == 1)
               ,chem                                                       &
               ,aod_out                                                    &
-              , AOD2D_OUT                                                 &
-              , ATOP2D_OUT                                                &
+              ,AOD2D_OUT                                                  &
+              ,ATOP2D_OUT                                                 &
               ,chem_opt                                                   &
               ,gsfcrad_gocart_coupling                                    &
 #endif
@@ -793,8 +796,9 @@ CONTAINS
          INTENT(INOUT ) ::                                        &
                                                                pb &
                                         ,qv,qc,qr,qi,qs,qg,qh,qndrop,      &
-                                                      qnifa,qnwfa,      & ! Trude
-                                                      qi2,qi3        ! for P3
+                                                      qnifa,qnwfa,         & ! Trude
+                                                      qi2,qi3,             & ! for P3
+                                                      effcs, qnc             ! KVW, crm
 
    LOGICAL, OPTIONAL ::     f_qv,f_qc,f_qr,f_qi,f_qs,f_qg,f_qh,f_qndrop,&
                                                 f_qnifa,f_qnwfa,        &  ! trude
@@ -887,6 +891,15 @@ CONTAINS
      INTEGER, PARAMETER:: taer_ssa_opt = 3                               !  input option for aerosol ssa
      INTEGER, PARAMETER:: taer_asy_opt = 3                               !  input option for aerosol asy
 
+! **********************************************************************
+! crm 
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                &
+         OPTIONAL, INTENT(INOUT) ::            LWF0,LWF1,LWF2,LWF3
+   REAL, DIMENSION( ims:ime, jms:jme ),                &
+         OPTIONAL, INTENT(INOUT) ::            ZI_QT8
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                &
+         OPTIONAL, INTENT(INOUT) ::    LWUPFD, LWDNFD, SWUPFD, SWDNFD           
+! **********************************************************************
 
 #if ( HWRF == 1 )
    CHARACTER(len=255) :: wrf_err_message
@@ -1136,6 +1149,42 @@ CONTAINS
             ENDDO
           ENDIF
 
+! these are half level parameters.....so, it shoudl start from kts to kte - 1
+!NUWRF JJS 20101021 vvvvv
+#if ( WRF_CHEM == 1)
+! Pack gocart aerosol species
+! All aerosol species in chem are in "ug/kg-dryair"
+!  and conerted to (g/m**3)
+   aero(:,:,:,:) = 0.
+   if ( (chem_opt == 300 .or. chem_opt == 301 .or. &
+         chem_opt == 302 .or. chem_opt == 303) .and. &
+         (gsfcrad_gocart_coupling == 1) ) then
+      do j = jts, jte
+         do k = kts, kte  !corrected memory order
+            do i = its, ite
+               ! aero(i,k,j, 1) = max(0.0, chem(i,k,j,p_sulf)*1.0e-6*rho(i,k,j))             !  1 = SO4
+               aero(i,k,j, 1) = max(0.0, chem(i,k,j,p_sulf)*1.0e-6*p(i,k,j)*96.0/(8.314*t(i,k,j)))  ! 1 = SO4
+               aero(i,k,j, 2) = max(0.0, (chem(i,k,j,p_bc1)+chem(i,k,j,p_bc2))*1.0e-6*rho(i,k,j))  ! 2 = BC1+BC2
+               aero(i,k,j, 3) = max(0.0, chem(i,k,j,p_oc1)*1.0e-6*rho(i,k,j)*1.4e0)          !  3 = OC1
+               aero(i,k,j, 4) = max(0.0, chem(i,k,j,p_oc2)*1.0e-6*rho(i,k,j)*1.4e0)          !  4 = OC2
+               aero(i,k,j, 5) = max(0.0, chem(i,k,j,p_seas_1)*1.0e-6*rho(i,k,j))           !  5 = SS1
+               aero(i,k,j, 6) = max(0.0, (chem(i,k,j,p_seas_2)+chem(i,k,j,p_seas_3)+  &
+                    chem(i,k,j,p_seas_4))*1.0e-6*rho(i,k,j))          !  6 = SS2+SS3+SS4
+               aero(i,k,j, 7) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(1))   !  7 = DU1 dust mode 1
+               aero(i,k,j, 8) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(2))   !  8 = DU1 dust mode 2
+               aero(i,k,j, 9) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(3))   !  9 = DU1 dust mode 3
+               aero(i,k,j,10) = max(0.0, chem(i,k,j,p_dust_1)*1.0e-6*rho(i,k,j)*frac(4))   ! 10 = DU1 dust mode 4
+               aero(i,k,j,11) = max(0.0, chem(i,k,j,p_dust_2)*1.0e-6*rho(i,k,j))           ! 11 = DU2 dust mode 5
+               aero(i,k,j,12) = max(0.0, chem(i,k,j,p_dust_3)*1.0e-6*rho(i,k,j))           ! 11 = DU3 dust mode 6
+               aero(i,k,j,13) = max(0.0, chem(i,k,j,p_dust_4)*1.0e-6*rho(i,k,j))           ! 11 = DU4 dust mode 7
+               aero(i,k,j,14) = max(0.0, chem(i,k,j,p_dust_5)*1.0e-6*rho(i,k,j))           ! 11 = DU5 dust mode 8
+            enddo ! i
+         enddo ! k
+      enddo ! j
+   end if ! if (gsfcrad_gocart_coupling == 1)
+#endif
+!NUWRF JJS 20101021 ^^^^^
+      
 #if (EM_CORE == 1)
 ! temporarily modify hydrometeors (for P3, if 2 cat then add ice from both categories)
 !

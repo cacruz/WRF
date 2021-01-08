@@ -23,6 +23,14 @@ MODULE module_dm
       wrf_dm_min_real = inval
    END FUNCTION wrf_dm_min_real
 
+!! crm added
+   REAL FUNCTION wrf_dm_sum_real8 ( inval )
+      IMPLICIT NONE
+      REAL*8 inval
+      wrf_dm_sum_real8 = inval
+   END FUNCTION wrf_dm_sum_real8
+!! crm end
+
    SUBROUTINE wrf_dm_min_reals ( inval, retval, n )
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: n

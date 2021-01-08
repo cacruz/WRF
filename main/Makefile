@@ -14,6 +14,7 @@ include ../configure.wrf
 
 $(SOLVER)_wrf : wrf.o ../main/module_wrf_top.o
 	$(RANLIB) $(RLFLAGS) $(LIBWRFLIB)
+	$(AR) -d $(LIBWRFLIB) noahmp36_wrf_routines.o
 	$(LD) -o wrf.exe $(LDFLAGS) wrf.o ../main/module_wrf_top.o $(LIBWRFLIB) $(LIB) 
 
 $(SOLVER)_wrfplus : wrf.o ../main/module_wrf_top.o

@@ -3046,6 +3046,23 @@
                                              model_config_rec % num_soil_layers
       CALL wrf_debug ( 1, wrf_err_message )
 
+!-----------------------------------------------------------------------
+! EMK NUWRF. Disable 2-way nesting when LIS coupling is turned on. 
+! This will be revisited if/when LIS preprocessing produces identical
+! land masks, land use, etc in a 2-way nesting situation.
+!-----------------------------------------------------------------------
+      if (model_config_rec % sf_surface_physics(1) .eq. NUWRFLISSCHEME) then
+         if (model_config_rec % max_dom > 1 .and. &
+             model_config_rec % feedback > 0) then
+            wrf_err_message = &
+                 '---ERROR: 2-way nesting cannot be used with LIS coupling!' 
+            CALL wrf_message ( wrf_err_message )
+            wrf_err_message = &
+                 'Either set feedback to 0 or change sf_surface_physics!'
+            CALL wrf_error_fatal ( TRIM( wrf_err_message ) )
+         end if
+      end if
+
    END SUBROUTINE set_physics_rconfigs
 
 !=======================================================================

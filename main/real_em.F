@@ -156,6 +156,12 @@ real::t1,t2
    grid => head_grid
    CALL nl_get_max_dom ( 1 , max_dom )
 
+! NUWRF...Store the original value of num_land_cat for future use.
+   if (model_config_rec%sf_surface_physics(grid%id) .eq. &
+        NUWRFLISSCHEME) then
+      call ResetNumLandCat(grid,config_flags,.false.)
+   end if
+
    IF ( model_config_rec%interval_seconds .LE. 0 ) THEN
      CALL wrf_error_fatal( 'namelist value for interval_seconds must be > 0')
    END IF
@@ -603,6 +609,13 @@ real::t1,t2,t3,t4
       END IF
       CALL cpu_time ( t1 )
    END DO
+
+! NUWRF...Restore the METGRID value of num_land_cat to allow REAL to read in
+! the next data file.
+      if (model_config_rec%sf_surface_physics(grid%id) .eq. NUWRFLISSCHEME) then
+         call ResetNumLandCat(grid,config_flags,.true.)
+      end if
+
 
 END SUBROUTINE med_sidata_input
 
@@ -1382,3 +1395,86 @@ real::t1,t2
    END IF
 
 END SUBROUTINE assemble_output
+
+! NU-WRF
+!-----------------------------------------------------------------------------
+!
+! ROUTINE: ResetNumLandCat
+!
+! DESCRIPTION:  Saves and/or resets num_land_cat attribute from METGRID.
+! Needed when merging METGRID and LIS fields with different land 
+! classification systems used.
+!
+!-----------------------------------------------------------------------------
+
+subroutine ResetNumLandCat(grid,config_flags,reset)
+
+   use module_configure   
+   use module_domain
+   use module_domain_type
+   use module_wrf_error
+
+   implicit none
+
+   ! Arguments
+   type(domain),intent(inout) :: grid
+   type(grid_config_rec_type),intent(inout) :: config_flags
+   logical,intent(in) :: reset
+
+   ! Local variables
+   integer,save :: num_land_cat
+   integer :: sm31,em31,sm33,em33
+   integer :: status
+   character(len=256) :: message
+   type(fieldlist),pointer :: p
+
+   ! If we're not resetting the fields, just store the WPS value
+   ! of num_land_cat and return.
+   if (.not. reset) then
+      call nl_get_num_land_cat(grid%id,num_land_cat)
+      return
+   end if
+
+   ! We're resetting the variables associated with the WPS num_land_cat value.
+   call nl_set_num_land_cat(grid%id,num_land_cat)
+
+   p => grid%head_statevars%next
+   do while ( associated(p))
+      if (trim(p%dataname) == 'LANDUSEF') then
+         call wrf_debug(300,'Changing vertical dimensions for landusef')
+         p%ed2 = num_land_cat
+         p%em2 = num_land_cat
+         p%ep2 = num_land_cat
+
+         deallocate(grid%landusef,stat=status)
+         if (status .ne. 0) then
+            message = 'Deallocation failure'
+            call wrf_error_fatal(trim(message))
+         end if
+
+         sm31 = p%sm1
+         em31 = p%em1
+         sm33 = p%sm3
+         em33 = p%em3
+
+         allocate(grid%landusef(sm31:em31,1:num_land_cat,sm33:em33),  &
+              stat=status )
+         if (status .ne. 0) then
+            message = 'Allocation failure'
+            call wrf_error_fatal(trim(message))
+         end if
+
+         p%rfield_3d => grid%landusef
+         exit
+      end if
+      p => p%next
+   end do
+   
+   config_flags%num_land_cat = num_land_cat
+
+   write(message,*) 'Leaving ResetNumLandCat, num_land_cat = ',num_land_cat
+   call wrf_debug(300,message)
+
+   return
+end subroutine ResetNumLandCat
+

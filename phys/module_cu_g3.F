@@ -426,6 +426,12 @@ CONTAINS
       enddo !nn
       do k=  kts+1,ktf-1
       DO I = its,itf
+         ! NUWRF EMK BUG FIX for Himalayas
+         if (p2d(i,1) .lt. 450.) then
+            umean(i)=0.
+            vmean(i)=0.
+            pmean(i)=0.
+         end if
          if((p2d(i,1)-p2d(i,k)).gt.150.and.p2d(i,k).gt.300)then
             dp=-.5*(p2d(i,k+1)-p2d(i,k-1))
             umean(i)=umean(i)+us(i,k)*dp

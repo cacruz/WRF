@@ -31,6 +31,9 @@ dimspec    [       -     namelist=obs_prt_max              c     obs_prt_max
 dimspec    obsstid -     constant=40                       c     obs station id names
 dimspec    &       2     namelist=lagday                   z     lagday
 dimspec    seed    1     namelist=seed_dim                 z     seed_dim
+# crm
+dimspec    lsf     2     namelist=crm_num_force_layers     z     force_layers
+dimspec    aer     2     namelist=crm_num_aer_layers       z     aer_layers
 endif
 
 
@@ -110,7 +113,13 @@ dimspec    dust    2     namelist=kfuture                  z     klevs_for_dust
 dimspec    ]       2     namelist=kfire                    z     klevs_for_fire
 dimspec    %       2     namelist=kdvel                    z     klevs_for_dvel
 dimspec    airc    2     namelist=kemit_aircraft           z     ac_emissions_zdim
+dimspec    .       3     namelist=erosion_dim              z     dust_erosion_dimension # NUWRF
 dimspec    ^       2     constant=46                       z     eightday_dimension
+
+# NUWRF EMK...Dimensions for EROD and TOPODEP...Bug fix
+dimspec    sd      2     constant=4                        z     seasonal_dimension
+dimspec    ed      2     constant=3                        z     topodep_erosion_dimension
+
 
 # Dimensions for the GHG options
 dimspec    ghgv    -     constant=8                        z     vprm_vgcls

@@ -12,7 +12,7 @@ SUBROUTINE solve_em ( grid , config_flags  &
                  ,domain_get_current_time, domain_get_start_time                           &
                  ,domain_get_sim_start_time, domain_clock_get,is_alarm_tstep
    USE module_domain_type, ONLY : history_alarm, restart_alarm, auxinput4_alarm            &
-                 ,boundary_alarm
+                 ,boundary_alarm, auxhist9_alarm ! added auxhist9_alarm for crm_stat output
    USE module_configure, ONLY : grid_config_rec_type
    USE module_driver_constants
    USE module_machine
@@ -46,7 +46,7 @@ SUBROUTINE solve_em ( grid , config_flags  &
                  ,period_bdy_em_tracer_sub,period_em_da_sub,period_em_hydro_uv_sub         &
                  ,period_em_f_sub,period_em_g_sub                                          &
                  ,halo_em_f_1_sub,halo_em_init_4_sub,halo_em_thetam_sub,period_em_thetam_sub &
-                 ,halo_em_d_pv_sub
+                 ,halo_em_d_pv_sub,halo_em_crm_stat_sub,period_bdy_em_crm_stat_sub
 #endif
    USE module_utility
 ! Mediation layer modules
@@ -78,6 +78,7 @@ SUBROUTINE solve_em ( grid , config_flags  &
    USE module_llxy, ONLY : proj_cassini
    USE module_avgflx_em, ONLY : zero_avgflx, upd_avgflx
    USE module_cpl, ONLY : coupler_on, cpl_settime, cpl_store_input
+   USE module_crm_stat,  ONLY : crm_stat ! CRM
 
    IMPLICIT NONE
 
@@ -142,6 +143,18 @@ SUBROUTINE solve_em ( grid , config_flags  &
 ! Benefit: save memory in nested runs, since only 1 domain is active at a
 ! time.  Potential problem on stack-limited architectures: increases
 ! amount of data on program stack by making these automatic arrays.
+      
+! LIGHTNING NUDGING, Fierro et al. (2012, MWR)
+
+   REAL :: time_chk, time_chk2
+   INTEGER :: time_secs, light_assim_int !, light_assim_int_old
+   INTEGER, SAVE :: light_assim_int_old
+   REAL    :: ltg_val
+!   INTEGER, DIMENSION (grid%sm31:grid%em31, grid%sm32:grid%em32, grid%sm33:grid%em33) :: gridlight3d
+   CHARACTER :: char_assim_int*10, dom*5
+
+! END LIGHTNING NUDGING
+
 
    INTEGER :: rc 
    INTEGER :: number_of_small_timesteps, rk_step
@@ -179,6 +192,11 @@ SUBROUTINE solve_em ( grid , config_flags  &
    INTEGER, PARAMETER                         :: precision = 100
    INTEGER                                    :: num, den
    TYPE(WRFU_TimeInterval)                    :: dtInterval, intervaltime,restartinterval
+
+!# crm. variables for statistics
+   REAL :: secs_for_stat, secs_aft_stat
+!# crm end
+
 
 ! Define benchmarking timers if -DBENCH is compiled
 #include "bench_solve_em_def.h"
@@ -307,6 +325,79 @@ SUBROUTINE solve_em ( grid , config_flags  &
    grid%itimestep = grid%itimestep + 1
    grid%dtbc = grid%dtbc + grid%dt
 
+! LIGHTNING QV NUDGING, Fierro et al. (2012, MWR)
+#ifdef WRF_ELEC
+
+
+!   gridlight3d(:,:,:)=0 ! Set to zero to avoid using lightning data when assimilation is turned off  
+   tmpTimeInterval = domain_get_current_time ( grid ) - domain_get_start_time ( grid )
+   curr_secs = real_time(tmpTimeInterval)
+
+!    IF (LIGHT_ASSIM_FLAG.AND.grid%id.eq.2) THEN  ! for nested domain 
+!    IF (LIGHT_ASSIM_FLAG) THEN    ! assumes one parent domain
+
+      IF (grid%nudge_lightning.eq.1) THEN
+
+      IF ( curr_secs .EQ. grid%nudge_light_times) light_assim_int_old=0
+
+      IF ( curr_secs .GE. grid%nudge_light_times .AND. curr_secs .LT. grid%nudge_light_timee) THEN  ! LIGHT ASSIM interval
+
+       light_assim_int = INT( curr_secs / grid%nudge_light_int ) + 1
+
+      IF (light_assim_int .ne. light_assim_int_old) THEN
+
+        light_assim_int_old=light_assim_int
+
+!       IF ( light_assim_int .LT. 10 ) THEN
+!         WRITE ( char_assim_int, '(i1.1)' ) light_assim_int
+!       ELSEIF ( light_assim_int .LT. 100 ) THEN
+!         WRITE ( char_assim_int, '(i2.2)' ) light_assim_int
+!       ELSEIF ( light_assim_int .LT. 1000 ) THEN
+!         WRITE ( char_assim_int, '(i3.3)' ) light_assim_int
+!       ELSEIF ( light_assim_int .LT. 10000 ) THEN
+!         WRITE ( char_assim_int, '(i4.4)' ) light_assim_int
+!       ELSE
+!         WRITE ( char_assim_int, '(i5.5)' ) light_assim_int
+         WRITE ( char_assim_int, '(i5.5)' ) light_assim_int-(INT( grid%nudge_light_times/grid%nudge_light_int ))
+!       ENDIF
+
+       WRITE ( dom, '(i1.1)' ) grid%id
+
+       print *,'filename= ',' light.d0',trim(dom),'.out.',trim(char_assim_int),'.txt'
+
+       OPEN ( UNIT=14, FILE=trim(grid%path_to_files)//'light.d0'//trim(dom)//'.out.'//trim(char_assim_int)//'.txt',  &
+         FORM='formatted', STATUS='old' )
+
+       DO i = ids, ide
+       DO j = jds, jde
+         READ ( 14, * ) ltg_val
+
+         IF ( i .GE. ims .AND. i .LE. ime .AND. j .GE. jms .AND. j .LE. jme ) THEN
+           grid%ltg_dat(i,j) = ltg_val
+!           DO k = kms, kme
+!             gridlight3d(i,k,j) =  grid%ltg_dat(i,j)
+!           ENDDO
+         ENDIF
+       ENDDO
+       ENDDO
+
+       CALL wrf_debug ( 0 , ' DONE reading lightning data ' )
+       print *,' light.d0',trim(dom),'.out.',trim(char_assim_int),'.txt'
+       print *,'curr_secs ',curr_secs
+
+       CLOSE ( 14 )
+
+      ENDIF  ! light_assim_int .ne. light_assim_int_old
+
+   ENDIF ! curr_secs if-test
+
+!   ELSE
+!
+!   gridlight3d(:,:,:)=0 ! Set to zero to avoid using lightning data when assimilation is turned off  
+!
+   ENDIF  ! LIGHT NUDGING 
+#endif
+      
    IF( coupler_on ) CALL cpl_store_input( grid, config_flags )
 
    IF (config_flags%polar) dclat = 90./REAL(jde-jds) !(0.5 * 180/ny)
@@ -2791,8 +2882,22 @@ BENCH_END(tracer_adv_tim)
                                   kts=k_start    , kte=k_end                              )
 
            IF ( config_flags%specified ) THEN
+!---------------------------------- Tsai-------------------------------------------------
+              IF (is.EQ.P_QDCN.OR.is.EQ.P_QTCN) THEN
+                 CALL flow_dep_bdy_qccn(scalar(ims,kms,jms,is),grid%ru_m,grid%rv_m,  &
+                                        config_flags,grid%spec_zone,ids,ide,jds,jde, &
+                                        kds,kde,ims,ime,jms,jme,kms,kme,ips,ipe,jps, &
+                                        jpe,kps,kpe,grid%i_start(ij),grid%i_end(ij), &
+                                        grid%j_start(ij),grid%j_end(ij),k_start,k_end)
+              ELSEIF (is.EQ.P_QNIN) THEN
+                 CALL flow_dep_bdy_nin(scalar(ims,kms,jms,is),grid%ru_m,grid%rv_m,   &
+                                       config_flags,grid%spec_zone,ids,ide,jds,jde,  &
+                                       kds,kde,ims,ime,jms,jme,kms,kme,ips,ipe,jps,  &
+                                       jpe,kps,kpe,grid%i_start(ij),grid%i_end(ij),  &
+                                       grid%j_start(ij),grid%j_end(ij),k_start,k_end)
+!----------------------------------Tsai-----------------------------------------------
 
-             IF ( is .EQ. P_QNN ) THEN
+             ELSEIF ( is .EQ. P_QNN ) THEN
                CALL flow_dep_bdy_qnn  ( scalar(ims,kms,jms,is),     &
                                   grid%ru_m, grid%rv_m, config_flags,   &
                                   grid%spec_zone,                  &
@@ -2803,7 +2908,7 @@ BENCH_END(tracer_adv_tim)
                                   grid%i_start(ij), grid%i_end(ij),  &
                                   grid%j_start(ij), grid%j_end(ij),  &
                                   k_start, k_end                    )
-             ELSE IF ( ( ( ( is .EQ. P_QNWFA ) .OR. ( is .EQ. P_QNIFA ) ) .AND. &
+             ELSEIF ( ( ( ( is .EQ. P_QNWFA ) .OR. ( is .EQ. P_QNIFA ) ) .AND. &
                          ( .NOT. config_flags%use_aero_icbc ) ) &
                          .OR. &
                        ( ( .NOT. ( ( is .EQ. P_QNWFA ) .OR. ( is .EQ. P_QNIFA ) ) ) .AND. &
@@ -3598,12 +3703,15 @@ BENCH_START(micro_driver_tim)
 #endif
 
 
-     CALL microphysics_driver(                                            &
-      &         DT=dtm             ,DX=grid%dx              ,DY=grid%dy   &
+     CALL microphysics_driver(grid=grid                                   &
+      &        ,DT=dtm             ,DX=grid%dx              ,DY=grid%dy   &
       &        ,DZ8W=dz8w          ,F_ICE_PHY=grid%f_ice_phy              &
       &        ,ITIMESTEP=grid%itimestep             ,LOWLYR=grid%lowlyr  &
       &        ,P8W=p8w            ,P=p_phy            ,PI_PHY=pi_phy     &
       &        ,RHO=grid%rho       ,SPEC_ZONE=grid%spec_zone              &
+#ifdef WRF_ELEC
+      &        ,elec_PHYSICS=config_flags%elec_physics                    &
+#endif
       &        ,SR=grid%sr              ,TH=th_phy                        &
       &        ,refl_10cm=grid%refl_10cm                                  & ! hm, 9/22/09 for refl
       &        ,vmi3d=grid%vmi3d                                          & ! for P3
@@ -3744,7 +3852,52 @@ BENCH_START(micro_driver_tim)
 !       &        , QZH_CURR=scalar(ims,kms,jms,P_QZH), F_QZH=F_QZH          & ! "
       &        , QVOLG_CURR=scalar(ims,kms,jms,P_QVOLG), F_QVOLG=F_QVOLG    & ! for nssl_2mom
       &        , QVOLH_CURR=scalar(ims,kms,jms,P_QVOLH), F_QVOLH=F_QVOLH    & ! for nssl_2mom
+!----------------------------------Tsai------------------------------------------------------------
+      &        , VI_CURR=scalar(ims,kms,jms,P_VI), VS_CURR=scalar(ims,kms,jms,P_VS) &
+      &        , VG_CURR=scalar(ims,kms,jms,P_VG), FI_CURR=scalar(ims,kms,jms,P_FI) &
+      &        , FS_CURR=scalar(ims,kms,jms,P_FS), AI_CURR=scalar(ims,kms,jms,P_AI) &
+      &        , AS_CURR=scalar(ims,kms,jms,P_AS), AG_CURR=scalar(ims,kms,jms,P_AG) &
+      &        , AH_CURR=scalar(ims,kms,jms,P_AH), I3M_CURR=scalar(ims,kms,jms,P_I3M) &
+      &        , QDCN_CURR=scalar(ims,kms,jms,P_QDCN), QTCN_CURR=scalar(ims,kms,jms,P_QTCN) &
+      &        , QCCN_CURR=scalar(ims,kms,jms,P_QCCN), QRCN_CURR=scalar(ims,kms,jms,P_QRCN) &
+      &        , QNIN_CURR=scalar(ims,kms,jms,P_QNIN), IDEPNU=config_flags%IDEPNU &
+!----------------------------------Tsai-------------------------------------------------------------
       &        , cu_used=config_flags%cu_used                             &
+!--------------EXPLICIT LIGHTNING (Fierro et al. 2013, MWR)-----------------
+#ifdef WRF_ELEC
+      &        , RSCGHIS_2d=grid%rscghis_2d                               &
+      &        , NONINDUC=grid%noninduc                                   &
+      &        , ELECMAG=grid%elecmag                                     &
+      &        , ELECX=grid%elecx, F_ELECX=(size(grid%elecx,3) > 1)       &
+      &        , ELECY=grid%elecy                                         &
+      &        , ELECZ=grid%elecz                                         &
+      &        , INDUC=grid%induc                                         &
+      &        , POT=grid%pot                                             &
+      &        , LIGHT=grid%light                                         &
+      &        , LIGHTDENS=grid%lightdens                                 &
+      &        , LIGHTDIS=grid%lightdis                                   &
+      &        , SCR=scalar(ims,kms,jms,P_SCR), F_SCR=F_SCR               &
+      &        , SCW=scalar(ims,kms,jms,P_SCW), F_SCW=F_SCW               &
+      &        , SCI=scalar(ims,kms,jms,P_SCI), F_SCI=F_SCI               &
+      &        , SCS=scalar(ims,kms,jms,P_SCS), F_SCS=F_SCS               &
+      &        , SCH=scalar(ims,kms,jms,P_SCH), F_SCH=F_SCH               &
+      &        , SCHL=scalar(ims,kms,jms,P_SCHL), F_SCHL=F_SCHL           &
+      &        , SCIONA=scalar(ims,kms,jms,P_SCIONA), F_SCIONA=F_SCIONA   &
+      &        , SCTOT=grid%sctot                                         &
+      &        , HISTORY_INTERVAL=grid%history_interval                   &
+      &        , CURR_SECS=curr_secs                                      &
+      &        , ipelectmp=grid%nssl_ipelec                               &
+      &        , idischarge=grid%nssl_idischarge                          &
+      &        , iscreen=grid%nssl_iscreen                                &
+      &        , lightradtmp=grid%nssl_lightrad                           &
+      &        , ecrittmp=grid%nssl_ecrit                                 &
+      &        , ibrkdtmp=grid%nssl_ibrkd                                 &
+      &        , disfrac=grid%nssl_disfrac                                &
+      &        , nudge_lightning=grid%nudge_lightning                     & ! for lightning Qv nudging (Fierro et al. 2012, MWR)
+!      &        , GRIDLIGHT=gridlight3d                                    & ! for lightning Qv nudging (Fierro et al. 2012, MWR)
+      &        , GRIDLIGHT=grid%ltg_dat                                   & ! for lightning Qv nudging (Fierro et al. 2012, MWR)
+#endif
+!--------------END EXPLICIT LIGHTNING -------------------------------------
       &        , qrcuten=grid%rqrcuten, qscuten=grid%rqscuten             &
       &        , qicuten=grid%rqicuten, qccuten=grid%rqccuten             &
       &        , HAIL=config_flags%gsfcgce_hail                           & ! for gsfcgce
@@ -3765,6 +3918,12 @@ BENCH_START(micro_driver_tim)
       &        , ACPHYSM=grid%acphysm                                     & ! for gsfcgce
       &        , ACPHYSF=grid%acphysf                                     & ! for gsfcgce
 
+      &        , COMDBZ=grid%comdbz                                       & ! for gsfcgce
+      &        , CSI=grid%csi                                             & ! for gsfcgce
+      &        , RAINNCV_SEPA=grid%rainncv_sepa                           & ! for gsfcgce
+      &        , RAINNC_SEPA=grid%rainnc_sepa                             &
+      &        , RI_SEPA=grid%ri_sepa                                     & ! MPI-safe CSI
+      &        , IT_SEPA=grid%it_sepa                                     & ! MPI-safe CSI
       &        , RE_CLOUD_GSFC=grid%re_cloud_gsfc                         & ! for gsfcgce
       &        , RE_RAIN_GSFC=grid%re_rain_gsfc                           & ! for gsfcgce
       &        , RE_ICE_GSFC=grid%re_ice_gsfc                             & ! for gsfcgce
@@ -3825,8 +3984,34 @@ BENCH_START(micro_driver_tim)
       &        ,WACT=grid%WACT,CCN1_GS=grid%CCN1_GS,CCN2_GS=grid%CCN2_GS,CCN3_GS=grid%CCN3_GS  &
       &        ,CCN4_GS=grid%CCN4_GS,CCN5_GS=grid%CCN5_GS,CCN6_GS=grid%CCN6_GS &
       &        ,CCN7_GS=grid%CCN7_GS,NR_CU=grid%NR_CU,QR_CU=grid%QR_CU,NS_CU=grid%NS_CU &
-      &        ,QS_CU=grid%QS_CU,CU_UAF=grid%CU_UAF,mskf_refl_10cm=grid%mskf_refl_10cm)
-                                                                          
+      &        ,QS_CU=grid%QS_CU,CU_UAF=grid%CU_UAF,mskf_refl_10cm=grid%mskf_refl_10cm  &
+! crm 
+      &        ,TKE_MP=grid%tke_2                              &  ! KVW
+      &        ,DIFFK=grid%diffk                               &  ! KVW
+      &        ,EFFCS=grid%effcs                               &  ! KVW
+      &        ,crm_morr_act_opt=config_flags%crm_morr_act_opt &
+      &        ,crm_mp_nc=config_flags%crm_mp_nc               &
+      &        ,SEDFQC=grid%sedfqc, SEDFQR=grid%sedfqr         & 
+      &        ,QVDT_PR=grid%qvdt_pr ,QVDT_COND=grid%qvdt_cond & 
+      &        ,QCDT_PR=grid%qcdt_pr ,QCDT_SED=grid%qcdt_sed   &
+      &        ,QRDT_SED=grid%qrdt_sed                         &
+      &        ,rm_aer1=grid%rm_aer1, sig_aer1=grid%sig_aer1   &
+      &        ,na_aer1_grd=grid%na_aer1_grd                   &
+      &        ,rm_aer2=grid%rm_aer2, sig_aer2=grid%sig_aer2   &
+      &        ,na_aer2_grd=grid%na_aer2_grd                   &
+      &        ,rm_aer3=grid%rm_aer3, sig_aer3=grid%sig_aer3   &
+      &        ,na_aer3_grd=grid%na_aer3_grd                   &
+      &        ,rm_aer4=grid%rm_aer4, sig_aer4=grid%sig_aer4   &
+      &        ,na_aer4_grd=grid%na_aer4_grd                   &
+      &        ,hygro_aer1=grid%hygro_aer1                     &
+      &        ,hygro_aer2=grid%hygro_aer2                     &
+      &        ,hygro_aer3=grid%hygro_aer3                     &
+      &        ,hygro_aer4=grid%hygro_aer4                     &
+      &        ,smaxact=grid%smaxact                           &
+      &        ,rminact=grid%rminact                           )
+! crm end
+
+
 BENCH_END(micro_driver_tim)
 
 #if 0
@@ -4602,6 +4787,274 @@ BENCH_END(bc_2d_tim)
                             imsy, imey, jmsy, jmey, kmsy, kmey,  &
                             ipsy, ipey, jpsy, jpey, kpsy, kpey   )
 
+!#############################################################################
+! crm: compute statistics 
+
+   IF (config_flags%crm_stat_opt .eq. 1) THEN
+
+      ! Reset stat variables at timing after history output 
+      ! by comparing current time with last history output time + dt. 
+      ! The code follows adapt_timestep_em and avgflx.
+      ! Modified to use auxhist9 for crm_stat output. 
+      CALL WRFU_ALARMGET(grid%alarms(AUXHIST9_ALARM),prevringtime=temp_time)
+      CALL domain_clock_get(grid, current_time=CurrTime, current_timestr=message2)
+      WRITE ( message , FMT = '("solve_em: old_dt =",g15.6,", dt=",g15.6," on domain ",I3)' ) &
+           & old_dt,grid%dt,grid%id
+      CALL wrf_debug(200,message)
+      old_dt=min(old_dt,grid%dt)
+      num = INT(old_dt * precision)
+      den = precision
+      CALL WRFU_TimeIntervalSet(dtInterval, Sn=num, Sd=den)
+      IF (CurrTime .lt. temp_time + dtInterval) THEN
+         WRITE ( message , FMT = '("solve_em: initializing statistics at time ",A," on domain ",I3)' ) &
+              & TRIM(message2), grid%id
+         CALL wrf_message(trim(message)) 
+         grid%crm_stat_count = 0
+         grid%prev_stat_secs = curr_secs
+      ENDIF
+
+      ! if it's time for sampling
+      secs_for_stat = real(grid%crm_stat_count) * config_flags%crm_stat_sample_interval_s
+      secs_aft_stat = curr_secs - grid%prev_stat_secs
+
+      if (secs_for_stat .le. secs_aft_stat) then
+
+#ifdef DM_PARALLEL
+#  include "HALO_EM_CRM_STAT.inc"
+#  include "PERIOD_BDY_EM_CRM_STAT.inc"
+#endif
+
+      ! update statistics
+      CALL crm_stat (                                                  &
+                   crm_stat_count=grid%crm_stat_count                  &
+                  ,DT=grid%dt, ITIMESTEP=grid%itimestep ,CURR_SECS=curr_secs   &
+                  ,stat_count_nocl=grid%stat_count_nocl        &
+                  ,stat_count_nocc=grid%stat_count_nocc        &
+                  ,FNM=grid%fnm, FNP=grid%fnp,MUT=grid%mut       & 
+                  ,RDX=grid%rdx, RDY=grid%rdy                    &
+                  ,Z=grid%z, Z8W=grid%z_at_w, DZ8W=dz8w, P8W=p8w   &
+                  ,p=p_phy, rho=grid%rho                                &
+                  ,TH=th_phy, TK=grid%t_phy                  &
+                  ,U=grid%u_2, UPHY=grid%u_phy               &
+                  ,V=grid%v_2, VPHY=grid%v_phy, W=grid%w_2   &
+                  ,QV=moist(ims,kms,jms,P_QV)                &
+                  ,QC=moist(ims,kms,jms,P_QC)                &
+                  ,QR=moist(ims,kms,jms,P_QR)                &
+                  ,QI=moist(ims,kms,jms,P_QI)                &
+                  ,QS=moist(ims,kms,jms,P_QS)                &
+                  ,QG=moist(ims,kms,jms,P_QG)                &
+                  ,QNC=scalar(ims,kms,jms,P_QNC)             &
+                  ,TKE_SGS=grid%tke_2                      &
+                  ,M_OPT=config_flags%m_opt, SFS_OPT=config_flags%sfs_opt  &
+                  ,m11=nba_mij(ims,kms,jms,P_m11)          &
+                  ,m12=nba_mij(ims,kms,jms,P_m12)          &
+                  ,m13=nba_mij(ims,kms,jms,P_m13)          &
+                  ,m22=nba_mij(ims,kms,jms,P_m22)          &
+                  ,m23=nba_mij(ims,kms,jms,P_m23)          &
+                  ,m33=nba_mij(ims,kms,jms,P_m33)          &
+                  ,xkmv=grid%xkmv ,xkhv=grid%xkhv          &
+                  ,h_diabatic=grid%h_diabatic                     &
+                  ,QVDT_PR=grid%qvdt_pr ,QVDT_COND=grid%qvdt_cond & 
+                  ,QCDT_PR=grid%qcdt_pr ,QCDT_SED=grid%qcdt_sed   &
+                  ,QRDT_SED=grid%qrdt_sed                         &
+                  ,RTHRATENSW=grid%rthratensw ,RTHRATENLW=grid%rthratenlw  &
+                  ,RTHLSTEN=grid%rthlsten     ,RQVLSTEN=grid%rqvlsten      &
+                  ,w_dthdz=grid%w_dthdz, w_dqvdz=grid%w_dqvdz          &
+                  ,w_dudz=grid%w_dudz,   w_dvdz=grid%w_dvdz            &
+                  ,thdt_lshor=grid%thdt_lshor, qvdt_lshor=grid%qvdt_lshor &
+                  ,thdt_lsrlx=grid%thdt_lsrlx, qvdt_lsrlx=grid%qvdt_lsrlx &
+                  ,udt_lsrlx=grid%udt_lsrlx,  vdt_lsrlx=grid%vdt_lsrlx    &
+                  ,HFX=grid%hfx ,LH=grid%lh ,ust=grid%ust, tsk=grid%tsk    &
+                  ,RAINCV=grid%raincv,RAINNCV=grid%rainncv                    & 
+                  ,RA_SW_PHYSICS=config_flags%ra_sw_physics                   &
+                  ,RA_LW_PHYSICS=config_flags%ra_lw_physics                   &
+                  ,SWUPT=grid%swupt    ,SWUPTC=grid%swuptc                    &
+                  ,SWDNT=grid%swdnt    ,SWDNTC=grid%swdntc                    &
+                  ,SWUPB=grid%swupb    ,SWUPBC=grid%swupbc                    &
+                  ,SWDNB=grid%swdnb    ,SWDNBC=grid%swdnbc                    &
+                  ,LWUPT=grid%lwupt    ,LWUPTC=grid%lwuptc                    &
+                  ,LWDNT=grid%lwdnt    ,LWDNTC=grid%lwdntc                    &
+                  ,LWUPB=grid%lwupb    ,LWUPBC=grid%lwupbc                   &
+                  ,LWDNB=grid%lwdnb    ,LWDNBC=grid%lwdnbc                   &
+                  ,SWUPFD=grid%swupfd  ,SWDNFD=grid%swdnfd                  &
+                  ,LWUPFD=grid%lwupfd  ,LWDNFD=grid%lwdnfd                  &
+                  ,sedfqc=grid%sedfqc  ,sedfqr=grid%sedfqr                  &
+                  ,smaxact=grid%smaxact, rminact=grid%rminact                &
+   ! Output array 
+   ,cst_cldlow=grid%cst_cldlow, cst_cldtot=grid%cst_cldtot &
+   ,cst_lwp=grid%cst_lwp, cst_iwp=grid%cst_iwp, cst_precw=grid%cst_precw &
+   ,cst_tke=grid%cst_tke, cst_tsair=grid%cst_tsair, cst_ps=grid%cst_ps         &
+   ,cst_prect=grid%cst_prect, cst_sh=grid%cst_sh,  cst_lh=grid%cst_lh          &
+   ,cst_fsntc=grid%cst_fsntc, cst_fsnt=grid%cst_fsnt, cst_flntc=grid%cst_flntc &
+   ,cst_flnt=grid%cst_flnt, cst_fsnsc=grid%cst_fsnsc, cst_fsns=grid%cst_fsns   &
+   ,cst_flnsc=grid%cst_flnsc, cst_flns=grid%cst_flns                           &
+   ,cst_swinc=grid%cst_swinc, cst_tsk=grid%cst_tsk, cst_ust=grid%cst_ust       &
+   ,csp_z=grid%csp_z,  csp_z8w=grid%csp_z8w, csp_dz8w=grid%csp_dz8w            &
+   ,csp_u=grid%csp_u, csp_v=grid%csp_v, csp_w=grid%csp_w                       &
+   ,csp_p=grid%csp_p, csp_th=grid%csp_th, csp_thv=grid%csp_thv                 &
+   ,csp_thl=grid%csp_thl                                                       &
+   ,csp_qv=grid%csp_qv, csp_qc=grid%csp_qc, csp_qi=grid%csp_qi                 &
+   ,csp_ql=grid%csp_ql, csp_qf=grid%csp_qf, csp_qt=grid%csp_qt                 &
+   ,csp_lwc=grid%csp_lwc, csp_iwc=grid%csp_iwc                                 &
+   ,csp_speqv=grid%csp_speqv, csp_a_cl=grid%csp_a_cl                           &
+   ,csp_rho=grid%csp_rho, csp_u2=grid%csp_u2, csp_v2=grid%csp_v2               &
+   ,csp_u2v2=grid%csp_u2v2, csp_w2=grid%csp_w2, csp_w3=grid%csp_w3             &
+   ,csp_wskew=grid%csp_wskew, csp_th2=grid%csp_th2, csp_thv2=grid%csp_thv2     &
+   ,csp_thl2=grid%csp_thl2, csp_qv2=grid%csp_qv2                               &
+   ,csp_uw=grid%csp_uw, csp_vw=grid%csp_vw                                     &
+   ,csp_wth=grid%csp_wth, csp_wthv=grid%csp_wthv, csp_wthl=grid%csp_wthl       &
+   ,csp_wqv=grid%csp_wqv, csp_wqc=grid%csp_wqc, csp_wqi=grid%csp_wqi           &
+   ,csp_wql=grid%csp_wql, csp_wqf=grid%csp_wqf, csp_wqt=grid%csp_wqt           &
+   ,csp_sedfqc=grid%csp_sedfqc, csp_sedfqr=grid%csp_sedfqr                     &
+   ,csp_uw_sgs=grid%csp_uw_sgs, csp_vw_sgs=grid%csp_vw_sgs                 &
+   ,csp_wth_sgs=grid%csp_wth_sgs, csp_wthv_sgs=grid%csp_wthv_sgs           &
+   ,csp_wthl_sgs=grid%csp_wthl_sgs, csp_wqv_sgs=grid%csp_wqv_sgs           &
+   ,csp_wqc_sgs=grid%csp_wqc_sgs, csp_wqi_sgs=grid%csp_wqi_sgs             &
+   ,csp_wql_sgs=grid%csp_wql_sgs, csp_wqf_sgs=grid%csp_wqf_sgs             &
+   ,csp_wqt_sgs=grid%csp_wqt_sgs, csp_thdt_cond=grid%csp_thdt_cond         &
+   ,csp_thdt_lw=grid%csp_thdt_lw, csp_thdt_sw=grid%csp_thdt_sw             &
+   ,csp_thdt_ls=grid%csp_thdt_ls, csp_qvdt_pr=grid%csp_qvdt_pr             &
+   ,csp_qvdt_cond=grid%csp_qvdt_cond, csp_qvdt_ls=grid%csp_qvdt_ls         &
+   ,csp_qcdt_pr=grid%csp_qcdt_pr, csp_qcdt_sed=grid%csp_qcdt_sed           &
+   ,csp_qrdt_sed=grid%csp_qrdt_sed                                         &
+   ,csp_thdt_lshor=grid%csp_thdt_lshor, csp_qvdt_lshor=grid%csp_qvdt_lshor &
+   ,csp_thdt_lsver=grid%csp_thdt_lsver, csp_qvdt_lsver=grid%csp_qvdt_lsver &
+   ,csp_thdt_lsrlx=grid%csp_thdt_lsrlx, csp_qvdt_lsrlx=grid%csp_qvdt_lsrlx &
+   ,csp_udt_ls=grid%csp_udt_ls,     csp_vdt_ls=grid%csp_vdt_ls             &
+   ,csp_udt_lsver=grid%csp_udt_lsver,  csp_vdt_lsver=grid%csp_vdt_lsver    &
+   ,csp_udt_lsrlx=grid%csp_udt_lsrlx,  csp_vdt_lsrlx=grid%csp_vdt_lsrlx    &
+   ,csp_tke_rs=grid%csp_tke_rs, csp_tke_sh=grid%csp_tke_sh          &
+   ,csp_tke_bu=grid%csp_tke_bu, csp_tke_tr=grid%csp_tke_tr          &
+   ,csp_tke_di=grid%csp_tke_di, csp_tke_sgs=grid%csp_tke_sgs        &
+   ,csp_swupf=grid%csp_swupf, csp_swdnf=grid%csp_swdnf              &
+   ,csp_lwupf=grid%csp_lwupf, csp_lwdnf=grid%csp_lwdnf              &
+   ,csp_w_c=grid%csp_w_c, csp_w2_c=grid%csp_w2_c                    &
+   ,csp_thl_c=grid%csp_thl_c                                        &
+   ,csp_qt_c=grid%csp_qt_c, csp_qv_c=grid%csp_qv_c                  &
+   ,csp_ql_c=grid%csp_ql_c, csp_qf_c=grid%csp_qf_c                  &
+   ,csp_qc_c=grid%csp_qc_c, csp_qi_c=grid%csp_qi_c                  &
+   ,csp_qnc_c=grid%csp_qnc_c                                        &
+   ,csp_thv_c=grid%csp_thv_c,csp_aw_c=grid%csp_aw_c                 &
+   ,csp_awthl_c=grid%csp_awthl_c, csp_awqt_c=grid%csp_awqt_c        &
+   ,csp_awqv_c=grid%csp_awqv_c, csp_awql_c=grid%csp_awql_c          &
+   ,csp_awqf_c=grid%csp_awqf_c, csp_awqc_c=grid%csp_awqc_c          &
+   ,csp_awqi_c=grid%csp_awqi_c, csp_awthv_c=grid%csp_awthv_c        &
+   ,csp_a_cc=grid%csp_a_cc, csp_w_cc=grid%csp_w_cc                  &
+   ,csp_w2_cc=grid%csp_w2_cc                                        &
+   ,csp_thl_cc=grid%csp_thl_cc, csp_qt_cc=grid%csp_qt_cc            &
+   ,csp_qv_cc=grid%csp_qv_cc, csp_ql_cc=grid%csp_ql_cc              &
+   ,csp_qf_cc=grid%csp_qf_cc, csp_qc_cc=grid%csp_qc_cc              &
+   ,csp_qi_cc=grid%csp_qi_cc, csp_thv_cc=grid%csp_thv_cc            &
+   ,csp_aw_cc=grid%csp_aw_cc, csp_awthl_cc=grid%csp_awthl_cc        &
+   ,csp_awqt_cc=grid%csp_awqt_cc, csp_awqv_cc=grid%csp_awqv_cc      &
+   ,csp_awql_cc=grid%csp_awql_cc, csp_awqf_cc=grid%csp_awqf_cc      &
+   ,csp_awqc_cc=grid%csp_awqc_cc, csp_awqi_cc=grid%csp_awqi_cc      &
+   ,csp_awthv_cc=grid%csp_awthv_cc, csp_sigc_thl=grid%csp_sigc_thl  &
+   ,csp_sigc_qt=grid%csp_sigc_qt, csp_sigc_ql=grid%csp_sigc_ql      &
+   ,csp_sigc_qf=grid%csp_sigc_qf, csp_sigc_qc=grid%csp_sigc_qc      &
+   ,csp_sigc_qi=grid%csp_sigc_qi, csp_sigc_thv=grid%csp_sigc_thv    &
+   ,csp_smaxactmax=grid%csp_smaxactmax                              &
+   ,csp_rminactmin=grid%csp_rminactmin                              &
+   ,csp_wmax=grid%csp_wmax, csp_wmin=grid%csp_wmin                  &
+   ,CSV_TH=grid%csv_th                                              &
+   ,CSV_U=grid%csv_u, CSV_V=grid%csv_v, CSV_W=grid%csv_w            &
+   ,CSV_W2=grid%csv_w2                                              &
+   ,CSV_QV=grid%csv_qv, CSV_QC=grid%csv_qc, CSV_QR=grid%csv_qr      &
+   ,CSV_QI=grid%csv_qi, CSV_QS=grid%csv_qs, CSV_QG=grid%csv_qg      &
+   ,CSV_LWC=grid%csv_lwc, CSV_IWC=grid%csv_iwc                      &
+   ,CSV_CLDFRAC=grid%csv_cldfrac                                    &
+   ,CSS_LWP=grid%css_lwp, CSS_IWP=grid%css_iwp                      &
+   ,CSS_CLDTOT=grid%css_cldtot, CSS_CLDLOW=grid%css_cldlow          &
+                  ! Dimension arguments 
+                   ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde     &
+                   ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme     &
+                   ,IPS=ips,IPE=ipe, JPS=jps,JPE=jpe, KPS=kps,KPE=kpe     &
+                   ,I_START=grid%i_start,I_END=min(grid%i_end, ide-1)     &
+                   ,J_START=grid%j_start,J_END=min(grid%j_end, jde-1)     &
+                   ,KTS=k_start, KTE=min(k_end,kde-1)                     &
+                   ,NUM_TILES=grid%num_tiles                              &
+                                                                 )
+      grid%crm_stat_count = grid%crm_stat_count + 1
+   endif ! time for sampling
+   ENDIF ! crm_stat_opt
+! crm. end
+!#############################################################################
+
+
+! EMK TEMP...Move this elsewhere
+! ! EMK NUWRF...Calculate integrated microphysics values
+!    !$OMP PARALLEL DO   &
+!    !$OMP PRIVATE ( ij )
+!    DO ij = 1 , grid%num_tiles
+!       CALL wrf_debug ( 200 , ' cal_tpwtwp: Integrated microphysics...' )
+!       call cal_tpwtwp(dz8w=dz8w, &
+!            rho=rho, &
+!            qv=moist(:,:,:,P_QV), &
+!            ql=moist(:,:,:,P_QC), &
+!            qi=moist(:,:,:,P_QI), &
+!            qr=moist(:,:,:,P_QR), &
+!            qs=moist(:,:,:,P_QS), &
+!            qg=moist(:,:,:,P_QG), &
+!            qh=moist(:,:,:,P_QH), &
+!            tpw=grid%tpw, &
+!            lwp=grid%lwp, &
+!            iwp=grid%iwp, &
+!            clwp=grid%clwp, &
+!            rwp=grid%rwp, &
+!            ciwp=grid%ciwp, &
+!            fpwp=grid%fpwp, &
+!            IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde,    &
+!            IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme,    &
+!            ITS=grid%i_start(ij),ITE=grid%i_end(ij),             &
+!            JTS=grid%j_start(ij),JTE=grid%j_end(ij),             &
+!            KTS=kps,KTE=kpe                                      )
+           
+!    END DO
+!    !$OMP END PARALLEL DO
+
+! ! EMK NUWRF...Calculate integrated vapor transport
+!    !$OMP PARALLEL DO   &
+!    !$OMP PRIVATE ( ij )
+!    DO ij = 1 , grid%num_tiles
+!       CALL wrf_debug ( 200 , ' ivt_driver: Integrated vapor transport...' )
+!       call ivt_driver(mean_ivt_u=grid%mean_ivt_u, &
+!            mean_ivt_v=grid%mean_ivt_v, &
+!            sum_ivt_u=grid%sum_ivt_u, &
+!            sum_ivt_v=grid%sum_ivt_v, &
+!            ivt_count=grid%ivt_count, &
+!            u=grid%u_2, &
+!            v=grid%v_2, &
+!            qvapor=moist(:,:,:,P_QV), &
+!            rho=rho, &
+!            dz8w=dz8w, &
+!            xtime=grid%xtime, &
+!            dt=grid%dt, &
+!            ivt_interval=config_flags%ivt_interval, &
+!            is_restart=config_flags%restart, &
+!            ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde, &
+!            ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme, &
+!            ITS=grid%i_start(ij),ITE=grid%i_end(ij),     &
+!            JTS=grid%j_start(ij),JTE=grid%j_end(ij),     &
+!            KTS=kps,KTE=kpe                              )
+!    END DO
+!    !$OMP END PARALLEL DO
+
+!    ! EMK NUWRF...Calculate freezing level
+!    !$OMP PARALLEL DO   &
+!    !$OMP PRIVATE ( ij )
+!    DO ij = 1 , grid%num_tiles
+!       CALL wrf_debug ( 200 , ' Calling calc_freezing_level...')
+!       call calc_freezing_level( &
+!            freezing_level=grid%freezing_level, &
+!            t_phy=grid%t_phy, &
+!            z=grid%z, &
+!            ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde, &
+!            ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme, &
+!            ITS=grid%i_start(ij),ITE=grid%i_end(ij),     &
+!            JTS=grid%j_start(ij),JTE=grid%j_end(ij),     &
+!            KTS=kps,KTE=kpe                              )
+!    END DO
+!    !$OMP END PARALLEL DO
 
 
 #ifdef DM_PARALLEL

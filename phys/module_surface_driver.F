@@ -269,6 +269,12 @@ CONTAINS
      &          ,dl_u_bep                                             &                          
      &          ,tsk_save                                             & !for fractional seaice
      &          ,cldfra                                               & !ssib
+#ifdef WRF_LIS
+! NUWRF: For LIS vvvvv
+     &          ,yy,mo,dd,hr,mn,ss                                    &
+     &          ,lisPorosity                                          & 
+! NUWRF: For LIS ^^^^^
+#endif
      &          ,sf_surface_mosaic,mosaic_cat,mosaic_cat_index                                    & !danli mosaic
      &          ,landusef2,TSK_mosaic,QSFC_mosaic,TSLB_mosaic,SMOIS_mosaic,SH2O_mosaic            & !danli mosaic
      &          ,CANWAT_mosaic,SNOW_mosaic,SNOWH_mosaic,SNOWC_mosaic                              & !danli mosaic
@@ -303,6 +309,7 @@ CONTAINS
                                        ,QNSEPBLSCHEME             &
                                        ,GFSSFCSCHEME              &
                                        ,PXSFCSCHEME               &
+                                       ,NUWRFLISSCHEME            & ! NUWRF
                                        ,NOAHMPSCHEME              &
                                        ,TEMFSFCSCHEME             &
                                        ,IDEALSCMSFCSCHEME         &
@@ -326,6 +333,7 @@ CONTAINS
                                        ,QNSEPBLSCHEME             &
                                        ,GFSSFCSCHEME              &
                                        ,PXSFCSCHEME               &
+                                       ,NUWRFLISSCHEME            & ! NUWRF
                                        ,NOAHMPSCHEME              &
                                        ,SLABSCHEME                &
                                        ,LSMSCHEME                 &
@@ -381,6 +389,12 @@ CONTAINS
    USE module_sf_sfcdiags_ruclsm
    USE module_sf_sstskin
    USE module_sf_tmnupdate
+   ! NUWRF
+#ifdef WRF_LIS
+   USE LISWRFGridCompMod, only : LISWRF_import, LISWRF_export
+   USE module_configure, only : model_config_rec
+#endif
+   USE module_lai2fveg       ! NUWRF
    USE module_sf_lake
    USE module_cpl, ONLY : coupler_on, cpl_rcv
 !
@@ -585,6 +599,11 @@ CONTAINS
      &          ,ims,ime,jms,jme,kms,kme                              &
      &          ,ips,ipe,jps,jpe,kps,kpe                              &
      &          ,kts,kte,num_tiles
+   
+#ifdef WRF_LIS
+   INTEGER, intent(in)    :: yy,mo,dd,hr,mn,ss
+   real,    intent(inout) :: lisPorosity( ims:ime, jms:jme) ! NUWRF for LIS
+#endif
 
    INTEGER, INTENT(IN)::   FRACTIONAL_SEAICE
    INTEGER, INTENT(IN)::   SEAICE_ALBEDO_OPT
@@ -1169,7 +1188,6 @@ CONTAINS
    REAL,OPTIONAL, INTENT(IN   ) :: hfx_force_tend,lh_force_tend,tsk_force_tend
 
 !  LOCAL  VAR
-
    REAL,       DIMENSION( ims:ime, kms:kme, jms:jme ) ::v_phytmp
    REAL,       DIMENSION( ims:ime, kms:kme, jms:jme ) ::u_phytmp
 
@@ -1188,6 +1206,8 @@ CONTAINS
    REAL    :: DTMIN,DTBL
 !
    INTEGER :: i,J,K,NK,jj,ij
+   integer :: its, ite, jts, jte
+   integer :: ll, mm
    INTEGER :: gfdl_ntsflg
    LOGICAL :: radiation, myj, myjpbl, frpcpn, isisfc
    LOGICAL, INTENT(in), OPTIONAL :: rdlai2d
@@ -1369,13 +1389,26 @@ CONTAINS
 !
   real,    dimension(ims:ime,1:maxpatch,jms:jme ) ::  q_ref2m   ! clm
 
+#ifdef WRF_LIS
+   REAL, DIMENSION( ims:ime , jms:jme ) :: fvegxy_nw
+   REAL, DIMENSION( ims:ime , jms:jme ) :: t2mbxy_nw
+   REAL, DIMENSION( ims:ime , jms:jme ) :: t2mvxy_nw
+   REAL, DIMENSION( ims:ime , jms:jme ) :: q2mbxy_nw
+   REAL, DIMENSION( ims:ime , jms:jme ) :: q2mvxy_nw
+#endif      
 
 !------------------------------------------------------------------
    CHARACTER*256 :: message
    REAL    :: next_bl_time
    LOGICAL :: run_param , doing_adapt_dt , decided
    LOGICAL :: do_adapt
-!
+
+#ifdef WRF_LIS
+! EMK NUWRF...For setting chklowq when LIS is selected.
+   real :: q2k,q2sat
+   real,parameter :: TRESH = .95E0
+#endif
+!     
 ! FASDAS
 !
    REAL, DIMENSION( ims:ime, jms:jme ) , INTENT(INOUT), OPTIONAL ::   SDA_HFX,SDA_QFX,HFX_BOTH, QFX_BOTH, QNORM
@@ -1611,7 +1644,11 @@ CONTAINS
             ENDIF
          ENDIF
 
-        IF ( XLAND(i,j) .GT. 1.5 .AND. XICE(I,J) .GE. XICE_THRESHOLD .AND. XICEM(I,J) .LT. XICE_THRESHOLD ) THEN
+
+! EMK NUWRF...Don't change the land/sea table
+        if (sf_surface_physics .ne. NUWRFLISSCHEME) THEN
+            
+        IF ( (XLAND(i,j) .GT. 1.5) .AND. (XICE(I,J) .GE. XICE_THRESHOLD) .AND. (XICEM(I,J) .LT. XICE_THRESHOLD) ) THEN
           ! water point turns to sea-ice point
           XICEM(I,J) = XICE(I,J)
           XLAND(I,J) = 1.
@@ -1649,46 +1686,32 @@ CONTAINS
             SMOIS(I,NK,J) = 1.0
             SH2O(I,NK,J) = 0.0
           ENDDO
-        ENDIF
-     IF (lakemodel.ne.1) then
-         IF(XLAND(i,j) .GT. 1.5) THEN
-           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-            TSK(i,j)   =SST(i,j)
-            TSLB(i,1,j)=SST(i,j)
+        ENDIF !  IF ( (XLAND(i,j) ...
+
+        IF (lakemodel.ne.1) then
+           IF(XLAND(i,j) .GT. 1.5) THEN
+              IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
+                 TSK(i,j)   =SST(i,j)
+                 TSLB(i,1,j)=SST(i,j)
+              ENDIF
            ENDIF
-          ENDIF
-     ELSE
+        ELSE
 #if (EM_CORE==1)
-!       if(lakeflag.eq.1) then
-!         IF(XLAND(i,j) .GT. 1.5.AND.LAKEMASK(I,J).NE.1) THEN
-!           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-!            TSK(i,j)   =SST(i,j)
-!            TSLB(i,1,j)=SST(i,j)
-!           ENDIF
-!          ENDIF
-!       else
-!         if(XLAND(i,j) .GT. 1.5.and.ht(i,j).lt.lake_min_elev) then
-!           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-!            TSK(i,j)   =SST(i,j)
-!            TSLB(i,1,j)=SST(i,j)
-!           ENDIF
-!          ENDIF
-!       endif   ! (lakeflag=1)
-         IF(XLAND(i,j) .GT. 1.5.AND.LAKEMASK(I,J).NE.1) THEN
-           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-            TSK(i,j)   =SST(i,j)
-            TSLB(i,1,j)=SST(i,j)
+           IF(XLAND(i,j) .GT. 1.5.AND.LAKEMASK(I,J).NE.1) THEN
+              IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
+                 TSK(i,j)   =SST(i,j)
+                 TSLB(i,1,j)=SST(i,j)
+              ENDIF
            ENDIF
-          ENDIF
 #else
-       IF(XLAND(i,j) .GT. 1.5.and.ht(i,j).lt.lake_min_elev) then
-           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-            TSK(i,j)   =SST(i,j)
-            TSLB(i,1,j)=SST(i,j)
+           IF(XLAND(i,j) .GT. 1.5.and.ht(i,j).lt.lake_min_elev) then
+              IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
+                 TSK(i,j)   =SST(i,j)
+                 TSLB(i,1,j)=SST(i,j)
+              ENDIF
            ENDIF
-       ENDIF
 #endif
-     ENDIF  ! (lakemodel=1)
+        ENDIF  ! (lakemodel .ne. 1)
         IF ( XLAND(i,j) .LT. 1.5 .AND. XICEM(I,J) .GE. XICE_THRESHOLD .AND. XICE(I,J) .LT. XICE_THRESHOLD ) THEN
 ! sea-ice point turns to water point
           XICEM(I,J) = XICE(I,J)
@@ -1709,7 +1732,17 @@ CONTAINS
             SMOIS(I,NK,J) = 1.0
             SH2O(I,NK,J) = 1.0
           ENDDO
+        ENDIF ! IF ( XLAND(i,j) .LT. 1.5 ...
+	else ! EMK NUWRF...Using LIS
+
+	IF(XLAND(i,j) .GT. 1.5) THEN
+          IF ( (SST(i,j) .LT. 350.) .and. (SST(i,j) .GT. 250.) ) THEN
+            TSK(i,j)   =SST(i,j)   
+            TSLB(i,1,j)=SST(i,j)
+          ENDIF
         ENDIF
+
+        endif ! EMK NUWRF...Don't change the land/sea table with LIS
 
         XICE_save(I,J) = XICEM(I,J)
         XICEM(i,j) = XICE(i,j)
@@ -2022,7 +2055,7 @@ CONTAINS
        IF (PRESENT(qv_curr)                            .AND.    &
            PRESENT(mol)        .AND.  PRESENT(regime)  .AND.    &
                                                       .TRUE. ) THEN
-         CALL wrf_debug( 100, 'in SFCLAY' )
+         CALL wrf_debug( 100, 'in SFCLAYREVSCHEME' )
          IF ( FRACTIONAL_SEAICE == 1 ) THEN
             CALL SFCLAYREV_SEAICE_WRAPPER(u_phytmp,v_phytmp,t_phy,qv_curr,&
                  p_phy,dz8w,cp,g,rcp,r_d,xlv,psfc,chs,chs2,cqs2,cpm, &
@@ -2348,7 +2381,7 @@ CONTAINS
 #if ( EM_CORE==1)
      CASE (TEMFSFCSCHEME)
        IF (PRESENT(qv_curr).and.PRESENT(hd_temf)) THEN
-         CALL wrf_debug( 100, 'in TEMFSFCLAY' )
+         CALL wrf_debug( 100, 'in TEMFSFCSCHEME' )
 ! WA 9/7/09 must initialize Z0 and ZNT for TEMF in ideal cases
        ! DO J=j_start(ij),j_end(ij)
        ! DO I=i_start(ij),i_end(ij)
@@ -2377,7 +2410,7 @@ CONTAINS
 
      CASE (IDEALSCMSFCSCHEME)
        IF (PRESENT(qv_curr)) THEN
-         CALL wrf_debug( 100, 'in IDEALSCMSFCLAY' )
+         CALL wrf_debug( 100, 'in IDEALSCMSFCSCHEME' )
          CALL IDEALSCMSFCLAY(u3d=u_phytmp,v3d=v_phytmp,th3d=th_phy,    &
                qv3d=qv_curr,p3d=p_phy,pi3d=pi_phy,rho=rho,z=z,ht=ht, &
                CP=cp,G=g,ROVCP=rcp,R=r_d,XLV=xlv,psfc=psfc,chs=chs,  &
@@ -2989,6 +3022,277 @@ CONTAINS
          CALL wrf_error_fatal('Lacking arguments for LSM in surface driver')
        ENDIF
 
+#ifdef WRF_LIS
+     ! NUWRF
+     CASE (NUWRFLISSCHEME)
+
+       if (.not. present(id)) then
+          call wrf_error_fatal('id not passed to surface driver for LIS!')
+       end if
+
+       CALL wrf_debug(100,'Calling LIS')
+!create import state, 
+       its = i_start(ij)
+       ite = i_end(ij)
+       jts = j_start(ij)
+       jte = j_end(ij)
+       
+!set the clock
+       LISWRF_import(id)%yr = yy
+       LISWRF_import(id)%mo = mo
+       LISWRF_import(id)%da = dd
+       LISWRF_import(id)%hr = hr
+       LISWRF_import(id)%mn = mn
+       LISWRF_import(id)%ss = ss
+
+       CALL wrf_debug(100,'copy WRF2LIS')
+       do j=jts,jte
+          do i=its,ite
+             ll = i-its+1
+             mm = j-jts+1
+             LISWRF_import(id)%data_z(ll,mm) = 0.5*dz8w(i,1,j)
+             LISWRF_import(id)%data_qair(ll,mm) = QV_curr(i,1,j)/(1.0+QV_curr(i,1,j))
+             ! pressure in middle of lowest layer
+             LISWRF_import(id)%data_psurf(ll,mm) = (P8W(I,KTS+1,j)+P8W(i,KTS,j))*0.5
+             LISWRF_import(id)%data_tair(ll,mm) = t_phy(i,1,j)
+             LISWRF_import(id)%data_q2sat(ll,mm) = qgh(i,j)/(1+qgh(i,j))
+             LISWRF_import(id)%data_swd(ll,mm) = swdown(i,j)
+! EMK NUWRF...Multiplication by emiss now handled within LIS
+!             LISWRF_import(id)%data_lwd(ll,mm) = glw(i,j)*emiss(i,j)
+             LISWRF_import(id)%data_lwd(ll,mm) = glw(i,j)
+             LISWRF_import(id)%data_prcp(ll,mm) = rainbl(i,j)
+             LISWRF_import(id)%data_ch(ll,mm) = chs(i,j)
+             LISWRF_import(id)%data_chs2(ll,mm) = chs2(i,j)
+             LISWRF_import(id)%data_cqs2(ll,mm) = cqs2(i,j)
+             LISWRF_import(id)%data_emiss(ll,mm) = emiss(i,j)
+             LISWRF_import(id)%data_u(ll,mm) = u_phy(i,1,j)
+             LISWRF_import(id)%data_v(ll,mm) = v_phy(i,1,j)
+
+             IF (XICE(I,J) >= XICE_THRESHOLD) THEN
+                LISWRF_import(id)%data_xice(ll,mm) = 1
+             ELSE IF ( IVGTYP(I,J) == ISICE ) THEN
+                ! Land-ice point
+                LISWRF_import(id)%data_xice(ll,mm) = -1
+             ELSE
+                ! Neither sea ice or land ice.
+                LISWRF_import(id)%data_xice(ll,mm)=0
+             ENDIF
+             
+             LISWRF_import(id)%data_tmn(ll,mm) = tmn(i,j) ! EMK 
+
+          enddo
+       enddo
+
+       CALL wrf_debug(100,'LISWRFrun_coupled')
+       call LISWRFrun_coupled(id)
+
+!unwrap lisexport.
+       CALL wrf_debug(100,'copy LIS2WRF')
+         do j=jts,jte
+            do i=its,ite
+               ll = i-its+1
+               mm = j-jts+1
+
+               ! Do not overwrite WRF data at water-points
+               ! The better way to address this issue is to
+               ! improve the treatment of water-points within LIS.
+               if ( xland(i,j) .le. 1.5 ) then ! land == 1
+                  if ( model_config_rec%use_lis_noahmp == "yes" ) then
+                     t2mbxy_nw(i,j) = LISWRF_export(id)%t2mb(ll,mm) 
+                     q2mbxy_nw(i,j) = LISWRF_export(id)%q2mb(ll,mm) 
+                     t2mvxy_nw(i,j) = LISWRF_export(id)%t2mv(ll,mm) 
+                     q2mvxy_nw(i,j) = LISWRF_export(id)%q2mv(ll,mm) 
+                     fvegxy_nw(i,j) = LISWRF_export(id)%fveg(ll,mm) 
+                  end if
+                  tsk(i,j) = LISWRF_export(id)%avgsurft(ll,mm)
+                  hfx(i,j) = LISWRF_export(id)%qh(ll,mm)
+                  qfx(i,j) = LISWRF_export(id)%eta_kinematic(ll,mm)
+                  lh(i,j) = LISWRF_export(id)%qle(ll,mm)
+                  grdflx(i,j) = LISWRF_export(id)%qg(ll,mm)
+                  albedo(i,j) = LISWRF_export(id)%albedo(ll,mm)
+                  znt(i,j) = LISWRF_export(id)%znt(ll,mm)
+                  qsfc(i,j) = LISWRF_export(id)%q1(ll,mm)
+                  smois(i,1,j) = LISWRF_export(id)%smc1(ll,mm)
+                  smois(i,2,j) = LISWRF_export(id)%smc2(ll,mm)
+                  smois(i,3,j) = LISWRF_export(id)%smc3(ll,mm)
+                  smois(i,4,j) = LISWRF_export(id)%smc4(ll,mm)
+                  tslb(i,1,j) = LISWRF_export(id)%stc1(ll,mm)
+                  tslb(i,2,j) = LISWRF_export(id)%stc2(ll,mm)
+                  tslb(i,3,j) = LISWRF_export(id)%stc3(ll,mm)
+                  tslb(i,4,j) = LISWRF_export(id)%stc4(ll,mm)
+                  chs2(i,j) = liswrf_export(id)%chs2(ll,mm)
+                  cqs2(i,j) = liswrf_export(id)%cqs2(ll,mm)
+! NUWRF EMK...Pass snow fields
+                  snowc(i,j) = liswrf_export(id)%snocvr(ll,mm)
+                  snow(i,j) = liswrf_export(id)%snow(ll,mm) ! mm to kg m^-2
+                  snowh(i,j) = liswrf_export(id)%snowh(ll,mm) 
+! NUWRF...Take porosity from LIS for dust emissions
+                  lisPorosity(i,j) = liswrf_export(id)%lispor(ll,mm)
+! NUWRF EMK...Add other variables normally passed back by Noah LSM
+                  sh2o(i,1,j) = LISWRF_export(id)%sh2o1(ll,mm)
+                  sh2o(i,2,j) = LISWRF_export(id)%sh2o2(ll,mm)
+                  sh2o(i,3,j) = LISWRF_export(id)%sh2o3(ll,mm)
+                  sh2o(i,4,j) = LISWRF_export(id)%sh2o4(ll,mm)
+!                  canwat(i,j) = LISWRF_export(id)%cmc(ll,mm)
+                  canwat(i,j) = LISWRF_export(id)%cmc(ll,mm)*1.000e3 ! m to kg m^-2
+! NUWRF EMK...Copy LIS-updated emissivity for radiation.
+                  emiss(i,j) = LISWRF_export(id)%emiss(ll,mm)
+               else
+                  lisPorosity(i,j) = 1.0
+               endif
+
+               CHS2(I,J)=CQS2(I,J)
+!      prevent diagnostic ground q (q1) from being greater than qsat(tsk)
+!      as happens over snow cover where the cqs2 value also becomes irrelevant
+!      by setting cqs2=chs in this situation the 2m q should become just qv(k=1)
+               if ( xland(i,j) .le. 1.5 ) then ! land == 1
+                  IF (LISWRF_export(id)%q1(ll,mm) .GT. QSFC(I,J)) THEN
+                     print*, 'q1 .gt. qsfc so CQS2 = CHS'
+                     CQS2(I,J) = CHS(I,J)
+                  ENDIF
+               endif
+
+            enddo
+         enddo
+       CALL wrf_debug(100,'done LIS2WRF')
+
+         call seaice_noah( SEAICE_ALBEDO_OPT, SEAICE_ALBEDO_DEFAULT, SEAICE_THICKNESS_OPT, &
+              &            SEAICE_THICKNESS_DEFAULT, SEAICE_SNOWDEPTH_OPT,             &
+              &            SEAICE_SNOWDEPTH_MAX, SEAICE_SNOWDEPTH_MIN,                 &
+              &            t_phy, qv_curr, p8w, dz8w, num_soil_layers, dt, frpcpn, sr, &
+              &            glw, swdown, rainbl, snoalb, qgh, xice, xice_threshold,     &
+              &            albsi, icedepth, snowsi,                                    &
+              &            tslb, emiss, albedo, z0, tsk, snow, snowc, snowh,           &
+              &            chs, chs2, cqs2,                                            &
+              &            br, znt, lh, hfx, qfx, potevp, grdflx, qsfc, acsnow,        &
+              &            acsnom, snopcx, sfcrunoff, noahres,                         &
+              &            sf_urban_physics, b_t_bep, b_q_bep, rho,                    &
+              &            ids,ide, jds,jde, kds,kde,                                  &
+              &            ims,ime, jms,jme, kms,kme,                                  &
+              &            i_start(ij),i_end(ij), j_start(ij),j_end(ij), kts,kte )
+
+         IF ( FRACTIONAL_SEAICE == 1 ) THEN
+            ! LSM Returns full land/ice values, no fractional values.
+            ! We return to a fractional component here.  SFLX currently hard-wires
+            ! emissivity over sea ice to 0.98, the same value as over open water, so
+            ! the fractional consideration doesn't have any effect for emissivity.
+            DO j=j_start(ij),j_end(ij)
+               DO i=i_start(ij),i_end(ij)
+                  IF ( ( XICE(I,J) .GE. XICE_THRESHOLD) .AND. ( XICE(i,j) .LE. 1.0 ) ) THEN
+                     albedo(i,j) = ( albedo(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * 0.08  )
+                     emiss(i,j) = ( emiss(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * 0.98  )
+                  ENDIF
+               ENDDO
+            ENDDO
+
+            IF ( isisfc ) THEN
+               DO j=j_start(ij),j_end(ij)
+                  DO i=i_start(ij),i_end(ij)
+                     IF ( ( XICE(I,J) .GE. XICE_THRESHOLD) .AND. ( XICE(i,j) .LE. 1.0 ) ) THEN
+                        !  Weighted average of fields between ice-cover values and open-water values.
+                        flhc(i,j) = ( flhc(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * flhc_sea(i,j) )
+                        flqc(i,j) = ( flqc(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * flqc_sea(i,j) )
+                        cpm(i,j)  = ( cpm(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * cpm_sea(i,j)  )
+                        cqs2(i,j) = ( cqs2(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * cqs2_sea(i,j) )
+                        chs2(i,j) = ( chs2(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * chs2_sea(i,j) )
+                        chs(i,j)  = ( chs(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * chs_sea(i,j)  )
+                        qsfc(i,j) = ( qsfc(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * qsfc_sea(i,j) )
+                        qgh(i,j)  = ( qgh(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * qgh_sea(i,j)  )
+                        qz0(i,j)  = ( qz0(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * qz0_sea(i,j)  )
+                        hfx(i,j)  = ( hfx(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * hfx_sea(i,j)  )
+                        qfx(i,j)  = ( qfx(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * qfx_sea(i,j)  )
+                        lh(i,j)   = ( lh(i,j)   * XICE(i,j) ) + ( (1.0-XICE(i,j)) * lh_sea(i,j)   )
+                        tsk_save(i,j)  = tsk(i,j)
+                        tsk(i,j)  = ( tsk(i,j)  * XICE(i,j) ) + ( (1.0-XICE(i,j)) * tsk_sea(i,j)  )
+                     ENDIF
+                  ENDDO
+               ENDDO
+            ELSE
+               DO j = j_start(ij) , j_end(ij)
+                  DO i = i_start(ij) , i_end(ij)
+                     IF ( ( XICE(I,J) .GE. XICE_THRESHOLD ) .AND. ( XICE(i,j) .LE. 1.0 ) ) THEN
+                        ! Compute TSK as the open-water and ice-cover average
+                        tsk(i,j) = ( tsk(i,j) * XICE(i,j) ) + ( (1.0-XICE(i,j)) * tsk_sea(i,j) )
+                     ENDIF
+                  ENDDO
+               ENDDO
+            ENDIF
+         ENDIF
+         DO j=j_start(ij),j_end(ij)
+            DO i=i_start(ij),i_end(ij)
+               if ( model_config_rec%use_lis_noahmp == "no" ) then
+               ! EMK NUWRF...Follow Noah code
+                  q2k=qv_curr(i,1,j)/(1.0+qv_curr(i,1,j))
+                  q2sat = qgh(i,j)/(1.0+qgh(i,j))
+                  if (myj .and. (q2k .ge. q2sat*tresh) .and. (q2k .lt. qz0(i,j))) then
+                     chklowq(i,j) = 0.
+                  else
+                     chklowq(i,j) = 1.
+                  end if                  
+               end if
+               ! EMK NUWRF END
+               CHKLOWQ(I,J)= 1.0
+               SFCEVP(I,J)= SFCEVP(I,J) + QFX(I,J)*DTBL
+               SFCEXC(I,J)= CHS(I,J)
+               IF(PRESENT(ACHFX))ACHFX(I,J)=ACHFX(I,J) + HFX(I,J)*DT
+               IF(PRESENT(ACLHF))ACLHF(I,J)=ACLHF(I,J) + LH(I,J)*DT
+               IF(PRESENT(ACGRDFLX))ACGRDFLX(I,J)=ACGRDFLX(I,J) + GRDFLX(I,J)*DT
+               if ( model_config_rec%use_lis_noahmp == "yes" ) then
+                  Q2(I,J)  = -1.E36
+                  T2(I,J)  = -1.E36
+                  TH2(I,J) = -1.E36
+               end if
+            ENDDO
+         ENDDO
+         CALL wrf_debug(100,'SFCDIAGS')
+
+         if ( model_config_rec%use_lis_noahmp == "yes" ) then
+            
+         DO j=j_start(ij),j_end(ij)
+            DO i=i_start(ij),i_end(ij)
+               IF (IVGTYP(I,J) == ISWATER .OR. &
+                  (IVGTYP(I,J) == ISICE .AND. &
+                  XICE(I,J) .GE. XICE_THRESHOLD)) THEN
+                 IF(CQS2(I,J).lt.1.E-5) then
+                   Q2(I,J)=QSFC(I,J)
+                 ELSE
+                   Q2(I,J) = QSFC(I,J) - QFX(I,J)/(PSFC(I,J)/(R_d * TSK(I,J))*CQS2(I,J))
+                 ENDIF
+                 IF(CHS2(I,J).lt.1.E-5) then
+                   T2(I,J) = TSK(I,J) 
+                 ELSE
+                   T2(I,J) = TSK(I,J) - HFX(I,J)/(PSFC(I,J)/(R_d * TSK(I,J))*CP*CHS2(I,J))
+                 ENDIF
+                   TH2(I,J) = T2(I,J)*(1.E5/PSFC(I,J))**RCP
+              ELSEIF (IVGTYP(I,J) == ISURBAN                   .or. &
+	              IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL   .or. & !urban
+                      IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL  .or. & !urban
+	              IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL .or. & !urban
+	              (IVGTYP(I,J) == ISICE .AND. XICE(I,J) .LT. XICE_THRESHOLD)) THEN
+                   Q2(I,J)  = Q2MBXY_nw(I,J)
+                   T2(I,J)  = T2MBXY_nw(I,J)
+                   TH2(I,J) = T2(i,j)*(1.E5/PSFC(i,j))**RCP
+              ELSE
+                 T2(I,J)  = FVEGXY_nw(I,J)*T2MVXY_nw(I,J) + (1.-FVEGXY_nw(I,J))*T2MBXY_nw(I,J)
+                 Q2(I,J)  = FVEGXY_nw(I,J)*Q2MVXY_nw(I,J) + (1.-FVEGXY_nw(I,J))*Q2MBXY_nw(I,J)
+                 TH2(I,J) = T2(i,j)*(1.E5/PSFC(i,j))**RCP
+              ENDIF
+            ENDDO
+         ENDDO
+         
+         else  ! noah.3.x
+         
+         CALL SFCDIAGS(HFX,QFX,TSK,QSFC,CHS2,CQS2,T2,TH2,Q2,      &
+              PSFC,CP,R_d,RCP,CHS,t_phy,qv_curr,ua_phys,    &
+              ids,ide, jds,jde, kds,kde,                    &
+              ims,ime, jms,jme, kms,kme,                    &
+              i_start(ij),i_end(ij), j_start(ij),j_end(ij), kts,kte    )
+              
+         end if
+        ! END NUWRF
+#endif         
+
+
      CASE (NOAHMPSCHEME)
        IF (PRESENT(qv_curr)    .AND.  PRESENT(rainbl)        .AND.    &
 !          PRESENT(emiss)      .AND.  PRESENT(t2)            .AND.    &
@@ -3113,6 +3417,22 @@ CONTAINS
                 MP_RAINC =  RAINCV, MP_RAINNC =    RAINNCV, MP_SHCV = RAINSHV,&
 		MP_SNOW  = SNOWNCV, MP_GRAUP  = GRAUPELNCV, MP_HAIL = HAILNCV )
 
+!NUWRF
+!--------------LAI to Veg fraction -->-Jossy Jacob --------------------
+!--------------Do this only if VEGFRA=0.0 and LAI is present-----------
+!--------------LAI2FVEG module from Toshi Matsui  ---------------------         
+           DO j=j_start(ij),j_end(ij)
+           DO i=i_start(ij),i_end(ij)
+	      !print *, 'Check PRESENT(LAI), VEGFRAC(I,J), I,J: ',PRESENT(LAI), VEGFRA(i,j), i,j
+              IF (VEGFRA(i,j) == 0.0)  then  
+                 IF(PRESENT(LAI)) call lai2fveg (lai(i,j),VEGFRA(i,j))
+              !   print *, 'LAI(i,j), VEGFRA,i,j : ',LAI(i,j), VEGFRA(i,j),i,j
+              !else
+              !   print *, 'LAI not present, VEGFRA,i,j : ',VEGFRA(i,j),i,j
+              endif
+           ENDDO
+           ENDDO
+           
          IF(SF_URBAN_PHYSICS > 0 ) THEN  !urban
          
 	   call noahmp_urban (sf_urban_physics,     NUM_SOIL_LAYERS,     IVGTYP,ITIMESTEP,  & ! IN : Model configuration 
@@ -4193,6 +4513,8 @@ CONTAINS
      ENDIF
 
    ENDIF
+
+   CALL wrf_debug(100,'DONE')
 
    END SUBROUTINE surface_driver
 

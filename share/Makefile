@@ -15,6 +15,7 @@ MODULES1=                               \
         module_interp_nmm.o             \
         module_interp_store.o           \
         module_string_tools.o           \
+        module_lai2fveg.o               \
         module_MPP.o 
 
 MODULES2=                               \

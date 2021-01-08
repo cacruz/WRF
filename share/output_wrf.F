@@ -100,6 +100,13 @@
     INTEGER seconds, seconds2, iring
     INTEGER :: nio_tasks_per_group
 
+! EMK NUWRF
+#if (EM_CORE == 1)
+#if (WRF_CHEM == 1)
+    character(len=256) :: erod_option
+#endif
+#endif
+
     LOGICAL, EXTERNAL :: wrf_dm_on_monitor
 
     WRITE(wrf_err_message,*)'output_wrf: begin, fid = ',fid
@@ -162,6 +169,10 @@
     call nl_get_nproc_y            ( 1,        ntasks_y           )
 
 #if (EM_CORE == 1)
+! NUWRF
+#if (WRF_CHEM == 1)
+    call nl_get_erod_option( grid%id,erod_option)
+#endif
     dt = grid%dt
     adapt_dt_min = grid%min_time_step
     adapt_dt_max = grid%max_time_step
@@ -953,6 +964,14 @@ endif
     CALL wrf_put_dom_ti_integer ( fid , 'ISICE' ,  config_flags%isice , 1 , ierr )
     CALL wrf_put_dom_ti_integer ( fid , 'ISURBAN' ,  config_flags%isurban , 1 , ierr )
     CALL wrf_put_dom_ti_integer ( fid , 'ISOILWATER' ,  config_flags%isoilwater , 1 , ierr )
+
+! EMK NUWRF
+#if (EM_CORE == 1)
+#if (WRF_CHEM == 1)
+    CALL wrf_put_dom_ti_char ( fid , 'EROD_OPTION',  TRIM(erod_option) , ierr )
+#endif
+#endif
+
 ! added these fields for restarting of moving nests, JM
 !For HWRF: zhang
 #if ( HWRF == 1 )

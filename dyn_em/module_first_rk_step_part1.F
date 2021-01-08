@@ -47,6 +47,7 @@ CONTAINS
     USE module_fddagd_driver, ONLY : fddagd_driver
     USE module_em, ONLY : init_zero_tendency
     USE module_force_scm
+    USE module_force_crm  !* compute forcings
     USE module_convtrans_prep
     USE module_big_step_utilities_em, ONLY : phy_prep
 !use module_scalar_tables
@@ -62,6 +63,8 @@ CONTAINS
     IMPLICIT NONE
 
     TYPE ( domain ), INTENT(INOUT) :: grid
+! NU-WRF
+    INTEGER                        :: julyr, julday,  ms
     TYPE ( grid_config_rec_type ), INTENT(IN) :: config_flags
     TYPE(WRFU_Time)                :: currentTime
 
@@ -143,7 +146,7 @@ CONTAINS
 
    CHARACTER (LEN=256) :: mminlu
    CHARACTER (LEN=1000) :: message
-
+ 
 #if ( WRF_DFI_RADAR == 1 )
     INTEGER  do_capsupress   ! =1 do CAP supress, other = don't
 #endif
@@ -439,7 +442,15 @@ BENCH_START(rad_driver_tim)
      &         ,MP_PHYSICS=CONFIG_FLAGS%MP_PHYSICS        &
      &         ,EFCG=grid%EFCG,EFCS=grid%EFCS,EFIG=grid%EFIG &
      &         ,EFIS=grid%EFIS,EFSG=grid%EFSG,aercu_opt=config_flags%aercu_opt & 
-     &         ,EFSS=grid%EFSS,QS_CU=grid%QS_CU)
+     &         ,EFSS=grid%EFSS,QS_CU=grid%QS_CU  &
+     &         ,QNC=scalar(ims,kms,jms,P_QNC)                       & !crm
+     &         ,EFFCS=grid%effcs                                    & !KVW
+! crm: rf02 & stat 
+     &         ,LWF0=grid%LWF0, LWF1=grid%LWF1, LWF2=grid%LWF2      &
+     &         ,LWF3=grid%LWF3, zi_qt8=grid%zi_qt8                  & 
+     &         ,LWUPFD=grid%LWUPFD, LWDNFD=grid%LWDNFD              & 
+     &         ,SWUPFD=grid%SWUPFD, SWDNFD=grid%SWDNFD              ) 
+! crm: end
 
 BENCH_END(rad_driver_tim)
 
@@ -472,6 +483,12 @@ BENCH_START(surf_driver_tim)
 #endif
 
       CALL wrf_debug ( 200 , ' call surface_driver' )
+
+! NUWRF
+      CALL domain_clock_get( grid, current_time=currentTime, &
+           current_timestr=mesg )
+      CALL WRFU_TimeGet( currentTime, YY=julyr, dayOfYear=julday, &
+           MM=month,DD=day,H=hr, M=minute, S=sec, MS=ms, rc=rc)
 
       if( grid%num_nests .lt. 1 )then
           HYDRO_dt = 0
@@ -872,7 +889,14 @@ BENCH_START(surf_driver_tim)
      &        ,OM_LAT=grid%om_lat                                                  & !cy:3DPWP
      &        , okms = 1, okme=config_flags%ocean_levels                  & ! cyl:3DPWP
      &        ,rdx=grid%rdx, rdy=grid%rdy,msfu=grid%msfu,msfv=grid%msfv,msft=grid%msft &!cyl: 3DPWP
-     &        ,XTIME=grid%xtime,OM_TINI=grid%om_tini,OM_SINI=grid%om_sini,id=grid%id,omdt=config_flags%omdt &!cyl: 3DPWP 
+     &        ,XTIME=grid%xtime,OM_TINI=grid%om_tini,OM_SINI=grid%om_sini,id=grid%id,omdt=config_flags%omdt &!cyl: 3DPWP
+#ifdef WRF_LIS
+!NUWRF BEGIN...For LIS
+     &        ,yy=julyr, mo=month, dd=day, hr=hr, mn=minute, ss=sec      &
+     &        ,lisPorosity=grid%lisPorosity                              &
+     &                                                              
+!NUWRF END...For LIS
+#endif
      &        ,sf_surface_mosaic=config_flags%sf_surface_mosaic,  mosaic_cat=config_flags%mosaic_cat    &
      &        ,mosaic_cat_index=grid%mosaic_cat_index                                                   &  !danli mosaic
      &        ,landusef2=grid%landusef2,TSK_mosaic=grid%TSK_mosaic,QSFC_mosaic=grid%QSFC_mosaic         &
@@ -910,6 +934,127 @@ BENCH_START(surf_driver_tim)
 #endif
 
 BENCH_END(surf_driver_tim)
+
+!###################################################################
+!* crm: update large-scale and surface forcings
+
+
+      CALL wrf_debug ( 200 , ' call force_crm' )
+      CALL force_crm(itimestep=grid%itimestep,dt=grid%dt                  &
+     &            ,crm_num_force_layers=config_flags%crm_num_force_layers &
+     &             ,crm_force_opt=config_flags%crm_force_opt              &
+     &             ,crm_th_adv_opt=config_flags%crm_th_adv_opt            &
+     &             ,crm_th_rlx_opt=config_flags%crm_th_rlx_opt            &
+     &             ,crm_qv_adv_opt=config_flags%crm_qv_adv_opt            &
+     &             ,crm_qv_rlx_opt=config_flags%crm_qv_rlx_opt            &
+     &             ,crm_adj_uv_opt=config_flags%crm_adj_uv_opt            &
+     &             ,crm_uv_rlx_opt=config_flags%crm_uv_rlx_opt            &
+     &             ,crm_vert_adv_opt=config_flags%crm_vert_adv_opt        &
+     &             ,crm_wcpa_opt=config_flags%crm_wcpa_opt                &
+     &             ,crm_vert_adv_uv_opt=config_flags%crm_vert_adv_uv_opt  &
+     &             ,crm_tau_s=config_flags%crm_tau_s                      &
+     &             ,crm_tau_m=config_flags%crm_tau_m                      &
+     &             ,crm_ust_opt=config_flags%crm_ust_opt                  &
+     &             ,crm_ust=config_flags%crm_ust                          &
+     &             ,th_adv=grid%th_adv, th_adv_tend=grid%th_adv_tend      &
+     &             ,th_rlx=grid%th_rlx, th_rlx_tend=grid%th_rlx_tend      &
+     &             ,qv_adv=grid%qv_adv, qv_adv_tend=grid%qv_adv_tend      &
+     &             ,qv_rlx=grid%qv_rlx, qv_rlx_tend=grid%qv_rlx_tend      &
+     &             ,u_ls=grid%u_ls, u_ls_tend=grid%u_ls_tend            &
+     &             ,v_ls=grid%v_ls, v_ls_tend=grid%v_ls_tend            &
+     &             ,w_ls=grid%w_ls, w_ls_tend=grid%w_ls_tend            &
+     &             ,z_ls=grid%z_ls, z_ls_tend=grid%z_ls_tend            &
+     &             ,inv_tau_s=grid%inv_tau_s,inv_tau_m=grid%inv_tau_m  &
+     &             ,u_base=grid%u_base, v_base=grid%v_base               &
+     &             ,z_base=grid%z_base                                   &
+     &             ,z=grid%z,  z_at_w=grid%z_at_w                         &
+     &             ,p=grid%p_hyd, p8w=grid%p_hyd_w, rho=grid%rho               &
+     &             ,th=th_phy, qv=moist(ims,kms,jms,P_QV)                 &
+     &             ,u=grid%u_phy,   v=grid%v_phy                                    &
+     &             ,znt=grid%znt                                       &
+     &             ,thten=grid%rthlsten, qvten=grid%rqvlsten            &
+     &             ,uten=grid%rulsten,vten=grid%rvlsten                 &
+     &             ,w_dthdz=grid%w_dthdz, w_dqvdz=grid%w_dqvdz      &
+     &             ,w_dudz=grid%w_dudz,   w_dvdz=grid%w_dvdz        &
+     &             ,th_adv_term=grid%thdt_lshor,qv_adv_term=grid%qvdt_lshor &
+     &             ,th_rlx_term=grid%thdt_lsrlx,qv_rlx_term=grid%qvdt_lsrlx &
+     &             ,u_rlx_term=grid%udt_lsrlx,  v_rlx_term=grid%vdt_lsrlx   &
+     &             ,isfflx=config_flags%isfflx                            & 
+     &             ,crm_flx_opt=config_flags%crm_flx_opt                  &
+     &             ,crm_albedo_opt=config_flags%crm_albedo_opt            &
+     &             ,crm_tsk_opt=config_flags%crm_tsk_opt                  &
+     &             ,crm_sh_flx=config_flags%crm_sh_flx                    &
+     &             ,crm_lh_flx=config_flags%crm_lh_flx                    &
+     &             ,crm_flx_ct=config_flags%crm_flx_ct                    &
+     &             ,crm_flx_psfcpa=config_flags%crm_flx_psfcpa            &
+     &             ,crm_albedo=config_flags%crm_albedo                    &
+     &             ,crm_tsk=config_flags%crm_tsk                          &
+     &             ,pre_sh_flx=grid%pre_sh_flx                            &
+     &             ,pre_sh_flx_tend=grid%pre_sh_flx_tend                  &
+     &             ,pre_lh_flx=grid%pre_lh_flx                            &
+     &             ,pre_lh_flx_tend=grid%pre_lh_flx_tend                  &
+     &             ,pre_albedo=grid%pre_albedo                            &
+     &             ,pre_albedo_tend=grid%pre_albedo_tend                  &
+     &             ,pre_tsk=grid%pre_tsk                                  &
+     &             ,pre_tsk_tend=grid%pre_tsk_tend                        &
+     &             ,hfx=grid%hfx, qfx=grid%qfx                            &
+     &             ,albedo=grid%albedo, tsk=grid%tsk                      &
+     &             ,ust=grid%ust, lh=grid%lh                              &
+     &             ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde     &
+     &             ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme     &
+     &             ,IPS=ips,IPE=ipe, JPS=jps,JPE=jpe, KPS=kps,KPE=kpe     &
+     &             , I_START=grid%i_start,I_END=min(grid%i_end, ide-1)    &
+     &             , J_START=grid%j_start,J_END=min(grid%j_end, jde-1)    &
+     &             , KTS=k_start, KTE=min(k_end,kde-1)                    &
+     &             ,NUM_TILES=grid%num_tiles                              &
+     &              )
+
+
+! * Process aerosol data 
+
+      CALL wrf_debug ( 200 , ' call crm_aer' )
+      CALL crm_aer(itimestep=grid%itimestep, dt=grid%dt                   &
+     &             ,crm_morr_act_opt=config_flags%crm_morr_act_opt        &
+     &             ,crm_morr_hygro_opt=config_flags%crm_morr_hygro_opt    &
+     &             ,crm_morr_hygro=config_flags%crm_morr_hygro            &
+     &             ,crm_num_aer_layers=config_flags%crm_num_aer_layers    &
+     &             ,num_modes_aer=grid%num_modes_aer      &
+     &             ,rm_aer1=grid%rm_aer1, rm_aer1_tend=grid%rm_aer1_tend      &
+     &             ,rm_aer2=grid%rm_aer2, rm_aer2_tend=grid%rm_aer2_tend      &
+     &             ,rm_aer3=grid%rm_aer3, rm_aer3_tend=grid%rm_aer3_tend      &
+     &             ,rm_aer4=grid%rm_aer4, rm_aer4_tend=grid%rm_aer4_tend      &
+     &             ,sig_aer1=grid%sig_aer1, sig_aer1_tend=grid%sig_aer1_tend  &
+     &             ,sig_aer2=grid%sig_aer2, sig_aer2_tend=grid%sig_aer2_tend  &
+     &             ,sig_aer3=grid%sig_aer3, sig_aer3_tend=grid%sig_aer3_tend  &
+     &             ,sig_aer4=grid%sig_aer4, sig_aer4_tend=grid%sig_aer4_tend  &
+     &             ,z_aer=grid%z_aer, z_aer_tend=grid%z_aer_tend              &
+     &             ,hygro_aer1=grid%hygro_aer1, hygro_aer1_tend=grid%hygro_aer1_tend &
+     &             ,hygro_aer2=grid%hygro_aer2, hygro_aer2_tend=grid%hygro_aer2_tend &
+     &             ,hygro_aer3=grid%hygro_aer3, hygro_aer3_tend=grid%hygro_aer3_tend &
+     &             ,hygro_aer4=grid%hygro_aer4, hygro_aer4_tend=grid%hygro_aer4_tend &
+     &             ,na_aer1=grid%na_aer1, na_aer1_tend=grid%na_aer1_tend      &
+     &             ,na_aer2=grid%na_aer2, na_aer2_tend=grid%na_aer2_tend      &
+     &             ,na_aer3=grid%na_aer3, na_aer3_tend=grid%na_aer3_tend      &
+     &             ,na_aer4=grid%na_aer4, na_aer4_tend=grid%na_aer4_tend      &
+     &             ,na_aer1_grd=grid%na_aer1_grd                            &
+     &             ,na_aer2_grd=grid%na_aer2_grd                            &
+     &             ,na_aer3_grd=grid%na_aer3_grd                            &
+     &             ,na_aer4_grd=grid%na_aer4_grd                            &
+     &             ,z=grid%z,  z_at_w=grid%z_at_w                         &
+     &             ,p=grid%p_hyd, p8w=grid%p_hyd_w, rho=grid%rho               &
+     &             ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde     &
+     &             ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme     &
+     &             ,IPS=ips,IPE=ipe, JPS=jps,JPE=jpe, KPS=kps,KPE=kpe     &
+     &             ,I_START=grid%i_start,I_END=min(grid%i_end, ide-1)     &
+     &             ,J_START=grid%j_start,J_END=min(grid%j_end, jde-1)     &
+     &             ,KTS=k_start, KTE=min(k_end,kde-1)                     &
+     &             ,NUM_TILES=grid%num_tiles                              &
+     &              )
+
+!* crm: end
+!###################################################################
+ 
+       
 
 !*********
 ! pbl
