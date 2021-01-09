@@ -3917,13 +3917,6 @@ BENCH_START(micro_driver_tim)
       &        , ACPHYSS=grid%acphyss                                     & ! for gsfcgce
       &        , ACPHYSM=grid%acphysm                                     & ! for gsfcgce
       &        , ACPHYSF=grid%acphysf                                     & ! for gsfcgce
-
-      &        , COMDBZ=grid%comdbz                                       & ! for gsfcgce
-      &        , CSI=grid%csi                                             & ! for gsfcgce
-      &        , RAINNCV_SEPA=grid%rainncv_sepa                           & ! for gsfcgce
-      &        , RAINNC_SEPA=grid%rainnc_sepa                             &
-      &        , RI_SEPA=grid%ri_sepa                                     & ! MPI-safe CSI
-      &        , IT_SEPA=grid%it_sepa                                     & ! MPI-safe CSI
       &        , RE_CLOUD_GSFC=grid%re_cloud_gsfc                         & ! for gsfcgce
       &        , RE_RAIN_GSFC=grid%re_rain_gsfc                           & ! for gsfcgce
       &        , RE_ICE_GSFC=grid%re_ice_gsfc                             & ! for gsfcgce

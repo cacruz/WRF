@@ -1422,40 +1422,12 @@ state   real    acphyss          ikj      misc        1         -     r       "A
 state   real    acphysm          ikj      misc        1         -     r       "ACPHYSM"               "ACCUMULATED LATENT HEATING DUE TO MELTING"       "K"
 state   real    acphysf          ikj      misc        1         -     r       "ACPHYSF"               "ACCUMULATED LATENT HEATING DUE TO FREEZING"      "K"
 
-#state   real    dbz            ikj      misc        1         -     -         "DBZ"                   "RADAR REFLECTIVITIES"             "dbz"
-state   real    comdbz         ij       misc        1         -     h         "COMDBZ"                "COMPOSITE RADAR REFLECTIVITIES"             "dBZ"
-#NUWRF...Add thread-safe CSI diagnostic - needed?
-state   real    ri_sepa        ij       misc        1         -     rh        "RI_SEPA"               "TIME-STEP EXPLICIT PRECIPITATION RATE"  "mm/hr"
-state   integer it_sepa        ij       misc        1         -     rh        "IT_SEPA"               "INTERMEDIATE CONVECTIVE STRATIFORM CLASSIFICATION"  ""
-state   real    csi            ij       misc        1         -     rh        "CSI"                   "CONVECTIVE STRATIFORM REGION INDEX"  " "
-state   real    rainncv_sepa   ilj      misc        1         -     rh        "RAINNCV_SEPA"          "TIME-STEP PARTITIONED ACCUMULATED TOTAL GRID SCALE PRECIPITATION"    "mm"
-state   real    rainnc_sepa    ilj      misc        1         -     rh        "RAINNC_SEPA"           "PARTITIONED ACCUMULATED TOTAL GRID SCALE PRECIPITATION"    "mm"
-state   real    refc          ikj      misc        1          -     rh         "REFC"                  "Cloud Water effective radius"       "micron"
-state   real    refr          ikj      misc        1          -     rh         "REFR"                  "Rain Water effective radius"        "micron"
-state   real    refi          ikj      misc        1          -     rh         "REFI"                  "Cloud Ice effective radius"         "micron"
-state   real    refs          ikj      misc        1          -     rh         "REFS"                  "Snow effective radius"              "micron"
-state   real    refg          ikj      misc        1          -     rh         "REFG"                  "Graupel Water effective radius"     "micron"
-state   real    refh          ikj      misc        1          -     rh         "REFH"                  "Hail Water effective radius"        "micron"
-
 # NUWRF...4ICE output
 state   real    preci3d       ikj      misc        1         -     -       "PRECI3D"                   "Sedimentation Fluxes for cloud ice"             "KG/M^2/S"
 state   real    precs3d       ikj      misc        1         -     -       "PRECS3D"                   "Sedimentation Fluxes for snow"                  "KG/M^2/S"
 state   real    precg3d       ikj      misc        1         -     -       "PRECG3D"                   "Sedimentation Fluxes for graupel"               "KG/M^2/S"
 state   real    prech3d       ikj      misc        1         -     -       "PRECH3D"                   "Sedimentation Fluxes for hail"               "KG/M^2/S"
 state   real    precr3d       ikj      misc        1         -     -       "PRECR3D"                   "Sedimentation Fluxes for rain"                  "KG/M^2/S"
-
-# EMK NUWRF - needed?
-state   real    clwp           ij       misc        1         -     h         "CLWP"                  "CLOUD LIQUID WATER PATH (CLWP)"      "kg m-2"
-state   real    rwp            ij       misc        1         -     h         "RWP"                   "RAIN WATER PATH (RWP)"               "kg m-2"
-state   real    ciwp           ij       misc        1         -     h         "CIWP"                  "CLOUD ICE WATER PATH (CIWP)"         "kg m-2"
-state   real    fpwp           ij       misc        1         -     h         "FPWP"                  "FROZEN PRECIP WATER PATH (FPWP)"     "kg m-2"
-state   real    mean_ivt_u     ij       misc        1         -     rh        "MEAN_IVT_U"            "MEAN INTEGRATED VAPOR TRANSPORT (X-DIRECTION)" "kg m-1 s-1"
-state   real    mean_ivt_v     ij       misc        1         -     rh        "MEAN_IVT_V"            "MEAN INTEGRATED VAPOR TRANSPORT (Y-DIRECTION)" "kg m-1 s-1"
-state   real    sum_ivt_u      ij       misc        1         -     r         "SUM_IVT_U"             "INTERMEDIATE SUM OF INTEGRATED VAPOR TRANSPORT (X-DIRECTION)" "kg m-1 s-1"
-state   real    sum_ivt_v      ij       misc        1         -     r         "SUM_IVT_V"             "INTERMEDIATE SUM OF INTEGRATED VAPOR TRANSPORT (Y-DIRECTION)" "kg m-1 s-1"
-state   integer ivt_count      -        misc        1         -     r         "IVT_COUNT"             "INTERMEDIATE TIME LEVEL SUM FOR INTEGRATED VAPOR TRANSPORT (Y-DIRECTION)" ""
-state   real    freezing_level  ij       misc        1         -     h         "FRZLVL"                "FREEZING LEVEL" "m"
-
 
 # State variables for Goddard LW and SW radiation
 state    real  TLWDN           ij      misc        1         -      h         "TLWDN"                 "TOA LW downwelling flux"           "W m-2"
