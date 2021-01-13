@@ -145,3 +145,6 @@ rconfig logical   ignore_iofields_warning namelist,time_control   1            .
 # nofill = true means only a single write, not the write/read/write sequence
 rconfig logical   ncd_nofill      namelist,time_control 1      .true.
 
+# NU-WRF for new GOCART background files
+#rconfig   logical new_gocart_bg_files      namelist,chem      1              .false.      -    "new_gocart_bg_files"                ""      ""
+

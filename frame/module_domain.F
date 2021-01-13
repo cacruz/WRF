@@ -963,6 +963,8 @@ CONTAINS
         ALLOCATE( grid%ts_filename( grid%max_ts_locs ) )
         grid%ntsloc        = 0
         grid%ntsloc_domain = 0
+        grid%lattsloc = 0 ! NUWRF
+        grid%lontsloc = 0 ! NUWRF
 
 #if (EM_CORE == 1)
 ! Allocate storage for track metadata

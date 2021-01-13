@@ -49,6 +49,11 @@ module_data_gocartchem.o:
 
 module_chem.utilities.o:
 
+# NUWRF...Mods for using LIS porosity and user-defined tuning factors
+module_gocart_dust.o: ../phys/module_data_gocart_dust.o \
+                      ../frame/module_state_description.o \
+                      ../frame/module_wrf_error.o
+                      
 module_radm.o: module_data_sorgam.o module_data_radm2.o
 
 module_gocart_dust.o: ../phys/module_data_gocart_dust.o
@@ -166,6 +171,9 @@ module_vertmx_wrf.o:
 module_emissions_anthropogenics.o: module_aerosols_sorgam.o module_aerosols_soa_vbs.o
 
 module_ghg_fluxes.o:
+
+# NUWRF
+module_casaco2_fluxes.o: ../frame/module_configure.o ../frame/module_state_description.o
 
 module_data_sorgam.o: module_data_radm2.o
 

@@ -34,7 +34,8 @@
 %{
   #include <stdio.h>
   #include <stdlib.h>
-  #include <malloc.h>
+  /* EMK NUWRF...malloc.h is non-standard. Replace with stdlib.h */
+  /*#include <malloc.h>*/
   #include <string.h>
   #include <unistd.h>
   #include "scan.h"
@@ -65,7 +66,8 @@
 %}
 
 %union{
-  char str[80];
+  /* NUWRF - need longer array on Mac OSX */
+  char str[133];
 };
 
 %token JACOBIAN DOUBLE FUNCTION DEFVAR DEFRAD DEFFIX SETVAR SETRAD SETFIX 

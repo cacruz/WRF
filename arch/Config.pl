@@ -14,6 +14,7 @@ $sw_hdf5_path = "" ;
 $sw_hdfeos_path = "" ;
 $sw_zlib_path = "" ;
 $sw_pnetcdf_path = "" ;
+$sw_boxmg_path=""; 
 $sw_phdf5_path=""; 
 $sw_jasperlib_path=""; 
 $sw_jasperinc_path=""; 
@@ -119,6 +120,10 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   if ( substr( $ARGV[0], 1, 8 ) eq "pnetcdf=" )
   {
     $sw_pnetcdf_path = substr( $ARGV[0], 9 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 6 ) eq "boxmg=" )
+  {
+    $sw_boxmg_path = substr( $ARGV[0], 7 ) ;
   }
 #  if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
 #  {
@@ -490,6 +495,7 @@ while ( <CONFIGURE_DEFAULTS> )
     $_ =~ s/CONFIGURE_HDFEOS_PATH/$sw_hdfeos_path/g ;
     $_ =~ s/CONFIGURE_ZLIB_PATH/$sw_zlib_path/g ;
     $_ =~ s/CONFIGURE_PNETCDF_PATH/$sw_pnetcdf_path/g ;
+    $_ =~ s/CONFIGURE_BOXMG_PATH/$sw_boxmg_path/g ;
 #    $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
     $_ =~ s/CONFIGURE_PHDF5_PATH/$sw_phdf5_path/g ;
     $_ =~ s/CONFIGURE_LDFLAGS/$sw_ldflags/g ;
@@ -612,6 +618,18 @@ while ( <CONFIGURE_DEFAULTS> )
 	$_ =~ s:CONFIGURE_PHDF5_LIB_PATH::g ;
 	 }
 
+     if ( $sw_boxmg_path ) 
+     
+       {     #  printf "set CONFIGURE_BOXMG_LIB_PATH sw_boxmg_path\n";
+         $_ =~ s:CONFIGURE_BOXMG_LIB_PATH:-L$ENV{BOXMGLIBDIR}/lib -lboxmg_opt_sgl -lboxmg-extras_opt_sgl: ;
+         $_ =~ s:BOXMGINCPATH:-I$ENV{BOXMGLIBDIR}/include -I$ENV{BOXMGLIBDIR}/extras/msg/include: ;
+	}
+     else                   
+       {  #  printf "not setting CONFIGURE_BOXMG_LIB_PATH sw_boxmg_path=$sw_boxmg_path\n";
+	           $_ =~ s:CONFIGURE_BOXMG_LIB_PATH::g ;
+	           $_ =~ s:BOXMGINCPATH::g ;
+	 }
+
     if ( $sw_jasperlib_path && $sw_jasperinc_path ) 
       { $_ =~ s/CONFIGURE_WRFIO_GRIB2/wrfio_grib2/g ;
         $_ =~ s:CONFIGURE_GRIB2_FLAG:-DGRIB2:g ;
@@ -725,6 +743,7 @@ while ( <CONFIGURE_DEFAULTS> )
         $validresponse = 0 ;
         #only allow parallel netcdf if the user has chosen parallel option
         if ( $paropt ne 'dmpar' && $paropt ne 'dm+sm' ) { $sw_pnetcdf_path = "" ; }
+	if ( $paropt ne 'dmpar' && $paropt ne 'dm+sm' ) { $sw_boxmg_path = "" ; }
         #
         until ( $validresponse ) {
           if ( $ENV{WRF_DA_CORE} eq "1" || $sw_da_core eq "-DDA_CORE=1" ) {

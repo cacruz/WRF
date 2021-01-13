@@ -156,11 +156,13 @@ real::t1,t2
    grid => head_grid
    CALL nl_get_max_dom ( 1 , max_dom )
 
+#ifdef WRF_LIS
 ! NUWRF...Store the original value of num_land_cat for future use.
    if (model_config_rec%sf_surface_physics(grid%id) .eq. &
         NUWRFLISSCHEME) then
       call ResetNumLandCat(grid,config_flags,.false.)
    end if
+#endif
 
    IF ( model_config_rec%interval_seconds .LE. 0 ) THEN
      CALL wrf_error_fatal( 'namelist value for interval_seconds must be > 0')
@@ -511,6 +513,13 @@ real::t1,t2,t3,t4
       WRITE ( wrf_err_message , FMT='(A,I10,A)' ) 'Timing for processing ',NINT(t4-t3) ,' s.'
       CALL wrf_debug( 0, wrf_err_message )
       CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
+#ifdef WRF_LIS
+! NUWRF...Restore the METGRID value of num_land_cat to allow REAL to read in
+! the next data file.
+      if (model_config_rec%sf_surface_physics(grid%id) .eq. NUWRFLISSCHEME) then
+         call ResetNumLandCat(grid,config_flags,.true.)
+      end if
+#endif
 
 #if ( WRF_CHEM == 1 )
       IF ( loop == 1 ) THEN
@@ -610,12 +619,13 @@ real::t1,t2,t3,t4
       CALL cpu_time ( t1 )
    END DO
 
+#ifdef WRF_LIS
 ! NUWRF...Restore the METGRID value of num_land_cat to allow REAL to read in
 ! the next data file.
       if (model_config_rec%sf_surface_physics(grid%id) .eq. NUWRFLISSCHEME) then
          call ResetNumLandCat(grid,config_flags,.true.)
       end if
-
+#endif
 
 END SUBROUTINE med_sidata_input
 

@@ -544,11 +544,16 @@ CONTAINS
    if (p_nh3   .gt.1) wdi_nh3(its:ite,jts:jte) = wdi_nh3(its:ite,jts:jte) + wetdep_2d(its:ite,jts:jte,p_nh3)*dt               ! mmol/m2
    
    ! Update the accumulated wet deposition:
-   
-   wd_no3(its:ite,jts:jte) = wd_no3(its:ite,jts:jte) + wdi_no3(its:ite,jts:jte) ! mmol/m2
-   wd_so4(its:ite,jts:jte) = wd_so4(its:ite,jts:jte) + wdi_so4(its:ite,jts:jte) ! mmol/m2
-   wd_nh4(its:ite,jts:jte) = wd_nh4(its:ite,jts:jte) + wdi_nh4(its:ite,jts:jte) ! mmol/m2
-   wd_oa (its:ite,jts:jte) = wd_oa (its:ite,jts:jte) + wdi_oa (its:ite,jts:jte) ! mmol/m2
+   ! EMK NUWRF...WRF normally allocates these arrays with shape(1,1), unless
+   ! a particular chem_opt is selected.  So we need an IF block here to avoid
+   ! memory corruption.
+
+   if (chemopt == MOZART_MOSAIC_4BIN_AQ_KPP) then
+      wd_no3(its:ite,jts:jte) = wd_no3(its:ite,jts:jte) + wdi_no3(its:ite,jts:jte) ! mmol/m2
+      wd_so4(its:ite,jts:jte) = wd_so4(its:ite,jts:jte) + wdi_so4(its:ite,jts:jte) ! mmol/m2
+      wd_oa (its:ite,jts:jte) = wd_oa (its:ite,jts:jte) + wdi_oa (its:ite,jts:jte) ! mmol/m2
+      wd_nh4(its:ite,jts:jte) = wd_nh4(its:ite,jts:jte) + wdi_nh4(its:ite,jts:jte) ! mmol/m2
+   end if
    wd_so2 (its:ite,jts:jte) = wd_so2 (its:ite,jts:jte) + wdi_so2 (its:ite,jts:jte) ! mmol/m2
    wd_sulf (its:ite,jts:jte) = wd_sulf (its:ite,jts:jte) + wdi_sulf (its:ite,jts:jte) ! mmol/m2
    wd_hno3 (its:ite,jts:jte) = wd_hno3 (its:ite,jts:jte) + wdi_hno3 (its:ite,jts:jte) ! mmol/m2
@@ -725,6 +730,9 @@ CONTAINS
      itf=MIN(ite,ide-1)
      ktf=MIN(kte,kde-1)
      jtf=MIN(jte,jde-1)
+     ! EMK NUWRF...Must initialize arrays!
+     pw3 = 0.
+     clw_all3 = 0.
 
 !sms$distribute end
       day=86400.
@@ -1122,23 +1130,23 @@ CONTAINS
 
 
 !
-      if(j.eq.jpr)then
-        i=ipr
-        print *,'in 250 loop ',edt(ipr),ierr(ipr)
-!       if(ierr(i).eq.0.or.ierr(i).eq.3)then
-        print *,k22(I),kbcon(i),ktop(i),jmin(i)
-        print *,edt(i)
-        do k=kts,ktf
-          print *,k,z(i,k),he(i,k),hes(i,k)
-        enddo
-        do k=1,ktop(i)+1
-          print *,zu(i,k),zd(i,k),pw(i,k),pwd(i,k)
-        enddo
-        print *,'tr_up(i,k,6),tr_dd(i,k,6),tr_pw(i,k,6),tr_pwd(i,k,6)'
-        do k=1,ktop(i)+1
-          print *,tr_up(i,k,npr),tr_dd(i,k,npr),tr_pw(i,k,npr),tr_pwd(i,k,npr)
-        enddo
-        endif
+!      if(j.eq.jpr)then
+!        i=ipr
+!        print *,'in 250 loop ',edt(ipr),ierr(ipr)
+!!       if(ierr(i).eq.0.or.ierr(i).eq.3)then
+!        print *,k22(I),kbcon(i),ktop(i),jmin(i)
+!        print *,edt(i)
+!        do k=kts,ktf
+!          print *,k,z(i,k),he(i,k),hes(i,k)
+!        enddo
+!        do k=1,ktop(i)+1
+!          print *,zu(i,k),zd(i,k),pw(i,k),pwd(i,k)
+!        enddo
+!        print *,'tr_up(i,k,6),tr_dd(i,k,6),tr_pw(i,k,6),tr_pwd(i,k,6)'
+!        do k=1,ktop(i)+1
+!          print *,tr_up(i,k,npr),tr_dd(i,k,npr),tr_pw(i,k,npr),tr_pwd(i,k,npr)
+!        enddo
+!        endif
 !     endif
 !
 !--- calculate transport tendencies
@@ -1961,7 +1969,9 @@ END subroutine cup_env_clev_tr
 !
       if (conv_tr_wetscav == 1) then
         
-        
+          ! EMK NUWRF
+          dens = 0.1*p(i,k)/t(i,k)*mwdry/8.314472 ! kg/m3        
+       
           tfac = (HL_t0 - t(i,k))/(t(i,k)*HL_t0)
           do nv=2,num_chem
             
@@ -2197,7 +2207,8 @@ END FUNCTION moz_aq_frac
             
 ! why shouldn't that work for aerosols as well?
 !          do nv=1,numgas ! Only gas phase species evaporate along with rain water
-          do nv=1,num_chem
+!          do nv=1,num_chem
+          do nv=2,num_chem  ! NUWRF, no chem species for nv=1
             
             do k=ktf,kts,-1 ! Descending loop over all levels
               
@@ -2236,13 +2247,15 @@ END FUNCTION moz_aq_frac
         
         IF(ierr(I).eq.0)then
           
-          do nv=1,num_chem
+!          do nv=1,num_chem
+          do nv=2,num_chem  ! NUWRF, no chem species for nv=1
             tr_dd(i,jmin(i):ktf,nv)=tre_cup(i,jmin(i):ktf,nv) ! Tracer amount in downdraft
           enddo
           
           do ki=jmin(i)-1,1,-1
             DZ=Z_cup(i,ki+1)-Z_cup(i,ki)
-            do nv=1,num_chem
+!            do nv=1,num_chem
+            do nv=2,num_chem  ! NUWRF, no chem species for nv=1
               tr_dd(i,ki,nv)=(tr_dd(i,ki+1,nv)*(1.-.5*CDD(i,ki)*DZ) &
                +entr*DZ*tracer(i,ki,nv) &
                 )/(1.+entr*DZ-.5*CDD(i,ki)*DZ)
@@ -2258,7 +2271,8 @@ END FUNCTION moz_aq_frac
       
       do i=its,itf
         IF(ierr(I).eq.0)then
-          do nv=1,num_chem
+!          do nv=1,num_chem
+          do nv=2,num_chem  ! NUWRF, no chem species for nv=1
             do k=kts,ktf
               tr_dd(i,k,nv) = tr_dd(i,k,nv) + tr_pwd(i,k,nv)
             enddo

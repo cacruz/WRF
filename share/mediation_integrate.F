@@ -2249,7 +2249,7 @@ integer myproc,i,j,k
          CALL wrf_debug( 100 , bdyname // ' is already opened' )
        ENDIF
        CALL wrf_debug( 100 , 'med_latbound_in: calling input_boundary ' )
-       CALL input_boundary ( grid%lbc_fid, grid , config_flags , ierr )  ! CC NUWRF: grid or head_grid?
+       CALL input_boundary ( grid%lbc_fid, head_grid , config_flags , ierr )  ! CC NUWRF: grid or head_grid?
 
 ! #if (EM_CORE == 1)
        IF ( (config_flags%dfi_opt .NE. DFI_NODFI) .AND. (head_grid%dfi_stage .NE. DFI_FST) ) THEN
@@ -2263,7 +2263,7 @@ integer myproc,i,j,k
        IF ( config_flags%dyn_opt .NE. dyn_em_ad ) THEN
           DO WHILE (currentTime .GE. grid%next_bdy_time )         ! next_bdy_time is set by input_boundary from bdy file
              CALL wrf_debug( 100 , 'med_latbound_in: calling input_boundary ' )
-             CALL input_boundary ( grid%lbc_fid, grid , config_flags , ierr ) ! CC NUWRF: grid or head_grid?
+             CALL input_boundary ( grid%lbc_fid, head_grid , config_flags , ierr ) ! CC NUWRF: grid or head_grid?
           ENDDO
        ELSE
           DO WHILE (currentTime .GT. grid%next_bdy_time )         ! next_bdy_time is set by input_boundary from bdy file

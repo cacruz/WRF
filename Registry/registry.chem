@@ -3,15 +3,19 @@ rconfig  integer gsfcgce_gocart_coupling namelist,chem   1  2
 state    real    AOD_OUT         ikj    misc        1         -      h        "AOD_OUT"             "Aerosol Optical Depth" " "
 state    real    AOD2D_OUT       ij     misc        1         -      h        "AOD2D_OUT"           "Aerosol Optical Depth, 2d" " "
 state    real    ATOP2D_OUT      ij     misc        1         -      h        "ATOP2D_OUT"          "Aerosol Optical Depth, top" " "
-# NUWRF
-state   real    icn_diag        ikj      misc        1        -      h        "ICN_DIAG"              "IN concentration"          "#/Litre "
-state   real    nc_diag         ikj      misc        1        -      h        "NC_DIAG"               "cloud concentration"       "#/cm3 "
+state    real    ICN_DIAG        ikj    misc        1         -      h        "ICN_DIAG"            "Some chem thing, ICN_DIAG" " "
+state    real    NC_DIAG         ikj    misc        1         -      h        "NC_DIAG"             "Some chem thing, NC_DIAG" " "
 
 # Chemistry Variables  (all shared at this point)
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 rconfig   character  auxinput12_inname   namelist,time_control   1  "wrf_chem_input"   -     "name of auxinput12 infile" ""      ""
 rconfig   integer    io_form_auxinput12  namelist,time_control   1  2
 
+# NUWRF EMK BEGIN...New seasonal values of EROD from MODIS-DeepBlue
+state    real    erod_mdb_sand      i{sd}j    misc        1         -      i012rhd=(interp_mask_field:lu_index,iswater)u=(copy_fcnm)   "EROD_MDB_SAND"          "fraction of erodible sand surface in each grid cell (0-1) (MODIS-DeepBlue Seasonal)"       "none"
+state    real    erod_mdb_silt      i{sd}j    misc        1         -      i012rhd=(interp_mask_field:lu_index,iswater)u=(copy_fcnm)   "EROD_MDB_SILT"          "fraction of erodible silt surface in each grid cell (0-1) (MODIS-DeepBlue Seasonal)"       "none"
+state    real    erod_mdb_clay      i{sd}j    misc        1         -      i012rhd=(interp_mask_field:lu_index,iswater)u=(copy_fcnm)   "EROD_MDB_CLAY"          "fraction of erodible clay surface in each grid cell (0-1) (MODIS-DeepBlue Seasonal)"       "none"
+#rconfig   integer   ginoux_erod     namelist,chem        1         0       -       "ginoux_erod"    "Option to use Ginoux seasonal fraction of erodible surface"      ""
 # NUWRF EMK
 rconfig  character  erod_option         namelist,chem           1             "static" rh  "EROD_OPTION"  "Erodible surface data option: static, mdb, dyn_climo, dyn"      ""
 rconfig  character  auxinput12_inname   namelist,time_control   1  "wrf_chem_input"   -     "name of auxinput12 infile" ""      ""
@@ -38,6 +42,7 @@ state    real    erod_static      i{ed}j    misc        1         -      i012rhd
 # NUWRF EMK...Make version of EROD variable with erosion dimension last, for use by chemistry emission codes.
 state    real    erod_tmp      ij.    misc        1         -      - "EROD_TMP"         "fraction of erodible surface in each grid cell (0-1) (Static Data)"       "none"
 
+
 state    real    CLDFRA2         ikj    misc        1         -      h        "CLDFRA2"             "CLOUD FRACTION"
 state    real    RAINPROD        ikj    misc        1         -      h        "RAINPROD"            "TOTAL RAIN PRODUCTION RATE"       "s-1"
 state    real    EVAPPROD        ikj    misc        1         -      h        "EVAPPROD"            "RAIN EVAPORATION RATE"            "s-1"
@@ -59,7 +64,6 @@ state    real    precr           ikj    misc        1         -      rdu      "p
 state    real    preci           ikj    misc        1         -      rdu      "preci"               "ICE PRECIPITATION RATE"         "KG/M2/S"
 state    real    precs           ikj    misc        1         -      rdu      "precs"               "SNOW PRECIPITATION RATE"        "KG/M2/S"
 state    real    precg           ikj    misc        1         -      rdu      "precg"               "GRAUPEL PRECIPITATION RATE"     "KG/M2/S"
-
 
 #
 # Timing variables for chemistry
@@ -85,7 +89,6 @@ state    real  e_so2          i+jf     emis_ant     1         Z      i5r    "E_S
 state    real  e_no           i+jf     emis_ant     1         Z      i5r    "E_NO"                "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_co           i+jf     emis_ant     1         Z      i5r    "E_CO"                "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_co2          i+jf     emis_ant     1         Z      i5r    "E_CO2"               "EMISSIONS"          "mol km^-2 hr^-1"
-# NUWRF:  Added casaco2
 state    real  e_casaco2      i+jf     emis_ant     1         Z      i{18}rh   "E_CASACO2"           "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  et_casaco2     i+jf     emis_ant     1         Z      i{18}rh   "ET_CASACO2"          "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_eth          i+jf     emis_ant     1         Z      i5r    "E_ETH"               "EMISSIONS"          "mol km^-2 hr^-1"
@@ -103,10 +106,11 @@ state    real  e_ald          i+jf     emis_ant     1         Z      i5r    "E_A
 state    real  e_ket          i+jf     emis_ant     1         Z      i5r    "E_KET"               "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_ora2         i+jf     emis_ant     1         Z      i5r    "E_ORA2"              "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_nh3          i+jf     emis_ant     1         Z      i5r    "E_NH3"               "EMISSIONS"          "mol km^-2 hr^-1"
+# NUWRF:  Added e_terp, e_api
+#state    real  e_terp         i+jf     emis_ant     1         Z      i5r     "E_TERP"              "EMISSIONS"          "mol km^-2 hr^-1"
+state    real  e_api          i+jf     emis_ant     1         Z      i5r     "E_API"               "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_pm_25        i+jf     emis_ant     1         Z      i5r    "E_PM_25"             "EMISSIONS"          "ug/m3 m/s"
 state    real  e_pm_10        i+jf     emis_ant     1         Z      i5r    "E_PM_10"             "EMISSIONS"          "ug/m3 m/s"
-# NUWRF:  Added e_terp, e_api
-state    real  e_api          i+jf     emis_ant     1         Z      i5r     "E_API"               "EMISSIONS"          "mol km^-2 hr^-1"
 state    real  e_pm25i        i+jf     emis_ant     1         Z      i5r    "E_PM25I"             "EMISSION RATE OF UNIDEN. PM2.5 MASS"  "ug/m3 m/s"
 state    real  e_pm25j        i+jf     emis_ant     1         Z      i5r    "E_PM25J"             "EMISSION RATE OF J-MODE UNIDEN. PM2.5 MASS"   "ug/m3 m/s"
 state    real  e_eci          i+jf     emis_ant     1         Z      i5r    "E_ECI"               "EMISSION RATE OF I-MODE EC"          "ug/m3 m/s"
@@ -516,7 +520,6 @@ state    real  ebu_in_xylenes     i]jf      ebu_in      1         -        i07  
 state    real  ebu_in_ch4         i]jf      ebu_in      1         -        i07        "ebu_in_ch4"        "EMISSIONS"          "mol km^-2 hr^-1"
 # NUWRF EMK...Added dry mass burned (DM) for future use in on-line adjustments to emission factors
 state    real  ebu_in_dm         i]jf      ebu_in      1         -        i07        "ebu_in_dm"            "EMISSIONS"          "kg km^-2 hr^-1"        
-
 #
 state    real  mean_fct_agtf      ij      misc      1         -        i07h       "mean_fct_agtf"         "mean fraction of tropical forest"  "?"
 state    real  mean_fct_agef      ij      misc      1         -        i07h       "mean_fct_agef"         "mean fraction of extra tropical forest"  "?"
@@ -705,12 +708,12 @@ state    real  backg_h2o2     ikj     misc        1         -      i08r    "BACK
 state    real  backg_no3      ikj     misc        1         -      i08r    "BACKG_NO3"      "Background NO3 for Aerosol-GOcart option"      "volume mixing ratio"
 
 # AFWA GOCART Dust
+#state    real  erod_dri        ij.    misc        1         -      i012rdu "EROD_DRI"            "frac. of erodible surface in each grid cell (0-1); DRI"                    "none"
 # NUWRF...Change dimension order for erod_dri for two-way nesting
-#state    real    erod_dri      i{ed}j misc        1         -      i012rhd=(interp_mask_field:lu_index,iswater)u=(copy_fcnm) "EROD_DRI"         "fraction of erodible surface in each grid cell (0-1); DRI"       "none"
+state    real    erod_dri      i{ed}j misc        1         -      i012rhd=(interp_mask_field:lu_index,iswater)u=(copy_fcnm) "EROD_DRI"         "fraction of erodible surface in each grid cell (0-1); DRI"       "none"
 # NUWRF EMK...Make version of EROD variable with erosion dimension last, for use by chemistry emission codes.
 state    real    erod_dri_tmp      ij.    misc    1         -      - "EROD_DRI_TMP"         "fraction of erodible surface in each grid cell (0-1); DRI"       "none"
 
-state    real  erod_dri        ij.    misc        1         -      i012rdu "EROD_DRI"            "frac. of erodible surface in each grid cell (0-1); DRI"                    "none"
 state    real  lai_vegmask     ij     misc        0         -      i012rh  "LAI_VEGMASK"         "MODIS LAI vegetation mask for this date; 0=no dust produced (vegetation)"  "none"
 state    real  lai_veg_8day   i^j     dyn_em      1         Z      i1      "LAI_VEG_8DAY"        "eight-day MODIS LAI veg; 0=no dust produced (vegetation)" "0 - 1 fraction"
 state    real  clayfrac       ij      misc        1         -      i01r    "CLAYFRAC"            "Clay fraction in each grid cell (0-1)"                                     "none"
@@ -2168,8 +2171,9 @@ state   real    co2_bck    ikjftb   chem         1         -     i0{12}rhusdf=(b
 state   real    co2_bbu    ikjftb   chem         1         -     i0{12}rhusdf=(bdy_interp:dt)  "CO2_BBU"       "mixing ratio of biomass burning CO2"        "ppmv"
 state   real    co2_tst    ikjftb   chem         1         -     i0{12}rhusdf=(bdy_interp:dt)  "CO2_TST"      "mixing ratio of CO2, anthropogenic test fluxes"        "ppmv"
 
-# GHG chem arrays, Chem Scalars for CO2 used in the GHG options
+# NUWRF
 state   real    CASACO2   ikjftb   chem         1         -     irhusdf=(bdy_interp:dt)  "CASACO2"       "mixing ratio of total CASACO2" "ppmv"
+
 
 # Chem Scalars for CO used in the GHG options
 state   real    co_bck     ikjftb   chem         1         -     i0{12}rhusdf=(bdy_interp:dt)  "CO_BCK"        "mixing ratio of background CO"         "ppmv"
@@ -3780,6 +3784,7 @@ state integer  STEPBIOE          -        misc        1         -      r      "S
 state integer  STEPPHOT          -        misc     1         -      r        "STEPPHOT"              "NUMBER OF FUNDAMENTAL TIMESTEPS BETWEEN PHOTOLYSIS CALLS"             "NA"
 state integer  STEPCHEM          -        misc     1         -      r        "STEPCHEM"              "NUMBER OF FUNDAMENTAL TIMESTEPS BETWEEN CHEM MECH CALLS"             "NA"
 state integer  STEPFIREPL        -        misc     1         -      r        "STEPFIREPL"            "NUMBER OF FUNDAMENTAL TIMESTEPS BETWEEN CALLSTO PLUMERISE FIRE ROUTINE"             "NA"
+# NUWRF
 state integer  STEPCASA          -        misc     1         -      r        "STEPCASA"              "NUMBER OF FUNDAMENTAL TIMESTEPS BETWEEN CHEM CASA CALLS"             "NA"
 
                                                 
@@ -3794,6 +3799,7 @@ rconfig   integer   io_style_emissions     namelist,chem        1              1
 rconfig   real    BIOEMDT                  namelist,chem        max_domains    0       h       "BIOEMDT"          "" ""
 rconfig   real    PHOTDT                   namelist,chem        max_domains    0       h       "PHOTDT"          ""  ""
 rconfig   real    CHEMDT                   namelist,chem        max_domains    0       h       "CHEMDT"          ""  ""
+# NUWRF
 rconfig   real    CASAFXDT                 namelist,chem        max_domains    0       h       "CASAFXDT"        ""  ""
 rconfig   integer ne_area                  namelist,chem        1              41      irh     "ne_area"               ""      ""
 rconfig   integer kemit                    namelist,chem        1              9       irh     "kemit"                 ""      ""
@@ -3804,7 +3810,6 @@ rconfig   integer kemit_aircraft           namelist,chem        1              1
 rconfig   integer kdvel                    namelist,chem        1              1       -       "kdvel"                ""      ""
 rconfig   integer ndepvel                  namelist,chem        1              140     -       "ndepvel"                ""      ""
 rconfig   integer kdepvel                  namelist,chem        1              1       -       "kdepvel"                ""      ""
-#rconfig   integer erosion_dim              namelist,chem        1              3       -       "erosion_dim"          ""      ""   # NUWRF?
 # EMK NUWRF...For seasonal EROD data from Ginoux
 rconfig   integer ginoux_dim                  namelist,chem        1              4       -       "ginoux_dim"          ""      ""
 rconfig   integer    biomass_emiss_opt     namelist,chem        max_domains    0       rh      "biomass_emiss_opt"                   ""    ""
@@ -3933,10 +3938,10 @@ rconfig   real        depo_fact           namelist,chem          max_domains    
 
 # track input
 rconfig   integer    track_chem_num       namelist,chem       1               0       -    "number of track chem requested"    ""    ""
+
 # EMK NUWRF...Make sure default value is provided
 rconfig   character  track_chem_name      namelist,chem       max_trackchem   " "      -    "name of track chem requested"      ""    ""
-
-rconfig   character  track_chem_name      namelist,chem       max_trackchem   ""      -    "name of track chem requested"      ""    ""
+#rconfig   character  track_chem_name      namelist,chem       max_trackchem   ""      -    "name of track chem requested"      ""    ""
 rconfig   integer    track_rad_num        namelist,chem       1               17      -    "nw-1 in module_wave_data"          ""    ""
 rconfig   integer    track_tuv_num        namelist,chem       1               58      -    "tuv_jmax in module_wave_data"      ""    ""
 rconfig   integer    track_tuv_lev        namelist,chem       1               51      -    "nref in module_ftuv_driver"        ""    ""
@@ -3972,7 +3977,7 @@ package   chem_trace_ens   chem_opt==15              -             chem:tracer_1
 package   co2_tracer        chem_opt==16             -             chem:co2_ant,co2_bio,co2_oce,co2_bck,co2_tst,co_ant,co_bck
 package   ghg_tracer        chem_opt==17             -             chem:co2_ant,co2_bio,co2_oce,co2_bck,co2_tst,co2_bbu,co_ant,co_bck,co_bbu,co_tst,ch4_ant,ch4_bio,ch4_bck,ch4_bbu,ch4_tst
 
-# GHG chem packages, passive tracers CASA Co2 (Added by Jossy)
+# NUWRF: GHG chem packages, passive tracers CASA Co2
 package   CASAco2_tracer        chem_opt==18             -             chem:CASACO2
 
 package   cbmzsorg chem_opt==30                      -             chem:so2,sulf,no2,no,o3,hno3,h2o2,ald,hcho,op1,op2,ora1,ora2,nh3,n2o5,no3,pan,eth,co,ol2,olt,oli,tol,xyl,hono,hno4,ket,mgly,onit,csl,iso,ho,ho2,hcl,ch3o2,ethp,ch3oh,c2h5oh,par,to2,cro,open,op3,c2o3,ro2,ano2,nap,xo2,xpar,isoprd,isopp,isopn,isopo2,so4aj,so4ai,nh4aj,nh4ai,no3aj,no3ai,naaj,naai,claj,clai,orgaro1j,orgaro1i,orgaro2j,orgaro2i,orgalk1j,orgalk1i,orgole1j,orgole1i,orgba1j,orgba1i,orgba2j,orgba2i,orgba3j,orgba3i,orgba4j,orgba4i,orgpaj,orgpai,ecj,eci,p25j,p25i,antha,seas,soila,nu0,ac0,corn
@@ -4083,10 +4088,12 @@ package   cri_mosaic_4bin_aq_kpp  chem_opt==611          -             chem:dms,
 #
 package   eradm           emiss_opt==2                   -             emis_ant:e_iso,e_so2,e_no,e_co,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3
 # NU-WRF:  Modified eradmsorg
-package   eradmsorg       emiss_opt==3                   -             emis_ant:e_iso,e_so2,e_no,e_no2,e_co,e_ch4,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3,e_pm25i,e_pm25j,e_pm_10,e_eci,e_ecj,e_orgi,e_orgj,e_so4i,e_so4j,e_no3i,e_no3j,e_naaj,e_naai,e_orgi_a,e_orgj_a,e_orgi_bb,e_orgj_bb,e_hcl,e_cli,e_clj,e_ch3cl,e_sulf,e_bc,e_oc,e_pm_25,e_pm_10
+package   eradmsorg       emiss_opt==3                   -             emis_ant:e_iso,e_so2,e_no,e_no2,e_co,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3,e_pm25i,e_pm25j,e_pm_10,e_eci,e_ecj,e_orgi,e_orgj,e_so4i,e_so4j,e_no3i,e_no3j,e_naaj,e_naai,e_orgi_a,e_orgj_a,e_orgi_bb,e_orgj_bb,e_sulf,e_bc,e_oc,e_pm_25,e_pm_10
+#package   eradmsorg       emiss_opt==3                   -             emis_ant:e_iso,e_so2,e_no,e_no2,e_co,e_ch4,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3,e_pm25i,e_pm25j,e_pm_10,e_eci,e_ecj,e_orgi,e_orgj,e_so4i,e_so4j,e_no3i,e_no3j,e_naaj,e_naai,e_orgi_a,e_orgj_a,e_orgi_bb,e_orgj_bb,e_hcl,e_cli,e_clj,e_ch3cl
 package   ecbmz_mosaic    emiss_opt==4                   -             emis_ant:e_iso,e_so2,e_no,e_co,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3,e_no2,e_ch3oh,e_c2h5oh,e_pm25i,e_pm25j,e_eci,e_ecj,e_orgi,e_orgj,e_so4i,e_so4j,e_no3i,e_no3j,e_so4c,e_no3c,e_orgc,e_ecc
 # NU-WRF:  Modified ecptec
 package   ecptec          emiss_opt==5                   -             emis_ant:e_iso,e_so2,e_no,e_no2,e_co,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3,e_pm_25,e_pm_10,e_oc,e_sulf,e_bc,e_terp,e_api,e_lim
+#package   ecptec          emiss_opt==5                   -             emis_ant:e_iso,e_so2,e_no,e_no2,e_co,e_eth,e_hc3,e_hc5,e_hc8,e_xyl,e_ol2,e_olt,e_oli,e_tol,e_csl,e_hcho,e_ald,e_ket,e_ora2,e_nh3,e_pm_25,e_pm_10,e_oc,e_sulf,e_bc
 package   gocart_ecptec   emiss_opt==6                   -             emis_ant:e_so2,e_sulf,e_bc,e_oc,e_pm_25,e_pm_10
 package   mozem           emiss_opt==7                   -             emis_ant:e_co,e_no,e_no2,e_bigalk,e_bigene,e_c2h4,e_c2h5oh,e_c2h6,e_c3h6,e_c3h8,e_ch2o,e_ch3cho,e_ch3coch3,e_ch3oh,e_mek,e_so2,e_toluene,e_nh3,e_isop,e_c10h16,e_sulf
 package   mozcem          emiss_opt==8                   -             emis_ant:e_co,e_no,e_no2,e_bigalk,e_bigene,e_c2h4,e_c2h5oh,e_c2h6,e_c3h6,e_c3h8,e_ch2o,e_ch3cho,e_ch3coch3,e_ch3oh,e_mek,e_so2,e_toluene,e_nh3,e_isop,e_c10h16,e_pm_10,e_pm_25,e_bc,e_oc,e_sulf
@@ -4106,7 +4113,7 @@ package   eghg            emiss_opt==17                  -             emis_ant:
 package   ecrimech        emiss_opt==19                   -             emis_ant:e_co,e_no,e_no2,e_so2,e_nh3,e_c2h6,e_c3h8,e_c2h4,e_c3h6,e_c5h8,e_tm123b,e_tm124b,e_tm135b,e_oethtol,e_methtol,e_pethtol,e_dime35eb,e_hcho,e_ch3cho,e_c2h5cho,e_ket,e_mek,e_ch3oh,e_c2h5oh,e_c2h2,e_benzene,e_nc4h10,e_toluene,e_oxyl,e_tbut2ene,e_ch3co2h
 package   ecrimechtno     emiss_opt==20                  -             emis_ant:e_co,e_no,e_no2,e_so2,e_nh3,e_c2h6,e_c3h8,e_c2h4,e_c3h6,e_c5h8,e_tm123b,e_tm124b,e_tm135b,e_oethtol,e_methtol,e_pethtol,e_dime35eb,e_hcho,e_ch3cho,e_c2h5cho,e_ket,e_mek,e_ch3oh,e_c2h5oh,e_c2h2,e_benzene,e_nc4h10,e_toluene,e_oxyl,e_tbut2ene,e_ch3co2h,e_bc_1,e_ec_1_25,e_ec_25_10,e_oc_dom,e_oc_tra,e_oc_25_10,e_pm25,e_oin_25,e_oin_10
 #
-# CASA CO2 emissions:
+# NUWRF: CASA CO2 emissions
 package   ecasaco2            emiss_opt==18                  -             emis_ant:e_casaco2,et_casaco2
 
 package   vash    emiss_opt_vol==1                   -             emis_vol:e_vash1,e_vash2,e_vash3,e_vash4,e_vash5,e_vash6,e_vash7,e_vash8,e_vash9,e_vash10
@@ -4140,9 +4147,9 @@ package   ebioco2       bio_emiss_opt==16            -             state:rad_vpr
 package   ebioghg       bio_emiss_opt==17            -             state:rad_vprm,lambda_vprm,alpha_vprm,resp_vprm;vprm_in:vegfra_vprm,evi,evi_min,evi_max,lswi,lswi_max,lswi_min;wet_in:cpool,wetmap,t_ann;eghg_bio:ebio_gee,ebio_res,ebio_co2oce,ebio_ch4wet,ebio_ch4soil,ebio_ch4term
 
 # the following arrays only needed for burn options
-# NUWRF - superseded by v4.2?
+# NUWRF EMK...Added CH4 biomass burn emissions, plus DM (dry mass burned)
+package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ash,ebu_in_ch4,ebu_in_dm
 #package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ash
-package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ash
 package   biomassb_mozc      biomass_burn_opt==2             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_co,ebu_no,ebu_no2,ebu_bigalk,ebu_bigene,ebu_c2h4,ebu_c2h5oh,ebu_c2h6,ebu_c3h6,ebu_c3h8,ebu_ch2o,ebu_ch3cho,ebu_ch3coch3,ebu_ch3oh,ebu_mek,ebu_so2,ebu_toluene,ebu_nh3,ebu_oc,ebu_bc,ebu_pm25,ebu_pm10,ebu_open,ebu_c10h16,ebu_mgly,ebu_ch3cooh,ebu_cres,ebu_glyald,ebu_gly,ebu_acetol,ebu_isop,ebu_macr,ebu_mvk;ebu_in:ebu_in_co,ebu_in_no,ebu_in_bigalk,ebu_in_bigene,ebu_in_c2h4,ebu_in_c2h5oh,ebu_in_c2h6,ebu_in_c3h6,ebu_in_c3h8,ebu_in_ch2o,ebu_in_ch3cho,ebu_in_ch3coch3,ebu_in_ch3oh,ebu_in_mek,ebu_in_so2,ebu_in_toluene,ebu_in_nh3,ebu_in_no2,ebu_in_open,ebu_in_c10h16,ebu_in_mgly,ebu_in_ch3cooh,ebu_in_cres,ebu_in_glyald,ebu_in_gly,ebu_in_acetol,ebu_in_isop,ebu_in_macr,ebu_in_mvk,ebu_in_pm25,ebu_in_pm10,ebu_in_oc,ebu_in_bc
 package   biomassb_moz       biomass_burn_opt==3             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_co,ebu_no,ebu_no2,ebu_bigalk,ebu_bigene,ebu_c2h4,ebu_c2h5oh,ebu_c2h6,ebu_c3h6,ebu_c3h8,ebu_ch2o,ebu_ch3cho,ebu_ch3coch3,ebu_ch3oh,ebu_mek,ebu_so2,ebu_toluene,ebu_nh3,ebu_open,ebu_c10h16,ebu_mgly,ebu_ch3cooh,ebu_cres,ebu_glyald,ebu_gly,ebu_acetol,ebu_isop,ebu_macr,ebu_mvk;ebu_in:ebu_in_co,ebu_in_no,ebu_in_bigalk,ebu_in_bigene,ebu_in_c2h4,ebu_in_c2h5oh,ebu_in_c2h6,ebu_in_c3h6,ebu_in_c3h8,ebu_in_ch2o,ebu_in_ch3cho,ebu_in_ch3coch3,ebu_in_ch3oh,ebu_in_mek,ebu_in_so2,ebu_in_toluene,ebu_in_nh3,ebu_in_no2,ebu_in_open,ebu_in_c10h16,ebu_in_mgly,ebu_in_ch3cooh,ebu_in_cres,ebu_in_glyald,ebu_in_gly,ebu_in_acetol,ebu_in_isop,ebu_in_macr,ebu_in_mvk
 package   biomassb_t1_mozcart   biomass_burn_opt==4          -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_co,ebu_no,ebu_no2,ebu_bigalk,ebu_bigene,ebu_c2h4,ebu_c2h5oh,ebu_c2h6,ebu_c3h6,ebu_c3h8,ebu_ch2o,ebu_ch3cho,ebu_ch3coch3,ebu_ch3oh,ebu_mek,ebu_so2,ebu_toluene,ebu_nh3,ebu_oc,ebu_bc,ebu_pm25,ebu_pm10,ebu_mgly,ebu_ch3cooh,ebu_cres,ebu_glyald,ebu_acetol,ebu_isop,ebu_macr,ebu_mvk,ebu_apin,ebu_benzene,ebu_ch3cn,ebu_hcn,ebu_hcooh,ebu_c2h2,ebu_dms,ebu_hpald,ebu_xylenes;ebu_in:ebu_in_co,ebu_in_no,ebu_in_bigalk,ebu_in_bigene,ebu_in_c2h4,ebu_in_c2h5oh,ebu_in_c2h6,ebu_in_c3h6,ebu_in_c3h8,ebu_in_ch2o,ebu_in_ch3cho,ebu_in_ch3coch3,ebu_in_ch3oh,ebu_in_mek,ebu_in_so2,ebu_in_toluene,ebu_in_nh3,ebu_in_no2,ebu_in_mgly,ebu_in_ch3cooh,ebu_in_cres,ebu_in_glyald,ebu_in_acetol,ebu_in_isop,ebu_in_macr,ebu_in_mvk,ebu_in_pm25,ebu_in_pm10,ebu_in_oc,ebu_in_bc,ebu_in_apin,ebu_in_benzene,ebu_in_ch3cn,ebu_in_hcn,ebu_in_hcooh,ebu_in_c2h2,ebu_in_dms,ebu_in_hpald,ebu_in_xylenes
@@ -4176,6 +4183,7 @@ package   shell_exact      aer_op_opt==5                -             -
 package   emiss_inpt_default          emiss_inpt_opt==1            -             -
 package   emiss_inpt_cptec            emiss_inpt_opt==3            -             -
 package   emiss_inpt_ghg              emiss_inpt_opt==16           -             -
+# NUWRF
 package   emiss_inpt_casa             emiss_inpt_opt==18           -             -
 package   emiss_inpt_pnnl_cm          emiss_inpt_opt==101          -             -
 package   emiss_inpt_pnnl_rs          emiss_inpt_opt==102          -             -
@@ -4194,7 +4202,7 @@ package   gas_bc_casa                 gas_bc_opt==18               -            
 package   gas_bc_pnnl                 gas_bc_opt==101              -             -
 package   gas_bc_cbm4                 gas_bc_opt==102              -             -
 package   gas_ic_default              gas_ic_opt==1                -             -
-package   gas_ic_ghg                  gas_ic_opt==16                -             -
+package   gas_ic_ghg                  gas_ic_opt==16               -             -
 package   gas_ic_casa                 gas_ic_opt==18               -             -
 package   gas_ic_pnnl                 gas_ic_opt==101              -             -
 package   gas_ic_cbm4                 gas_ic_opt==102              -             -

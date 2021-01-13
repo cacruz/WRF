@@ -36,6 +36,9 @@ PROGRAM convert_emissions
 #if (EM_CORE ==1)
    USE module_big_step_utilities_em
 #endif
+   ! NUWRF EMK
+   use module_check_a_mundo, only: check_nml_consistency,set_physics_rconfigs
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    IMPLICIT NONE
 
@@ -84,13 +87,19 @@ PROGRAM convert_emissions
    integer     ::  kw, kg
    real        ::  top, bot,fac
    INTEGER :: debug_level = 0
-   INTEGER, PARAMETER  :: iklev=55
-   real,dimension(iklev) :: p_g,p_wrf
+! NU-WRF...Make iklev run-time dependent.
+!   INTEGER, PARAMETER  :: iklev=55
+!   real,dimension(iklev) :: p_g,p_wrf
+   integer :: iklev
+   real,allocatable :: p_g(:)
+   real,allocatable :: p_wrf(:)
+
    REAL        :: p00, t00, a, p_surf, pd_surf,p_top
    integer :: kbot,ktop,k_initial,k_final,kk4,ko,kl
    REAL, ALLOCATABLE, DIMENSION(:) :: gocart_lev
    REAL, ALLOCATABLE, DIMENSION(:,:) :: tmp2
    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: tmp_oh,tmp_no3,tmp_h2o2,tmp3,interpolate
+   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: gocart_ps ! NUWRF
    REAL, ALLOCATABLE :: dumc0(:,:,:),dumc4(:,:,:),zlevel(:,:,:)
    REAL, ALLOCATABLE :: dumc1(:,:)
    real mmax
@@ -157,6 +166,10 @@ PROGRAM convert_emissions
               'KET','ALD','HCHO','ETH','ORA2','CO','NR','SESQ','MBO',       &
               'NOAG_GROW','NOAG_NONGROW','NONONAG','ISOP'/
 
+! EMK...For NU-WRF
+   logical :: new_gocart_bg_files
+   integer :: extra_gfedv3_vars
+
 ! these are needed on some compilers, eg compaq/alpha, to
 ! permit pass by reference through the registry generated
 ! interface to med_read_emissions, below
@@ -201,11 +214,25 @@ PROGRAM convert_emissions
    CALL initial_config
 #endif
 
+   ! EMK NUWRF...Make sure all config settings are valid before allocating
+   ! memory.
+   call check_nml_consistency()
+   call set_physics_rconfigs()
+
    !  And here is an instance of using the information in the NAMELIST.  
 
    CALL nl_get_debug_level ( 1, debug_level )
    CALL set_wrf_debug_level ( debug_level )
    
+! EMK...For NU-WRF
+   call nl_get_new_gocart_bg_files(1, new_gocart_bg_files)
+   if (new_gocart_bg_files) then
+      iklev = 72
+   else
+      iklev = 55
+   end if
+   allocate(p_g(iklev),p_wrf(iklev))
+
    !  Allocated and configure the mother domain.  Since we are in the nesting down
    !  mode, we know a) we got a nest, and b) we only got 1 nest.
 
@@ -360,6 +387,11 @@ PROGRAM convert_emissions
      ALLOCATE( tmp3(ids:ide,jds:jde,3) )
      ALLOCATE( interpolate(ids:ide,kds:kde,jds:jde) )
      ALLOCATE( gocart_lev(iklev))
+! NU-WRF
+     if (new_gocart_bg_files) then
+        allocate(gocart_ps(ids:ide,jds:jde,iklev))
+     end if
+
      if(config_flags%emiss_opt_vol == 1 .or. config_flags%emiss_opt_vol == 2) then
         ALLOCATE( ash_mass(ids:ide,jds:jde) )
         ALLOCATE( so2_mass(ids:ide,jds:jde) )
@@ -413,9 +445,11 @@ PROGRAM convert_emissions
 #else
        read(19)tmp3(ids:ide  ,jds:jde  ,1:3)
 #endif
-!     do i=1,3 
-!      grid%erod(ips:ipe,jps:jpe,i)=tmp3(ips:ipe,jps:jpe,i)
-!     enddo
+! NUWRF EMK...Changed array name to reflect source of EROD data.
+! NUWRF EMK...Bug fix, second dimension is now soil type.
+     do i=1,3 
+      grid%erod_static(ips:ipe,i,jps:jpe)=tmp3(ips:ipe,jps:jpe,i)
+     enddo
 
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
@@ -454,6 +488,18 @@ PROGRAM convert_emissions
 #else
        read(19)tmp_no3(ids:ide,jds:jde,1:iklev)
 #endif
+
+! NU-WRF
+       if (new_gocart_bg_files) then
+#ifdef DM_PARALLEL
+       IF (wrf_dm_on_monitor()) THEN
+           read(19)gocart_ps(ids:ide,jds:jde,1:iklev)
+       ENDIF
+       DM_BCAST_MACRO(gocart_ps)
+#else
+       read(19)gocart_ps(ids:ide,jds:jde,1:iklev)
+#endif
+       end if
 
      CLOSE(19)
 
@@ -497,9 +543,13 @@ PROGRAM convert_emissions
         (config_flags%chem_opt == GOCARTRACM_KPP) ) then
 ! interpolate 3d fields to WRF in vertical
 !
-     do k=1,iklev
-        p_g(k) = log10( gocart_lev(k) * 1023.) 
-     enddo
+
+! NU-WRF
+      if (.not. new_gocart_bg_files) then
+         do k=1,iklev
+            p_g(k) = log10( gocart_lev(k) * 1023.) 
+         enddo
+      end if
       CALL nl_get_base_pres  ( 1 , p00 )
       CALL nl_get_base_temp  ( 1 , t00 )
       CALL nl_get_base_lapse ( 1 , a   )
@@ -512,6 +562,13 @@ PROGRAM convert_emissions
 #if (EM_CORE == 1) 
      do j=jps,jpe
      do i=ips,ipe
+        ! NU-WRF
+        if (new_gocart_bg_files) then
+           do k=1,iklev
+              p_g(k) = log10( gocart_ps(i,j,k)) 
+           enddo
+        end if
+        
         p_surf = p00 * EXP ( -t00/a + ( (t00/a)**2 - 2.*g*grid%ht(i,j)/a/r_d ) **0.5 )
         do k=kps,kpe
            grid%pb(i,k,j) = grid%znu(k)*(p_surf - p_top) + p_top
@@ -526,16 +583,33 @@ PROGRAM convert_emissions
 
          fac= (tmp_no3(i  ,j  ,ktop)-tmp_no3(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
          grid%backg_no3(i, kw, j) = tmp_no3(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
+         ! NU-WRF
+         if(grid%backg_no3(i, kw, j) <= 0.) grid%backg_no3(i, kw, j)=tmp_no3(i,j,kbot)
 
 ! OH
          fac= (tmp_oh(i  ,j  ,ktop)-tmp_oh(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
          grid%backg_oh(i, kw, j) = tmp_oh(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
+         ! NU-WRF
+         if(grid%backg_oh(i, kw, j) <= 0.) grid%backg_oh(i, kw, j)=tmp_oh(i,j,kbot)
 
 ! H2O2
          fac= (tmp_h2o2(i  ,j  ,ktop)-tmp_h2o2(i  ,j  ,kbot) )/(p_g(ktop) - p_g(kbot))
          grid%backg_h2o2(i, kw, j) = tmp_h2o2(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
+         ! NU-WRF
+         if(grid%backg_h2o2(i, kw, j) <= 0.) grid%backg_h2o2(i, kw, j)=tmp_h2o2(i,j,kbot)
 
         enddo  ! kw loop
+
+        ! NU-WRF
+        if(i.eq.30 .and. j.eq.30) then
+         write(message, FMT='(A,6i4)') 'pres go and wrf',i, j, ktop, kbot
+         call wrf_message( TRIM( message ) )
+         write(message, FMT='(72e16.3)') 10**(p_g(1:30))
+         call wrf_message( TRIM( message ) )
+         write(message, FMT='(72e16.3)') grid%pb(i,1:30,j)
+         call wrf_message( TRIM( message ) )
+       endif
+
 
      enddo
      enddo
@@ -571,6 +645,13 @@ PROGRAM convert_emissions
      do j=jps,jpe
      do i=ips,ipe
 
+      ! NU-WRF
+      if (new_gocart_bg_files) then
+         do k=1,iklev
+            p_g(k) = log10( gocart_ps(i,j,k)) 
+         enddo
+      endif
+
       do kw=kpe-1,kps,-1
        do kg=iklev-1,1,-1
           if( p_g(kg) <= log10(.01*plvl(i,kw,j)) ) then
@@ -581,14 +662,20 @@ PROGRAM convert_emissions
 
        fac= (tmp_no3(i  ,j  ,ktop)-tmp_no3(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
        grid%backg_no3(i, kw, j) = tmp_no3(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
+       ! NU-WRF
+       if( grid%backg_no3(i,kw,j) <= 0) grid%backg_no3(i,kw,j)=tmp_no3(i,j,kbot)
 
 ! OH
        fac= (tmp_oh(i  ,j  ,ktop)-tmp_oh(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
        grid%backg_oh(i, kw, j) = tmp_oh(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
+       ! NU-WRF
+       if(grid%backg_oh(i,kw,j) <= 0.) grid%backg_oh(i,kw,j)=tmp_oh(i,j,kbot)
 
 ! H2O2
        fac= (tmp_h2o2(i  ,j  ,ktop)-tmp_h2o2(i  ,j  ,kbot) )/(p_g(ktop) - p_g(kbot))
        grid%backg_h2o2(i, kw, j) = tmp_h2o2(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
+       ! NU-WRF
+       if(grid%backg_h2o2(i,kw,j) <= 0.) grid%backg_h2o2(i,kw,j)=tmp_h2o2(i,j,kbot)
 
       enddo  ! kw loop
 
@@ -1287,7 +1374,8 @@ PROGRAM convert_emissions
 #else
        read(93)dumc1(ids:ide  ,jds:jde  )
 #endif
-     ! grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_nh3) =dumc1(ips:ipe  ,jps:jpe  )
+! NUWRF EMK...Data is read in, so might as well assign to permanent array.
+       grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_nh3) =dumc1(ips:ipe  ,jps:jpe  )
 
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
@@ -1347,7 +1435,10 @@ PROGRAM convert_emissions
 #else
        read(93)dumc1(ids:ide  ,jds:jde  )
 #endif
-   !   grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_ol2) =dumc1(ips:ipe  ,jps:jpe  )
+! EMK NUWRF comment: PREP_CHEM_SOURCES writes all zeros for OL2, and CONVERT_EMIS doesn't
+! write this field out to wrfirechemi. So nothing is lost by commenting this out. Also, 
+! this code is commented out in the community CONVERT_EMISS.
+!       grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_ol2) =dumc1(ips:ipe  ,jps:jpe  )
 
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
@@ -1562,6 +1653,90 @@ PROGRAM convert_emissions
 #endif
        grid%firesize_aggr(ips:ipe  ,jps:jpe  )=dumc1(ips:ipe  ,jps:jpe  )
 !
+! NUWRF EMK...Additional emissions from GFEDV3 and GFEDV4 (Ztao)
+       CALL nl_get_gfedv3_biomass_burn_extravars ( 1, extra_gfedv3_vars )
+       if (extra_gfedv3_vars == 1) then
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_ete) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_ch4) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_co2) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_api) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_lim) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_ora1) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+
+          ! NUWRF EMK...Added dry mass burned (DM) for future
+          ! use in adjusting emission factors on-line.
+#ifdef DM_PARALLEL
+          IF (wrf_dm_on_monitor()) THEN
+             read(93)dumc1(ids:ide  ,jds:jde  )
+          ENDIF
+          DM_BCAST_MACRO(dumc1)
+#else
+          read(93)dumc1(ids:ide  ,jds:jde  )
+#endif
+          grid%ebu_in(ips:ipe,1,  jps:jpe  ,p_ebu_in_dm) = &
+               dumc1(ips:ipe  ,jps:jpe  )
+       end if
+! NUWRF EMK END...Additional emissions from GFEDV3
+
          CLOSE(93)
 !
 ! fire stuff
@@ -2947,6 +3122,10 @@ PROGRAM convert_emissions
 
     DEALLOCATE ( dumc0 )
     DEALLOCATE ( dumc1 )
+
+! NU-WRF
+    deallocate(p_g)
+    deallocate(p_wrf)
 
    CALL med_shutdown_io ( grid , config_flags )
 

@@ -197,7 +197,6 @@ integer::oops1,oops2
                                 ipsy, ipey, jpsy, jpey, kpsy, kpey )
       its = ips ; ite = ipe ; jts = jps ; jte = jpe ; kts = kps ; kte = kpe
 
-#ifdef WRF_LIS
 ! NUWRF...Fetch LIS/LDT data and substitute into REAL arrays
       if (model_config_rec%sf_surface_physics(grid%id) .eq. &
            NUWRFLISSCHEME) then
@@ -211,13 +210,14 @@ integer::oops1,oops2
          ELSE
             we_have_tsk     = .FALSE.
          END IF
+#ifdef WRF_LIS
          lis_Data = createLisData(grid,ims,ime,jms,jme,ids,ide,jds,jde)
          call setRealData(lis_Data,grid,its,ite,jts,jte,ide,jde, &
               we_have_tsk,we_have_tavgsfc, &
               internal_time_loop,flag_sst,flag_pinterp,flag_ptheta, &
               flag_icefrac,flag_icepct,config_flags)
-      end if
 #endif
+      end if
       
       CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
 

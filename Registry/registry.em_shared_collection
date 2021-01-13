@@ -28,6 +28,5 @@ include registry.hyb_coord
 include registry.new3d_wif
 include registry.trad_fields
 include registry.solar_fields
-# NUWRF: DOE CRM 
+# NUWRF, CRM
 include registry.crm
-

@@ -9,13 +9,15 @@ MODULE module_emissions_driver
    IMPLICIT NONE
 CONTAINS
 
-    subroutine emissions_driver(id,ktau,dtstep,DX,                         &
+     subroutine emissions_driver(id,ktau,dtstep,DX,                        &
          adapt_step_flag,curr_secs,                                        &
          plumerisefire_frq,stepfirepl,                                     &
          bioemdt,stepbioe,                                                 &
+         stepcasa,                                                         & ! NUWRF
          config_flags,gmt,julday,alt,t_phy,moist,p8w,t8w,u_phy,            &
          v_phy,vvel,e_bio,p_phy,chem,rho_phy,dz8w,ne_area,emis_ant,        &
-         emis_vol,tsk,erod,erod_dri,lai_vegmask,                           &
+         emis_vol,tsk,                                                     &
+         erod_static,erod_dri,lai_vegmask,                                 & ! NUWRF
          g,emis_seas,emis_dust,tracer,                                     &
          emis_seas2,                                                       &
          ebu, ebu_in,mean_fct_agtf,mean_fct_agef,                          &
@@ -71,6 +73,17 @@ CONTAINS
          xtime,tslb,wet_in,rainc,rainnc,potevp,sfcevp,lu_index,            &
          biomt_par,emit_par,ebio_co2oce,eghg_bio,                          &
          dust_flux, seas_flux,                                             &
+#ifdef WRF_LIS
+         lisPorosity,                                                      &
+#endif
+!NUWRF EMK...New MODIS-DeepBlue and instantaneous EROD variables
+         erod_timestep,erod_tmp,                                           &
+         erod_mdb_sand, erod_mdb_silt, erod_mdb_clay,                      &
+!NUWRF EMK...New GVF based dynamic climatology EROD variables
+         bareness_dyn_climo,                                               &
+!NUWRF EMK...New dynamic bareness for dynamic EROD
+         bareness_dyn,topodep,                                             &
+         julyr,                                                            &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
@@ -101,7 +114,8 @@ CONTAINS
   USE module_ghg_fluxes
   USE module_lightning_nox_driver
   USE module_cam_mam_addemiss, only: cam_mam_addemiss
-  
+  USE module_casaco2_fluxes
+      
   IMPLICIT NONE
 
    TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
@@ -111,7 +125,7 @@ CONTAINS
                                   ims,ime, jms,jme, kms,kme,               &
                                   its,ite, jts,jte, kts,kte
    INTEGER,      INTENT(IN   ) ::                                          &
-                                  ktau,stepbioe,stepfirepl
+                                  ktau,stepbioe,stepfirepl,stepcasa ! NUWRF, ZT
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),                &
          INTENT(IN ) ::                                   moist
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
@@ -125,7 +139,7 @@ CONTAINS
    REAL, DIMENSION( ims:ime, jms:jme, ne_area ),                           &
          INTENT(INOUT ) ::                               e_bio
    REAL, DIMENSION( ims:ime, 1:config_flags%kemit, jms:jme,num_emis_ant),&
-         INTENT(IN ) ::                                                    &
+         INTENT(INOUT)  ::                                                 &
          emis_ant
    REAL, DIMENSION( ims:ime,  kms:kme, jms:jme,num_emis_vol),              &
          INTENT(INOUT ) ::                                                 &
@@ -133,9 +147,11 @@ CONTAINS
    REAL, DIMENSION( ims:ime, jms:jme),&
          INTENT(IN ) ::                                                 &
          dms_0,tsk,erup_beg,erup_end
-   REAL, DIMENSION( ims:ime, jms:jme,3),&
+!NUWRF EMK...Renamed "erod" to "erod_static" to better identify
+   REAL, DIMENSION( ims:ime, 3, jms:jme),&
+!   REAL, DIMENSION( ims:ime, jms:jme,3),&
          INTENT(IN ) ::                                                 &
-         erod, erod_dri
+         erod_static, erod_dri
    REAL, DIMENSION( ims:ime, jms:jme), &
          INTENT(IN ) ::                                                    &
          lai_vegmask
@@ -326,6 +342,29 @@ CONTAINS
       REAL, DIMENSION(ims:ime,1,jms:jme,num_wet_in), INTENT(IN)  :: wet_in
       REAL, INTENT(IN) :: xtime
 ! end ghg tracer stuff
+#ifdef WRF_LIS      
+      ! NU-WRF...Stuff from LIS
+      real, intent(in) :: lisPorosity( ims:ime, jms:jme)
+#endif
+!NUWRF EMK...New MODIS-DeepBlue and instantaneous EROD variables
+      ! GOCART and other schemes expect "erod" array to have erosion dimension
+      ! last, but this messes up two-way nesting. Use tmp arrays for
+      ! passing to the emission schemes.
+      real, intent(inout) :: erod_tmp(ims:ime, jms:jme,3) 
+      real, intent(inout) :: erod_timestep(ims:ime, 3, jms:jme) 
+      real, intent(in) :: erod_mdb_sand(ims:ime, 4, jms:jme)
+      real, intent(in) :: erod_mdb_silt(ims:ime, 4, jms:jme)
+      real, intent(in) :: erod_mdb_clay(ims:ime, 4, jms:jme)
+!NUWRF EMK...Monthly values from topography depression and monthly MODIS 
+!greenness
+!      real, intent(in) :: erod_dyn_climo_sand(ims:ime, jms:jme,12)
+!      real, intent(in) :: erod_dyn_climo_silt(ims:ime, jms:jme,12)
+!      real, intent(in) :: erod_dyn_climo_clay(ims:ime, jms:jme,12)
+      real, intent(in) :: bareness_dyn_climo(ims:ime,12,jms:jme)
+      integer, intent(in) :: julyr
+!NUWRF EMK...Dynamic bareness (based on NDVI)
+      real, intent(in) :: bareness_dyn(ims:ime,jms:jme)
+      real, intent(in) :: topodep(ims:ime, 3, jms:jme)
 ! stuff for lightning NOx
      REAL, DIMENSION( ims:ime,          jms:jme ),           INTENT(IN   ) :: ht, ic_flashrate, cg_flashrate
      REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),           INTENT(IN   ) :: refl_10cm
@@ -339,6 +378,7 @@ CONTAINS
       LOGICAL :: do_bioemiss, do_plumerisefire,do_ex_volcanoe
 
       INTEGER :: imod  ! dust scheme option from namelist
+      real :: erod_dri_tmp(ims:ime, jms:jme,3) ! NUWRF
 
             
 ! ..
@@ -346,6 +386,29 @@ CONTAINS
 ! .. Intrinsic Functions ..
 !     INTRINSIC max, min
 ! ..
+! NUWRF Z. Tao (Dec. 2015) modify BC, OC, BVOC emissions distribution based on Mian's suggestion
+!  such that 80% BC1 and 20% BC2; 50% OC1 and 50% OC2; BVOC will be 100% OC2
+!
+      !dkim6, use for EROD 
+      curr_hours=curr_secs/3600.
+
+      ! NU-WRF:  Update EROD data for time step. 
+      call updateErodTimestep(erod_tmp,erod_timestep,erod_static, &
+         id, &
+         erod_mdb_sand,erod_mdb_silt,erod_mdb_clay, &
+!         erod_dyn_climo_sand,erod_dyn_climo_silt,erod_dyn_climo_clay, &
+         bareness_dyn_climo, &
+        ! julyr,julday, &
+         julyr,julday,curr_hours, &               !dkim6
+         config_flags%gocart_dustemiss_suppress, & !dkim6
+         tslb, &
+         tsk,snowh,current_month, &
+         bareness_dyn, topodep, ivgtyp, &
+         erod_dri_tmp,erod_dri, &
+         config_flags%num_soil_layers, & ! EMK
+         ids, ide, jds, jde, &
+         ims, ime, jms, jme, &
+         its, ite, jts, jte)         
 
 ! Flags for turning on or off sea salt and/or dust emissions...
 ! for PNNL modules:   >0 = sea salt/dust emissions turned on
@@ -716,15 +779,19 @@ CONTAINS
       CASE (DUSTGOCART)
         CALL wrf_debug(15,'Gocart dust emissions')
         call gocart_dust_driver(ktau,dtstep,config_flags,julday,alt,t_phy,moist,u_phy,  &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod,dustin,           &
+         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod_tmp,dustin,           &
          ivgtyp,isltyp,vegfra,xland,xlat,xlong,gsw,dx,g,emis_dust,        &
+#ifdef WRF_LIS      
+         lisPorosity, & ! NU-WRF
+#endif
+         ust, ust_t, & ! NU-WRF, DEAD scheme
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
       CASE (DUSTGOCARTAFWA)
         CALL wrf_debug(15,'AFWA modified Gocart dust emissions')
         call gocart_dust_afwa_driver(ktau,dtstep,config_flags,julday,alt,t_phy,moist,u_phy,  &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod,erod_dri,dustin,snowh,zs,   &
+         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod_tmp,erod_dri,dustin,snowh,zs,   &
          ivgtyp,isltyp,vegfra,lai_vegmask,xland,xlat,xlong,gsw,dx,g,emis_dust,      &
          ust,znt,clayfrac,sandfrac,clayfrac_nga,sandfrac_nga,afwa_dustloft,         &!EDH
          tot_dust,tot_edust,vis_dust,dust_alpha,dust_gamma,dust_smtune,dust_ustune, &
@@ -746,7 +813,7 @@ CONTAINS
        END SELECT scheme_select
        call uoc_dust_driver (ktau,dtstep,config_flags,                     &
          chem,rho_phy,dz8w,smois,ust, isltyp,vegfra,g,emis_dust,           &
-         ust_t, imod, rough_cor, smois_cor, soil_top_cat, erod,            &
+         ust_t, imod, rough_cor, smois_cor, soil_top_cat, erod_tmp,            &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )             
@@ -807,7 +874,7 @@ CONTAINS
      CASE (GUNTHER1)
        if(ktau.eq.1.or.mod(ktau,stepbioe).eq.0)then
           CALL wrf_debug(15,'biogenic emissions: calling Gunther1')
-          call bio_emissions(id,ktau,dtstep,DX,config_flags,               &
+          call bio_emissions(id,ktau,dtstep,stepbioe,DX,config_flags,      & ! NUWRF, ZT
                gmt,julday,t_phy,moist,p8w,t8w,                             &
                e_bio,p_phy,chem,rho_phy,dz8w,ne_area,                      &
                ivgtyp,gsw,vegfra,rmol,ust,znt,xlat,xlong,z_at_w,           &
@@ -821,7 +888,8 @@ CONTAINS
             CASE (RADM2, RADM2_KPP, RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM, RADM2SORG_KPP, &
                   RACM_KPP, RACMPM_KPP, RACM_MIM_KPP, RACMSORG_AQ,RACMSORG_AQCHEM_KPP,        &
                   RACM_ESRLSORG_AQCHEM_KPP, RACMSORG_KPP,RACM_ESRLSORG_KPP, RACM_SOA_VBS_KPP, &
-                  RACM_SOA_VBS_AQCHEM_KPP, RACM_SOA_VBS_HET_KPP, CBM4_KPP, NMHC9_KPP, GOCARTRACM_KPP,GOCARTRADM2)
+                  RACM_SOA_VBS_AQCHEM_KPP, RACM_SOA_VBS_HET_KPP, CBM4_KPP, NMHC9_KPP,         &
+                  GOCARTRACM_KPP,GOCARTRADM2, GOCART_SIMPLE) ! NUWRF, ZT
             CASE DEFAULT 
                CALL wrf_error_fatal( &
                   "emissions_driver: beis3.1.4 biogenic emis. implemented for RADM2 & RACM only")
@@ -841,12 +909,34 @@ CONTAINS
                ids,ide, jds,jde, kds,kde,                              &
                ims,ime, jms,jme, kms,kme,                              &
                its,ite, jts,jte, kts,kte                               )
+! NUWRF added by Z. Tao to convert monoterpene emissions (moles/km^2-hr) to SOA for GOCART 
+!	assuming 10% is converted into SOA and the remaining 90% goes to gas phase 
+!	the unit of SOA is ug C/kg-dryair
+! 	MW of monoterpene is 120 gC/mole
+!
+	apply2gocart_beis3: SELECT CASE(config_flags%chem_opt)
+	  CASE (GOCARTRACM_KPP,GOCARTRADM2,GOCART_SIMPLE)
+            if (config_flags%bio_emiss_soa == 1) then ! EMK
+               do j=jts,jte  
+                  do i=its,ite  
+                     ! EMK NUWRF...Changed p_oc1 to p_oc2 per Z. Tao
+                     chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2) +			&
+                          0.1*(ebio_api(i,j) + ebio_lim(i,j))*120.*stepbioe*      &
+                          dtstep/(3600.*rho_phy(i,kts,j)*dz8w(i,kts,j))
+                     ebio_api(i,j) = 0.9 * ebio_api(i,j)
+                     ebio_lim(i,j) = 0.9 * ebio_lim(i,j)
+                  end do
+               end do
+            end if
+	  CASE DEFAULT
+	  END SELECT apply2gocart_beis3
+
        endif
 
      CASE (MEGAN2)
        if(ktau.eq.1.or.mod(ktau,stepbioe).eq.0)then                        
          CALL wrf_debug(15,'biogenic emissions: calling megan v2.04')  
-         call bio_emissions_megan2(id,config_flags,ktau,dtstep,        &
+         call bio_emissions_megan2(id,config_flags,ktau,dtstep,stepbioe, & ! NUWRF, ZT
                curr_secs,julday,gmt,xlat,xlong,p_phy,rho_phy,dz8w,     &
                chem,ne_area,                                           &
                current_month,                                          &
@@ -884,7 +974,26 @@ CONTAINS
             e_bio(its:ite,jts:jte,1:ne_area) = 0.
 !wig: May need to zero out all ebio_xxx arrays too if they are incorporated
 !     into CBMZ/MOSAIC.
-                                                     
+! NUWRF added by Z. Tao to convert offline monoterpene emissions (moles/km^2-hr) 
+! to SOA for GOCART assuming 10% is converted into SOA 
+!	the unit of SOA is ug C/kg-dryair
+! 	MW of monoterpene is 120 gC/mole
+!
+	apply2gocart: SELECT CASE(config_flags%chem_opt)
+	  CASE (GOCARTRACM_KPP,GOCARTRADM2,GOCART_SIMPLE)
+            if (config_flags%bio_emiss_soa == 1) then ! EMK
+               do j=jts,jte  
+                  do i=its,ite  
+                     ! EMK NUWRF...Changed p_oc1 to p_oc2 per Z. Tao
+                     chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2) +			&
+                          0.1*emis_ant(i,kts,j,p_e_terp)*120.*  		        &
+                          dtstep/(3600.*rho_phy(i,kts,j)*dz8w(i,kts,j))
+                  end do
+               end do
+            end if
+	  CASE DEFAULT
+	  END SELECT apply2gocart
+
     END SELECT bioem_select
 
 !!! **************** END BIOGENICS, ADD EMISSIONS FOR VARIOUS PACKAGES
@@ -1068,6 +1177,22 @@ CONTAINS
                             chem,emis_ant,eghg_bio,ebio_co2oce  )
    END IF
 !**************************************************************************************************
+    CASE(CASACO2_TRACER)  ! for casaco2 package
+
+       ! Add all the CASA GHG fluxes to chem species 
+       IF (config_flags%emiss_inpt_opt==EMISS_INPT_CASA) THEN
+          CALL wrf_debug(15,'Calling add_casaco2_fluxes')
+          CALL add_casaco2_fluxes(  ids,ide, jds,jde, kds,kde,          &
+               ims,ime, jms,jme, kms,kme,          &
+               its,ite, jts,jte, kts,kte,          &               
+               dtstep,dz8w,config_flags,rho_phy,   &
+               ktau, stepcasa,                     &                    !add by Z. Tao
+               chem,emis_ant )
+       END IF
+
+
+!**************************************************************************************************
+
     CASE (SAPRC99_KPP) !FIX FOR SAPRC07A
      if(config_flags%emiss_opt == 13 ) then
        do j=jts,jte
@@ -1365,10 +1490,21 @@ CONTAINS
           do i=its,ite  
              do k=kts,min(config_flags%kemit,kte-ksub)
                 conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
+! EMK NUWRF...Updates by Z. Tao
+!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
+!                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
                 chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.8*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
+                     +0.2*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
+!                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
                 chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
+                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
                 chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
                      +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i) &
                      + emis_ant(i,k,j,p_e_no3j)+emis_ant(i,k,j,p_e_no3i))  &
@@ -1389,13 +1525,24 @@ CONTAINS
           do i=its,ite  
              do k=kts,min(config_flags%kemit,kte-ksub)
                 conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
+! EMK NUWRF...Updates from Z. Tao
                 chem(i,k,j,p_so2)  = chem(i,k,j,p_so2)                   &
                      +emis_ant(i,k,j,p_e_so2)*conv
+!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
+!                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
                 chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.8*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
+                     +0.2*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
+!                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
 !                    +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*7.*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
+                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
+                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
+                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
                 chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
                      +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i) &
                      +emis_ant(i,k,j,p_e_no3j)+emis_ant(i,k,j,p_e_no3i))   &
@@ -1417,10 +1564,22 @@ CONTAINS
                 conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
                 chem(i,k,j,p_so2)  = chem(i,k,j,p_so2)                   &
                      +emis_ant(i,k,j,p_e_so2)*conv
+!EMK NUWRF...Updates from Z. Tao
+!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
+!                     +(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
                 chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-                     +(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.8*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
+                     +0.2*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
+!                     +(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
                 chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-                     +(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
+                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+
                 chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
                      +(emis_ant(i,k,j,p_e_pm_25))   &
                      *alt(i,k,j)*dtstep/dz8w(i,k,j)
@@ -1471,7 +1630,7 @@ CONTAINS
             config_flags%biomass_burn_opt,                              &
             config_flags%num_soil_layers,config_flags%emiss_opt,        &
             config_flags%dust_opt,                                      &
-            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod,                     &
+            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod_tmp,                 &
             ids,ide, jds,jde, kds,kde,                                  &
             ims,ime, jms,jme, kms,kme,                                  &
             its,ite, jts,jte, kts,kte                                   )
@@ -1486,7 +1645,7 @@ CONTAINS
             config_flags%biomass_burn_opt,                              &
             config_flags%num_soil_layers,config_flags%emiss_opt,        &
             config_flags%dust_opt,                                      &
-            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod,                     &
+            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod_tmp,                 &
             emis_seas2,                                                 &
             ids,ide, jds,jde, kds,kde,                                  &
             ims,ime, jms,jme, kms,kme,                                  &
@@ -1503,7 +1662,7 @@ CONTAINS
             config_flags%biomass_burn_opt,                              &
             config_flags%num_soil_layers,config_flags%emiss_opt,        &
             config_flags%dust_opt,                                      &
-            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod,                     &
+            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod_tmp,                 &
             ids,ide, jds,jde, kds,kde,                                  &
             ims,ime, jms,jme, kms,kme,                                  &
             its,ite, jts,jte, kts,kte                                   )
@@ -1522,12 +1681,45 @@ CONTAINS
             config_flags, chem, slai, ust, smois, ivgtyp, isltyp,        &
             emis_ant,ebu,config_flags%biomass_burn_opt,                  &
             config_flags%dust_opt,                                       &
-            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod,                      &
+            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod_tmp,                  &
             dust_emiss_active, seasalt_emiss_active,                     &
             dust_flux, seas_flux,                                        &
             ids,ide, jds,jde, kds,kde,                                   &
             ims,ime, jms,jme, kms,kme,                                   &
             its,ite, jts,jte, kts,kte                                    )
+
+! NUWRF modified by Z. Tao on Mar 2011.
+! add aerosol emissions from global inventory
+!
+    CASE (GOCARTRACM_KPP,GOCARTRADM2)
+       do j=jts,jte
+          do i=its,ite
+             do k=kts,min(config_flags%kemit,kte-ksub)
+                conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
+! EMK NUWRF...Updates from Z. Tao
+!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     	&
+!                     +(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
+! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
+                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                         &
+                     +0.8*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                         &
+                     +0.2*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)        
+!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     	&
+!                     +(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
+! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
+                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                         &
+                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                         &
+                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     	&
+                     +(emis_ant(i,k,j,p_e_pm_25))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
+                chem(i,k,j,p_p10)  = chem(i,k,j,p_p10)                     	&
+                     +(emis_ant(i,k,j,p_e_pm_10))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
+                chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   	&
+                     +emis_ant(i,k,j,p_e_sulf)*conv				
+             end do
+          end do
+       end do
 
     CASE ( CBMZ_CAM_MAM3_NOAQ, CBMZ_CAM_MAM3_AQ, CBMZ_CAM_MAM7_NOAQ, CBMZ_CAM_MAM7_AQ )
        call wrf_debug(15,'emissions_driver calling cam_mam_addemiss')
@@ -1578,5 +1770,284 @@ CONTAINS
           )
 
     END subroutine emissions_driver
+
+   ! NU-WRF BEGIN...Handle time-varying EROD data
+   !---------------------------------------------------------------------------
+   !                                                                           
+   ! ROUTINE:  updateErodTimestep
+   !                                                                           
+   ! DESCRIPTION: Update the erod_timestep array.
+   !                                                                           
+   !---------------------------------------------------------------------------
+
+    subroutine updateErodTimestep(erod_tmp,erod_timestep,erod_static, &
+         id, &
+         erod_mdb_sand,erod_mdb_silt,erod_mdb_clay, &
+!         erod_dyn_climo_sand,erod_dyn_climo_silt,erod_dyn_climo_clay, &
+         bareness_dyn_climo, &
+         !current_julyr,current_julday, &
+         current_julyr,current_julday,curr_hours, &   !dkim6
+         gocart_dustemiss_suppress, &                  !dkim6
+         tslb, &
+         tsk,snowh,current_month, &
+         bareness_dyn,topodep,ivgtyp, &
+         erod_dri_tmp, erod_dri, &
+         num_soil_layers, & ! EMK
+         ids, ide, jds, jde, &
+         ims, ime, jms, jme, &
+         its, ite, jts, jte)         
+
+       ! Arguments
+       ! EROD_TMP is intended for GOCART and other emission codes. The rest are more
+       ! general and friendly to two-way nesting code.
+       real, intent(inout) :: erod_tmp(ims:ime,jms:jme,3) ! Keep "3" as last dimension
+       real, intent(inout) :: erod_timestep(ims:ime,3,jms:jme)
+       real, intent(in) :: erod_static(ims:ime,3,jms:jme) ! Annual average
+       integer, intent(in) :: id
+       real, intent(in) :: erod_mdb_sand(ims:ime,4,jms:jme) ! MODIS-DeepBlue
+       real, intent(in) :: erod_mdb_silt(ims:ime,4,jms:jme) ! MODIS-DeepBlue
+       real, intent(in) :: erod_mdb_clay(ims:ime,4,jms:jme) ! MODIS-DeepBlue
+       ! Based on topodepression and bareness
+!       real, intent(in) :: erod_dyn_climo_sand(ims:ime,jms:jme,12)
+!       real, intent(in) :: erod_dyn_climo_silt(ims:ime,jms:jme,12)
+!       real, intent(in) :: erod_dyn_climo_clay(ims:ime,jms:jme,12)
+       real, intent(in) :: bareness_dyn_climo(ims:ime,12,jms:jme)
+
+       integer, intent(in) :: current_julyr
+       integer, intent(in) :: current_julday
+       integer, intent(in) :: curr_hours                    !dkim6
+       integer, intent(in) :: gocart_dustemiss_suppress      !dkim6
+       real, intent(in) :: tslb(ims:ime,num_soil_layers,jms:jme) ! EMK
+       real,intent(in) :: tsk(ims:ime,jms:jme)
+       real,intent(in) :: snowh(ims:ime,jms:jme)
+       integer,intent(in) :: current_month
+
+       ! Input for dynamic (non-climo) EROD
+       real,intent(in) :: bareness_dyn(ims:ime,jms:jme)
+       real,intent(in) :: topodep(ims:ime,3,jms:jme)
+       integer,intent(in) :: ivgtyp(ims:ime,jms:jme)
+
+       ! Handle AFWA DRI EROD data
+       real, intent(inout) :: erod_dri_tmp(ims:ime,jms:jme,3) ! Keep "3" as last dimension
+       real, intent(in) :: erod_dri(ims:ime,3,jms:jme) ! Annual average
+       
+       integer, intent(in) :: num_soil_layers ! EMK 
+       integer, intent(in) :: ids, ide, jds, jde
+       integer, intent(in) :: ims, ime, jms, jme
+       integer, intent(in) :: its, ite, jts, jte
+
+       ! Local variables
+       character(len=256) :: erod_option
+       integer :: start(0:5)
+       character(len=2) :: mon, day1
+       character(len=4) :: year
+!       integer :: current_julyr, current_julday
+!       real :: current_gmt
+       integer :: int_month
+       integer :: i,j,k
+       integer :: leap
+       real :: erod_switch 
+       integer :: iswater
+       CHARACTER (LEN=80) :: message
+       
+       write(message,'(" current_month: ",I2.2)') current_month
+       CALL WRF_DEBUG (15,message)
+
+       ! Setting EROD depends on which dataset is used. Convert to lower
+       ! case.
+       call nl_get_erod_option(id,erod_option)
+       call lowercase(erod_option)
+
+       write(message,'(" erod_option: ",A)') trim(erod_option)
+       CALL WRF_DEBUG (15,message)
+
+       ! Find 'water' vegetation type
+       call nl_get_iswater(id,iswater)
+
+       ! MODIS-Blue Marble seasonal climatology
+       if (trim(erod_option) .eq. 'mdb') then
+
+          ! Determine which season the current date is in. MODIS-DeepBlue 
+          ! uses DJF, MAM, JJA, SON for seasons. 
+          ! Note that WRF julday is one less than that usually used (e.g,
+          ! WRF calls January 1 julday=0, while most would call that julday=1).
+          if (isLeapYear(current_julyr)) then
+             leap = 1
+          else
+             leap = 0
+          end if
+          if (current_julday .ge. (335-1+leap)) then
+             int_month = 1 ! DJF
+          else if (current_julday .lt. (60-1+leap)) then
+             int_month = 1 ! DJF
+          else if (current_julday .lt. (152-1+leap)) then
+             int_month = 2 ! MAM
+          else if (current_julday .lt. (244-1+leap)) then
+             int_month = 3 ! JJA
+          else
+             int_month = 4 ! SON
+          end if
+
+          write(message,'(" current_julday: ",I3)') current_julday
+          CALL WRF_DEBUG (15,message)
+
+          write(message,'(" int_month: ",I2)') int_month
+          CALL WRF_DEBUG (15,message)
+
+          ! Now copy the appropriate season values.
+          do j = jts,min(jte,jde-1)
+             do i = its,min(ite,ide-1)
+                erod_timestep(i,1,j) = erod_mdb_sand(i,int_month,j)
+             end do
+          end do
+          do j = jts,min(jte,jde-1)
+             do i = its,min(ite,ide-1)
+                erod_timestep(i,2,j) = erod_mdb_silt(i,int_month,j)
+             end do
+          end do
+          do j = jts,min(jte,jde-1)
+             do i = its,min(ite,ide-1)
+                erod_timestep(i,3,j) = erod_mdb_clay(i,int_month,j)
+             end do
+          end do
+
+       ! Dynamic monthly climatology. Values from REAL are maximum EROD;
+       ! reset to zero if snow is present.
+       else if (trim(erod_option) .eq. 'dyn_climo') then
+          do j = jts,min(jte,jde-1)
+             do i = its, min(ite,ide-1)
+                erod_switch=1.
+                if (tsk(i,j) .lt. 263. .or. snowh(i,j) .gt. 0) then
+                   erod_switch=0.
+                end if
+!                erod_timestep(i,j,1) = &
+!                     erod_switch*erod_dyn_climo_sand(i,j,current_month)
+!                erod_timestep(i,j,2) = &
+!                     erod_switch*erod_dyn_climo_silt(i,j,current_month)
+!                erod_timestep(i,j,3) = &
+!                     erod_switch*erod_dyn_climo_clay(i,j,current_month)
+                erod_timestep(i,1,j) = &
+                     erod_switch* &
+                     bareness_dyn_climo(i,current_month,j)*topodep(i,1,j)
+                erod_timestep(i,2,j) = &
+                     erod_switch* &
+                     bareness_dyn_climo(i,current_month,j)*topodep(i,2,j)
+                erod_timestep(i,3,j) = &
+                     erod_switch* &
+                     bareness_dyn_climo(i,current_month,j)*topodep(i,3,j) 
+             end do
+          end do
+
+       ! Use dynamic (non-climo) EROD
+       else if (trim(erod_option) .eq. 'dyn') then
+          do j = jts,min(jte,jde-1)
+             do i = its, min(ite,ide-1)
+                erod_switch=1.
+! EMK: Dongchul Kim's change from 20151207
+!                if (tsk(i,j) .lt. 263. .or. snowh(i,j) .gt. 0 .or. &
+                if (tslb(i,2,j) .lt. 263. .or. snowh(i,j) .gt. 0.01 .or. &
+                    ivgtyp(i,j) .eq. iswater) then
+                   erod_switch=0.
+                end if
+                erod_timestep(i,1,j) = &
+                     erod_switch*bareness_dyn(i,j)*topodep(i,1,j) ! Sand
+                erod_timestep(i,2,j) = &
+                     erod_switch*bareness_dyn(i,j)*topodep(i,2,j) ! Silt
+                erod_timestep(i,3,j) = &
+                     erod_switch*bareness_dyn(i,j)*topodep(i,3,j) ! Clay
+             end do
+          end do
+         !dkim6, test only, fill zero emission  when (03< gmt <05)
+          write(message,'(" curr_hours: ",I2)') curr_hours
+          CALL WRF_DEBUG (15,message)
+          if (gocart_dustemiss_suppress .eq. 1) then  
+           !write(0,*) 'dkim6, 1 curr_hours = ',curr_hours
+           do k = 1,3 ! Sand, silt, clay
+           do j = jts,min(jte,jde-1)
+              do i = its, min(ite,ide-1)
+                 if (mod(curr_hours,24) .ge. 3 .and. mod(curr_hours,24) .le. 5) then 
+                    erod_timestep(i,k,j)=0.0
+                 endif
+              end do
+           end do
+           end do
+           !write(0,*) 'dkim6, 2 curr_hours = ',curr_hours, erod_timestep(1,1,1)
+          end if
+
+       ! Use default annual climatology 
+       else if (trim(erod_option) .eq. 'static') then
+
+          do k = 1,3 ! Sand, silt, clay
+             do j = jts,min(jte,jde-1)
+                do i = its,min(ite,ide-1)
+                   erod_timestep(i,k,j) = erod_static(i,k,j)
+                end do
+             end do
+          end do
+
+       else
+          write(message,'("ERROR, unknown erod_option!")')
+          CALL WRF_DEBUG (0,message)
+          write(message,'("Valid options are static, mdb, dyn_climo")')
+          CALL WRF_ERROR_FATAL (message)          
+       end if
+       ! EMK...Flip DRI EROD data at same time as we copy the timestep data.
+       do k = 1,3 ! Sand, silt, clay
+         do j = jts,min(jte,jde-1)
+           do i = its, min(ite,ide-1)
+                erod_tmp(i,j,k) = erod_timestep(i,k,j)
+                erod_dri_tmp(i,j,k) = erod_dri(i,k,j)
+            end do
+         end do
+       end do
+
+    end subroutine updateErodTimestep
+
+   !---------------------------------------------------------------------------
+   !                                                                           
+   ! ROUTINE:  isLeapYear
+   !                                                                           
+   ! DESCRIPTION: Logical function for determining if input year is a leap 
+   ! year or not. Code culled from function 'nfeb' in module_data_time.
+   !                                                                           
+   !---------------------------------------------------------------------------
+
+    ! NUWRF
+    function isLeapYear(year) result(leap)
+       integer,intent(in) :: year
+       logical :: leap
+       leap = .false.
+#ifdef NO_LEAP_CALENDAR
+       return
+#else
+       IF (MOD(year,4).eq.0) THEN  
+          leap = .true.
+          IF (MOD(year,100).eq.0) THEN
+             leap = .false.
+             IF (MOD(year,400).eq.0) THEN
+                leap = .true.
+             END IF
+          END IF
+       END IF
+#endif
+    end function isLeapYear
+
+    ! Converts ASCII character string to lower case.
+    subroutine lowercase(string)
+       implicit none
+       ! Arguments
+       character(len=*),intent(inout) :: string
+       ! Internal variables
+       integer :: i,imax
+       ! Internal constants
+       integer,parameter :: UPPER_TO_LOWER = iachar("a") - iachar("A")
+       imax = len_trim(string)
+       do i = 1,imax
+          if(string(i:i) .ge. "A" .and. string(i:i) .le. "Z") then
+             string(i:i) = achar(iachar(string(i:i)) + UPPER_TO_LOWER)
+          end if
+       end do
+    end subroutine lowercase
+    ! NU-WRF END EROD
 
 END module module_emissions_driver
