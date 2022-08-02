@@ -366,6 +366,7 @@
   else
      tmpTimeInterval = domain_get_current_time(grid) - last_chem_time(grid%id)
      dtstepc = real(real_time_r8(tmpTimeInterval),4)
+     if(ktau .le. (grid%chemdt*60./grid%dt)) dtstepc = dtstepc + grid%dt   !NUWRF - make sure dtstepc = chemdt (ZTao, May2022)
   end if
      
   ! initializing diagnostics and macros
@@ -389,8 +390,10 @@
   
   do_chemstep = .false.
   IF ( ktau==1 ) then
-     do_chemstep = .true.
-     grid%ktauc = 1
+     do_chemstep = .false.   !NUWRF (ZTao, May2022)
+     grid%ktauc = 0
+!     do_chemstep = .true.
+!     grid%ktauc = 1
   ELSE IF ( adapt_step_flag ) THEN
      IF ( (grid%chemdt<=0) .or. &
           ( curr_secs+real(grid%dt,8)+0.01 >= &
@@ -880,7 +883,7 @@
               grid%potevp,grid%SFCEVP,grid%LU_INDEX,                                       &
               grid%biomt_par,grid%emit_par,grid%ebio_co2oce,                               &
               eghg_bio,                                                                    &
-              grid%dust_flux, grid%seas_flux,                                              &
+              grid%seas_flux,                                              &
 #ifdef WRF_LIS
               grid%lisPorosity,                                                            &
 #endif
@@ -891,6 +894,8 @@
               grid%bareness_dyn_climo,                                                     &
 !NUWRF EMK...New dynamic bareness for dynamic (non-climo) EROD
               grid%bareness_dyn, grid%topodep,                                             &
+!NUWRF dkim6, output w10m_out
+              grid%w10m_out,                                                               &
               grid%julyr,                                                                  &
               ids,ide, jds,jde, kds,kde,                                                   &
               ims,ime, jms,jme, kms,kme,                                                   &
@@ -932,8 +937,11 @@
            config_flags%chem_opt /= GHG_TRACER ) then
 ! NUWRF: Only use optical driver for radiation scheme other than Goddard's
 ! per Toshi Matsui
-         if (config_flags%ra_lw_physics .ne. GODDARDLWSCHEME .and. &
-             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME) then
+! Need to turn on optical_drive to calculate some 3D properties including AOD
+!   - this will take up a lot of resources but will not affect GODDARD LW/SW 
+!     calculation per conversation with Toshi   (TZN)
+!         if (config_flags%ra_lw_physics .ne. GODDARDLWSCHEME .and. &
+!             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME) then
          call wrf_debug(15,'calling optical driver')
          call optical_driver (grid%id,curr_secs,grid%dt,config_flags,haveaer,         &
               chem,dz8w,rri,rh,                                                       &
@@ -958,7 +966,7 @@
               ids,ide, jds,jde, kds,kde,                                              &
               ims,ime, jms,jme, kms,kme,                                              &
               its,ite, jts,jte, kts,kte)
-      endif ! EMK NUWRF
+!      endif ! EMK NUWRF
       endif
 
 !
@@ -982,6 +990,7 @@
               chem,rho,dz8w,grid%xlat,grid%xlong,                                     &
               zmid,z_at_w,                                                            &
               grid%qc_cu,grid%qi_cu,                                                  &
+              grid%qc_bl,grid%qi_bl,                                                  &
               grid%ph_macr,grid%ph_o31d,grid%ph_o33p,grid%ph_no2,                     &
               grid%ph_clno2,                                                          &
               grid%ph_no3o2,                                                          &
@@ -1265,6 +1274,8 @@
               grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,grid%ph_hcochest,     &
               grid%ph_ch3o2h,grid%ph_ch3coo2h,grid%ph_ch3ono2,grid%ph_hcochob,        &
               grid%ph_n2o5,grid%ph_o2,grid%backg_oh,grid%backg_h2o2,grid%backg_no3,   &
+              grid%backg_ch4,                                                         &   !NUWRF: for CO chemistry in simple GOCART by ZTao (Dec. 2021)
+              grid%backg_hno3,rh,                                                     &   !NUWRF: for nitrate in GOCART aerosols by ZTao (Dec. 2021)
               grid%addt,grid%addx,grid%addc,grid%etep,                                &
               grid%oltp,grid%olip,grid%cslp,grid%limp,grid%hc5p,grid%hc8p,grid%tolp,  &
               grid%xylp,grid%apip,grid%isop,grid%hc3p,grid%ethp,grid%o3p,grid%tco3,   &
@@ -1642,6 +1653,8 @@ if ( cam_mam_aerosols ) &
               wetscav_frcing(ims,kms,jms,p_evapprod),                                 &
               grid%hno3_col_mdel,                                                     &                
               grid%qlsink,grid%precr,grid%preci,grid%precs,grid%precg,                &
+              grid%raincv,grid%rainncv,                                               &  !NUWRF - add raincv and rainncv for GOCART wetscav (ZTao)
+              grid%precr3d,grid%preci3d,grid%precs3d,grid%precg3d,                    &  !NUWRF - add by ZTao for GCE 4ice MP
               grid%wdflx,                                                             &
               gas_aqfrac, numgas_mam,dz8w,                                            &
               grid%h2oaj,grid%h2oai,grid%nu3,grid%ac3,grid%cor3,                      &
@@ -1768,6 +1781,9 @@ end if !Chemistry time step check
      call dust_load_driver ( config_flags,                                            &
            rri, chem, dz8w, grid%dustload_1, grid%dustload_2, grid%dustload_3,        &
            grid%dustload_4, grid%dustload_5,                                          &
+           grid%dustscon_1, grid%dustscon_2, grid%dustscon_3,                         &  !NUWRF dkim6
+           grid%dustscon_4, grid%dustscon_5,                                          &  !NUWRF dkim6
+           grid%dod,                                                                  &  !NUWRF dkim6
            ids,ide, jds,jde, kds,kde,                                                 &
            ims,ime, jms,jme, kms,kme,                                                 &
            its,ite, jts,jte, kts, kte                                                 )

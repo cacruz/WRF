@@ -133,8 +133,12 @@ MODULE module_bioemi_simple
 !                aef_n,ixxxlu,vegflag,isice_temp,iswater_temp
 !         PRINT *, eiso, emter, eovoc, e_n, eisoc, eovocc
 !     endif
+!NUWRF:
 ! by Z. Tao: assuming 10% of monoterpene emissions (ug C/m^2-hr) forms GOCART SOA
 !	              90% goes to gas phase species used in biosplit
+! by Z. Tao: in consistent with GEOS-5 implementation, assuming 3% isoprene and 
+!            5% monoterpene (ug C/m^2-hr) form GOCART SOA, 
+!            and the balances go to gas phase (Nov 2021)
 !	the unit for SOA OC is ug-C/kg-dryair
 !
 	aerosol_addemiss_select: SELECT CASE(config_flags%chem_opt)
@@ -142,8 +146,11 @@ MODULE module_bioemi_simple
 	  if (config_flags%bio_emiss_soa == 1) then
 ! NUWRF EMK...Changed p_oc1 to p_oc2 per Z. Tao
 	    chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2)                          &
-                     +0.1*emterc*stepbioe*dtstep/3600./rho_phy(i,kts,j)/dz8w(i,kts,j)
-            emter = emter*0.9
+                     +0.03*eisoc*stepbioe*dtstep/3600./rho_phy(i,kts,j)/dz8w(i,kts,j) &
+                     +0.05*emterc*stepbioe*dtstep/3600./rho_phy(i,kts,j)/dz8w(i,kts,j)
+!                     +0.1*emterc*stepbioe*dtstep/3600./rho_phy(i,kts,j)/dz8w(i,kts,j)
+            eiso = eiso*0.97
+            emter = emter*0.95
 	  end if
 	CASE DEFAULT
 	END SELECT aerosol_addemiss_select

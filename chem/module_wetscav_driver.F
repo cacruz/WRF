@@ -22,7 +22,9 @@ CONTAINS
                t8w, dx, dy, p_phy, chem,                                   &
                rho_phy, cldfra, cldfra2, rainprod, evapprod,               &
                hno3_col_mdel, qlsink, precr, preci, precs, precg,          &
-               wdflx, &
+               wdflx,                                                      &
+               raincv, rainncv,                                            & !NUWRF: add raincv and rainncv (ZTao)
+               precr3d, preci3d, precs3d, precg3d,                         & !NUWRF: add prec* for GCE 4ice MP (Ztao)
 	       gas_aqfrac, numgas_aqfrac, dz8w,                            &
 	       h2oaj,h2oai,nu3,ac3,cor3,asulf,ahno3,anh3,cvaro1,           &
                cvaro2,cvalk1,cvole1,cvapi1,cvapi2,cvlim1,cvlim2,           &
@@ -63,6 +65,7 @@ CONTAINS
    USE modal_aero_data,        only:  ntot_amode               ! For cam_mam_wetscav variables
    USE module_mozcart_wetscav, only:  wetscav_mozcart
    USE module_mosaic_wetscav, only:  wetscav_cbmz_mosaic, wetscav_mozart_mosaic
+   USE module_gocart_wetscav, only: wetscav_gocart_driver    !NUWRF (ZTao, Feb. 2022)
 !!! TUCCELLA (BUG, the line below is commented now)
    !USE module_aerosols_sorgam, only:  wetscav_sorgam_driver
    USE module_aerosols_sorgam_vbs, only:  wetscav_sorgam_vbs_driver
@@ -125,10 +128,12 @@ CONTAINS
 !-- z             3D height with lowest level being the terrain
 !-- rho_phy   	  density (kg/m^3)
 !-- qlsink        Fractional cloud water sink (/s)
-!-- precr         rain precipitation rate at all levels (kg/m2/s)
-!-- preci         ice precipitation rate at all levels (kg/m2/s)
-!-- precs         snow precipitation rate at all levels (kg/m2/s)
-!-- precg         graupel precipitation rate at all levels (kg/m2/s)                             &
+!-- precr(3d)     rain precipitation rate at all levels (kg/m2/s)
+!-- preci(3d)     ice precipitation rate at all levels (kg/m2/s)
+!-- precs(3d)     snow precipitation rate at all levels (kg/m2/s)
+!-- precg(3d)     graupel precipitation rate at all levels (kg/m2/s)                             &
+!-- raincv	  time-step cumulus precipitation (mm)
+!-- rainncv	  time-step nonconvectiv precipitation (mm)
 !-- R_d		  gas constant for dry air ( 287. J/kg/K)
 !-- R_v           gas constant for water vapor (461 J/k/kg)
 !-- Cp            specific heat at constant pressure (1004 J/k/kg)
@@ -232,6 +237,7 @@ CONTAINS
                                                       p8w,          &
                                                       dz8w,         &
 	                            qlsink,precr,preci,precs,precg, &
+	                           precr3d,preci3d,precs3d,precg3d, &
                                                     rho_phy,cldfra, &
 !variables needed for cam_mam_wetscav
                                      cldfrai,cldfral,cldfra_mp_all, &
@@ -241,6 +247,10 @@ CONTAINS
                                     cmfmc,cmfmc2,evapcsh,icwmrsh,   &
                                         rprdsh,evapcdp3d,icwmrdp3d, &
                                      rprddp3d,f_ice_phy,f_rain_phy 
+!variables needed for gocart_wetscav (NUWRF)
+   REAL,  DIMENSION( ims:ime , jms:jme ), INTENT(IN   ) ::          &
+                           raincv, rainncv
+
    REAL,  DIMENSION( ims:ime , kms:kme , jms:jme )         ,        &
          INTENT(INOUT ) ::                             cldfra2,     &
                                                        rainprod,    &
@@ -272,7 +282,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
    REAL, DIMENSION( ims:ime, jms:jme, num_chem ) :: qsrflx, delta_mass_col ! column change due to scavening
    REAL ::  tmp_minval = 1.0e7
    REAL,  DIMENSION( ims:ime , kms:kme , jms:jme ) :: rainrate, evaprate
-
+   REAL,  DIMENSION( ims:ime , kms:kme , jms:jme ) :: tmpchem     !NUWRF
 !
 ! Wet deposition over the current time step
 !
@@ -292,6 +302,428 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
 ! select which aerosol scheme to take
 !
    cps_select: SELECT CASE(config_flags%chem_opt)
+!NUWRF - add in gocart_wetscav that is adopted from GEOS-5 (ZTao, Feb. 2022)
+   CASE ( GOCART_SIMPLE, GOCARTRACM_KPP, GOCARTRADM2 )
+       CALL wrf_debug(15,'wetscav_driver calling gocart_wetscav_driver' )
+       tmpchem = 0.        ! initialize tmpchem to prevent segmentation fault
+
+! For NH3 (gas) - pass .false.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_nh3)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'nh3', .false., 0.0, tmpchem,   &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_nh3) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For BC1(hydrophobic aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_bc1)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'BC1', .true., 0.0, tmpchem,    &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_bc1) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For BC2(hydrophilic aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_bc2)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'BC2', .true., 1.0, tmpchem,    &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_bc2) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For OC1(hydrophobic aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_oc1)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'OC1', .true., 0.0, tmpchem,    &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_oc1) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For OC2(hydrophilic aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_oc2)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'OC2', .true., 1.0, tmpchem,    &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_oc2) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For sulf (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_sulf)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'sulf', .true., 1.0, tmpchem,   &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_sulf) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For NH4 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_nh4)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'nh4', .true., 0.4, tmpchem,    &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_nh4) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For NO3an1 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_no3an1)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'NO3an1', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_no3an1) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For NO3an2 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_no3an2)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'NO3an2', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_no3an2) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For NO3an3 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_no3an3)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'NO3an3', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_no3an3) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For DUST_1 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_dust_1)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_1', .true., 0.2, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_dust_1) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For DUST_2 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_dust_2)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_2', .true., 0.2, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_dust_2) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For DUST_3 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_dust_3)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_3', .true., 0.2, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_dust_3) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For DUST_4 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_dust_4)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_4', .true., 0.2, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_dust_4) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For DUST_5 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_dust_5)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_5', .true., 0.2, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_dust_5) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For SEAS_1 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_seas_1)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_1', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_seas_1) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For SEAS_2 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_seas_2)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_2', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_seas_2) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For SEAS_3 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_seas_3)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_3', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_seas_3) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
+! For SEAS_4 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_seas_4)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_4', .true., 0.4, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_seas_4) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
 
    CASE ( RADM2SORG_AQ, RADM2SORG_AQCHEM, RACMSORG_AQ, RACMSORG_AQCHEM_KPP, RACM_ESRLSORG_AQCHEM_KPP, CBMZSORG_AQ, &
           CB05_SORG_AQ_KPP)

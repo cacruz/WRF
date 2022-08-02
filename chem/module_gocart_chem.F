@@ -1,18 +1,33 @@
 MODULE MODULE_GOCART_CHEM
 
+! NUWRF: add chemistry for CO and SOA by ZTao (Nov/Dec 2021)
+! NUWRF: add nitrate by ZTao (Dec 2021)
+!     added species in chem():
+!      - NH3: gas phase ammonia
+!      - NH4: aerosol phase ammonium ion
+!      - NO3an1: aerosol nitrate (radius <= 0.5 um)
+!      - NO3an2: aerosol nitrate (0.5 < radius <= 4. um)
+!      - NO3an3: aerosol nitrate (4. < radius <= 10. um)
+
 CONTAINS
 
   subroutine gocart_chem_driver(curr_secs,dt,config_flags,            &
          gmt,julday,t_phy,moist,                                      &
          chem,rho_phy,dz8w,p8w,backg_oh,backg_h2o2,backg_no3,         &
+         backg_ch4,                           &  !NUWRF
+         backg_hno3,rh,                       &  !NUWRF
          gd_cldf,dx,g,xlat,xlong,ttday,tcosz, &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
+
+  USE module_data_gocartchem, only: airmw
   USE module_configure
   USE module_state_description
   USE module_phot_mad, only : calc_zenith
+  USE module_gocart_nitrate
   IMPLICIT NONE
+
    TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
 
    INTEGER,      INTENT(IN   ) :: julday,                                  &
@@ -32,13 +47,14 @@ CONTAINS
    REAL,  DIMENSION( ims:ime , kms:kme , jms:jme ),                        &
           INTENT(IN   ) ::                     t_phy,                      &
                               backg_oh,backg_h2o2,backg_no3,dz8w,p8w,      &
-                                              rho_phy
+                              backg_ch4, rho_phy,                          &      !NUWRF
+                              backg_hno3,rh                                       !NUWRF
   REAL(KIND=8), INTENT(IN) :: curr_secs
   REAL, INTENT(IN   ) :: dt,dx,g,gmt
   integer :: nmx,i,j,k,imx,jmx,lmx
   real*8, DIMENSION (1,1,1) :: tmp,airden,airmas,oh,xno3,h2o2,chldms_oh,    &
                                chldms_no3,chldms_x,chpso2,chpmsa,chpso4,    &
-                               chlso2_oh,chlso2_aq,cldf
+                               chlso2_oh,chlso2_aq,cldf, ch4  !NUWRF
   real*8, DIMENSION (1,1,4) :: tdry
   real*8, DIMENSION (1,1) :: cossza
   real, DIMENSION (1,1) :: sza,cosszax
@@ -48,6 +64,18 @@ CONTAINS
   real:: rlat,xlonn
   real :: zenith,zenita,azimuth,xmin,xtimin,gmtp
   integer(kind=8) :: ixhour
+
+!NUWRF: variables for updated SOA scheme
+  real*8, dimension(1,1,1) :: tmpvoc, tmpsoa, tmpco, midpres   !mid level pressure
+
+!NUWRF: variables for nitrate scheme RPMARES
+  real, parameter :: mwnh3 = 17.
+  real, parameter :: mwnh4 = 18.
+  real, parameter :: mwso4 = 96.
+  real, parameter :: mwno3 = 62.
+  real, parameter :: mwhno3 = 63.
+  real :: fmmr2conc                                            !used for conversion from kg/kg to ug/m^3
+  real*8 :: TSO4, GNO3, GNH3, LRH, LTEMP, ASO4, AHSO4, AH2O, ANO3, ANH4
 
   imx=1
   jmx=1
@@ -115,9 +143,9 @@ CONTAINS
           tmp(1,1,1)=t_phy(i,k,j)
           oh(1,1,1)=86400./dt*cossza(1,1)*backg_oh(i,k,j)/tcosz(i,j)
           h2o2(1,1,1)=backg_h2o2(i,k,j)
-           IF (COSSZA(1,1) > 0.0) THEN
-              XNO3(1,1,1) = 0.0
-           ELSE
+          IF (COSSZA(1,1) > 0.0) THEN
+             XNO3(1,1,1) = 0.0
+          ELSE
               ! -- Fraction of night
               ! fnight       = 1.0 - TTDAY(i,j)/86400.0
               ! The original xno3 values have been averaged over daytime
@@ -125,8 +153,8 @@ CONTAINS
               ! fraction from the monthly average
               ! fnight/=0.0 (for fnight=0: all cosszax (including current
               ! cossza) > 0.0)
-              xno3(1,1,1) = backg_no3(i,k,j) / (1.0 - TTDAY(i,j)/86400.)
-           END IF
+             xno3(1,1,1) = backg_no3(i,k,j) / (1.0 - TTDAY(i,j)/86400.)
+          END IF
 !         if(i.eq.19.and.j.eq.19.and.k.eq.kts)then
 !          write(0,*)backg_oh(i,k,j),backg_no3(i,k,j),ttday(i,j),tcosz(i,j)
 !         endif
@@ -140,9 +168,56 @@ CONTAINS
           chem(i,k,j,p_so2)=tc(1,1,1,2)*1.e6
           chem(i,k,j,p_sulf)=tc(1,1,1,3)*1.e6
           chem(i,k,j,p_msa)=tc(1,1,1,4)*1.e6
+
+! NUWRF: add OC2 out of SOA generated from oxidation of VOC (ZTao)
+          tmpvoc(1,1,1)=chem(i,k,j,p_abbvoc)         !ppmv
+          tmpsoa(1,1,1)=chem(i,k,j,p_oc2)            !ug/kg-air
+          call abbvoc2soa(imx,jmx,lmx,dt,airden,oh,tmpvoc,tmpsoa)
+          chem(i,k,j,p_abbvoc) = tmpvoc(1,1,1)
+          chem(i,k,j,p_oc2) = tmpsoa(1,1,1)
+
+! NUWRF: CO chemistry (ZTao)
+          ch4(1,1,1) = backg_ch4(i,k,j)  
+          tmpco(1,1,1) = chem(i,k,j,p_co)
+          midpres(1,1,1) = 0.5 * (p8w(i,k,j) + p8w(i,k+1,j))  !pressure at mid level
+          call chem_co(imx,jmx,lmx,dt,airden,tmp,midpres,oh,ch4,tmpco)
+          chem(i,k,j,p_co) = tmpco(1,1,1)
+
+! NUWRF: nitrate RPMARES scheme (ZTao)
+          fmmr2conc = 1.e9 * rho_phy(i,k,j)   !from kg/kg to ug/m^3
+          TSO4 = max(1.d-32, 1.e-6*chem(i,k,j,p_sulf)*mwso4/airmw*fmmr2conc)  !chem gas unit: ppmv
+          GNO3 = max(1.d-32, backg_hno3(i,k,j)*mwhno3/airmw*fmmr2conc)        !backg_hno3 unit: mol/mol
+          GNH3 = max(1.d-32, 1.e-6*chem(i,k,j,p_nh3)*mwnh3/airmw*fmmr2conc) 
+          LRH  = rh(i,k,j)
+          LTEMP= t_phy(i,k,j)
+          ASO4 = 1.d-32
+          AHSO4= 1.d-32
+          ANO3 = max(1.d-32,1.e-9*chem(i,k,j,p_no3an1)*fmmr2conc)             !chem aerosol unit: ug/kg
+          AH2O = 1.d-32
+          ANH4 = max(1.d-32, 1.e-6*chem(i,k,j,p_nh4)*mwnh4/airmw*fmmr2conc) 
+
+          CALL RPMARES(TSO4, GNO3,  GNH3, LRH,  LTEMP,    &
+                       ASO4, AHSO4, ANO3, AH2O, ANH4)
+
+! Unit conversion back to chem definition 
+          chem(i,k,j,p_nh3) = 1.e6 * GNH3 * airmw/(mwnh3*fmmr2conc)     !ug/m^3 -> ppmv 
+          chem(i,k,j,p_nh4) = 1.e6 * ANH4 * airmw/(mwnh4*fmmr2conc)     !ug/m^3 -> ppmv 
+          chem(i,k,j,p_no3an1) = 1.e9 * ANO3 /fmmr2conc                 !ug/m^3 -> ug/kg
        enddo
        enddo
        enddo
+
+! NUWRF: HNO3 heterogenous chemistry (ZTao)
+!      This occurs with the present of GOCART dust and seasalt.
+!      no3an1 produced on bin 1 of dust and seasalt
+!      no3an2 produced on bins 2 and 3 of dust and seasalt
+!      no3an3 produced on dust bins 4 and 5 and seasalt bin 4
+!
+       call nitrate_heterogenous(dt, chem, t_phy, rho_phy, rh,    &
+                                 ims, ime, jms, jme, kms, kme,    &
+                                 its, ite, jts, jte, kts, kte,    &
+                                 .true., backg_hno3)    
+
      CASE (GOCARTRACM_KPP,GOCARTRADM2)
        CALL wrf_debug(15,'calling gocart chemistry in addition to racm_kpp')
        do j=jts,jte
@@ -204,17 +279,49 @@ CONTAINS
           chem(i,k,j,p_sulf)=tc(1,1,1,3)*1.e6
           chem(i,k,j,p_msa)=tc(1,1,1,4)*1.e6
           chem(i,k,j,p_h2o2)=h2o2(1,1,1)*1.e6
+
+! NUWRF: add OC2 out of SOA generated from oxidation of VOC (ZTao)
+          tmpvoc(1,1,1)=chem(i,k,j,p_abbvoc)         !ppmv
+          tmpsoa(1,1,1)=chem(i,k,j,p_oc2)            !ug/kg-air
+         
+          call abbvoc2soa(imx,jmx,lmx,dt,airden,oh,tmpvoc,tmpsoa)
+! update chem array
+          chem(i,k,j,p_abbvoc) = tmpvoc(1,1,1)
+          chem(i,k,j,p_oc2) = tmpsoa(1,1,1)
+
+! NUWRF: nitrate RPMARES scheme (ZTao)
+          fmmr2conc = 1.e9 * rho_phy(i,k,j)   !from kg/kg to ug/m^3
+          TSO4 = max(1.d-32, 1.e-6*chem(i,k,j,p_sulf)*mwso4/airmw*fmmr2conc)  !chem gas unit: ppmv
+          GNO3 = max(1.d-32, 1.e-6*chem(i,k,j,p_hno3)*mwhno3/airmw*fmmr2conc) 
+          GNH3 = max(1.d-32, 1.e-6*chem(i,k,j,p_nh3)*mwnh3/airmw*fmmr2conc) 
+          LRH  = rh(i,k,j)
+          LTEMP= t_phy(i,k,j)
+          ASO4 = 1.d-32
+          AHSO4= 1.d-32
+          ANO3 = max(1.d-32,1.e-9*chem(i,k,j,p_no3an1)*fmmr2conc)             !chem aerosol unit: ug/kg
+          AH2O = 1.d-32
+          ANH4 = max(1.d-32, 1.e-6*chem(i,k,j,p_nh4)*mwnh4/airmw*fmmr2conc) 
+
+          CALL RPMARES(TSO4, GNO3,  GNH3, LRH,  LTEMP,    &
+                       ASO4, AHSO4, ANO3, AH2O, ANH4)
+
+! Unit conversion back to chem definition 
+          chem(i,k,j,p_nh3)    = 1.e6 * GNH3 * airmw/(mwnh3*fmmr2conc)     !ug/m^3 -> ppmv 
+          chem(i,k,j,p_hno3)   = 1.e6 * GNO3 * airmw/(mwhno3*fmmr2conc)    !ug/m^3 -> ppmv 
+          chem(i,k,j,p_nh4)    = 1.e6 * ANH4 * airmw/(mwnh4*fmmr2conc)     !ug/m^3 -> ppmv 
+          chem(i,k,j,p_no3an1) = 1.e9 * ANO3 /fmmr2conc                    !ug/m^3 -> ug/kg
        enddo
        enddo
        enddo
+
+! NUWRF: HNO3 heterogenous chemistry (ZTao)
+       call nitrate_heterogenous(dt, chem, t_phy, rho_phy, rh,    &
+                                 ims, ime, jms, jme, kms, kme,    &
+                                 its, ite, jts, jte, kts, kte,    &
+                                 .false., backg_hno3)    
+
    END SELECT chem_select
 end subroutine gocart_chem_driver
-
-!SUBROUTINE chmdrv_su( &
-!     imx, jmx, lmx, nmx, ndt1, tmp, drydf, airden, airmas, &
-!     oh, xno3, h2o2, cldf, tc, tdry, depso2, depso4, depmsa, &
-!     chldms_oh, chldms_no3, chldms_x, chpso2, chpmsa, chpso4, &
-!     chlso2_oh, chlso2_aq)
 
 !We don't apply losses due to dry deposition here, this is done in vertical mixing
 SUBROUTINE chmdrv_su( imx,jmx,lmx,&
@@ -833,5 +940,96 @@ SUBROUTINE szangle(imx, jmx, doy, xhour, sza, cossza,xlon,rlat)
   END DO
      
 END subroutine szangle
+
+SUBROUTINE abbvoc2soa(imx,jmx,lmx,ndt,airden,oh,tmpvoc,tmpsoa)
+   ! NUWRF:
+   ! 11/23/2021 This module contains parameterizations to calculate SOA 
+   ! generated from anthropogenic and biomass burning VOC
+   ! The scheme is based on Hodzic & Jimenez (GMD, 901-917, 2011).
+   !  AVOC + OH -> ASOA     k=1.25 * 10^(-11)  (molecule^(-1) cm^3 s^(-1)
+   !  BVOC + OH -> BSOA     k=1.25 * 10^(-11)  (molecule^(-1) cm^3 s^(-1)
+   !  Then:
+   !     delta(VOC) = VOC * (1.0-exp(-k[OH]t)
+   ! Anthrop. and biomass burning VOC emissions (AVOC and BVOC) are scaled to
+   !  the repective CO emissions (Kim et al. ACP, 10411-10433, 2015):
+   !    AVOC(g) = 0.069*AEMIS(CO); BVOC(g) = 0.013*BEMIS(CO)
+   ! Only apply to GOCART related chem_opt 
+   ! Author: Zhining Tao 
+
+  USE module_data_gocartchem
+  IMPLICIT NONE
+
+  INTEGER, INTENT(IN) ::  imx,jmx,lmx
+  REAL :: ndt
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(IN) :: airden        !unit: kg/m^3
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(IN) :: oh            !unit: mol/mol
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(INOUT) :: tmpvoc, tmpsoa
+
+! local variables
+  INTEGER :: i, j, l
+  REAL, PARAMETER :: mw_soa = 161.                                     !g/mol
+  REAL*8, PARAMETER :: fconv = (1000. * 6.022d23 * 1.0d-6)/airmw       !unit of airmw (g/mol); used to convert mol/mol to molecules/cm^3
+  REAL*8, DIMENSION(imx,jmx,lmx) :: dVOC, rk_VOC_OH
+
+  do l = 1, lmx
+    do j = 1, jmx
+      do i = 1, imx
+        rk_VOC_OH(i,j,l) = 1.25d-11 * fconv * oh(i,j,l) * airden(i,j,l) * ndt
+        dVOC(i,j,l) = tmpvoc(i,j,l) * (1.0 - exp(-rk_VOC_OH(i,j,l)))            !Loss of VOC (ppmv) = Production of SOA (ppmv)
+        tmpsoa(i,j,l) = tmpsoa(i,j,l) + 1000. * dVOC(i,j,l) * mw_soa/airmw      !convert ppmv to ug/kg-air
+
+! update VOC due to loss to SOA
+        tmpvoc(i,j,l) = tmpvoc(i,j,l) - dVOC(i,j,l)
+      end do
+    end do
+  end do
+
+END subroutine abbvoc2soa
+
+SUBROUTINE chem_co(imx,jmx,lmx,ndt,airden,temp,pres,oh,ch4,tmpco)
+!
+! NUWRF (ZTao, Dec 2021):
+!  1) CO loss due to reaction with OH
+!       CO + OH -> products
+!        k(m^3 molecule^-1 s^-1) = 1.5d-19 * (1.0+0.6d-5 * p)   p: pressure (Pa)
+!        [CO]t = [CO]0 * exp(-rkoh * dt)
+!     convert mol/mol to molecule/m^3: Avogadro's number * airden(kg/m^3)/airmw(kg/mol)
+!
+!  2) CO formation due to oxidation of CH4
+!     CH4 + OH -> CO + other
+!      k(m^3 molecule^-1 s^-1) = 2.45e-18 * exp(-1775/T(K))
+
+  USE module_data_gocartchem
+  IMPLICIT NONE
+
+  INTEGER, INTENT(IN) ::  imx,jmx,lmx
+  REAL :: ndt
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(IN) :: airden        !unit: kg/m^3
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(IN) :: temp          !unit: K
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(IN) :: pres          !unit: Pa
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(IN) :: oh, ch4       !unit: mol/mol
+  REAL*8, DIMENSION(imx,jmx,lmx), INTENT(INOUT) :: tmpco      !unit: ppmv
+
+! local variables
+  INTEGER :: i, j, l
+  REAL*8, PARAMETER :: fconv = (1000. * 6.022d23)/airmw       !unit of airmw (g/mol); used to convert mol/mol to molecules/m^3
+  REAL*8, DIMENSION(imx,jmx,lmx) :: dCH4, rk_CH4_OH, rk_CO_OH
+
+  do l = 1, lmx
+    do j = 1, jmx
+      do i = 1, imx
+        rk_CO_OH(i,j,l) = 1.5d-19*(1.0+6.d-6*pres(i,j,l)) * fconv * oh(i,j,l) * airden(i,j,l) * ndt
+        tmpco(i,j,l) = tmpco(i,j,l) * exp(-rk_CO_OH(i,j,l))
+
+        rk_CH4_OH(i,j,l) = 2.45d-18*exp(-1775./temp(i,j,l)) * fconv * oh(i,j,l) * airden(i,j,l) * ndt
+        dCH4(i,j,l) = ch4(i,j,l) * (1.0 - exp(-rk_CH4_OH(i,j,l)))            !Loss of CH4 (mol/mol) = Production of CO (mol/mol)
+        tmpco(i,j,l) = tmpco(i,j,l) + 1.d6 * dCH4(i,j,l)                     !convert mol/mol to ppmv
+      end do
+    end do
+  end do
+
+
+
+END subroutine chem_co 
 
 END MODULE MODULE_GOCART_CHEM

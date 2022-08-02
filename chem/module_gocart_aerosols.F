@@ -73,6 +73,8 @@ CONTAINS
        enddo
        enddo
 end subroutine gocart_aerosols_driver
+
+! NUWRF: Add nh4 (ppmv), and NO3an1~3 (ug/kg) into PM2.5/PM10  (ZTao, Feb. 2022)
        subroutine sum_pm_gocart (                                      &
             alt, chem,pm2_5_dry, pm2_5_dry_ec, pm10,                   &
             ids,ide, jds,jde, kds,kde,                                 &
@@ -83,6 +85,7 @@ end subroutine gocart_aerosols_driver
    USE module_data_gocartchem, only: nh4_mfac,oc_mfac
    IMPLICIT NONE
    REAL, PARAMETER :: mwso4 = 96.0576
+   REAL, PARAMETER :: mwnh4 = 18.0385       !NUWRF
    INTEGER,      INTENT(IN   ) :: ids,ide, jds,jde, kds,kde,               &
                                   ims,ime, jms,jme, kms,kme,               &
                                   its,ite, jts,jte, kts,kte
@@ -92,7 +95,7 @@ end subroutine gocart_aerosols_driver
          INTENT(IN ) :: alt
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
          INTENT(IN ) ::                                   chem
-   real d_2_5,s_2_5,d_10,sulfate
+   real d_2_5,s_2_5,d_10,sulfate,ammonium   !NUWRF
    integer i,j,k,ii,jj,n
     d_2_5=0.380       ! ln(2.5/2)/ln(3.6/2)
     s_2_5=0.834       ! ln(2.5/1)/ln(3/1)
@@ -109,17 +112,19 @@ end subroutine gocart_aerosols_driver
          do k=kts,kte
          do i=its,ite
             ii=min(ide-1,i)
+            ammonium=chem(ii,k,jj,p_nh4)*mwnh4/mwdry*1.e3
             sulfate=chem(ii,k,jj,p_sulf)*mwso4/mwdry*1.e3
             do n=p_p25,p_dust_1
                pm2_5_dry(i,k,j) = pm2_5_dry(i,k,j)+chem(ii,k,jj,n)        
             enddo
-            pm2_5_dry(i,k,j) = pm2_5_dry(i,k,j)+chem(ii,k,jj,p_dust_2)*d_2_5     &
+            pm2_5_dry(i,k,j) = pm2_5_dry(i,k,j)+chem(ii,k,jj,p_dust_2)*d_2_5  &
                                             +chem(ii,k,jj,p_seas_1)           &        
                                             +chem(ii,k,jj,p_seas_2)*s_2_5     &        
-                                            +sulfate*nh4_mfac                 &
+                                            +chem(ii,k,jj,p_no3an1)           &        
+                                            + ammonium + sulfate              &
                                             +(chem(ii,k,jj,p_oc1)+chem(ii,k,jj,p_oc2))*(oc_mfac-1.)
    
-            !Convert the units from mixing ratio to concentration (ug m^-3)
+            !Convert the units from ug/kg to concentration (ug m^-3)
             pm2_5_dry(i,k,j)    = pm2_5_dry(i,k,j) / alt(ii,k,jj)
       enddo
       enddo
@@ -129,6 +134,7 @@ end subroutine gocart_aerosols_driver
          do k=kts,kte
             do i=its,ite
                ii=min(ide-1,i)
+               ammonium=chem(ii,k,jj,p_nh4)*mwnh4/mwdry*1.e3
                sulfate=chem(ii,k,jj,p_sulf)*mwso4/mwdry*1.e3
                do n=p_p25,p_dust_3
                   pm10(i,k,j) = pm10(i,k,j)+chem(ii,k,jj,n)        
@@ -136,9 +142,12 @@ end subroutine gocart_aerosols_driver
                do n=p_seas_1,p_seas_3
                   pm10(i,k,j) = pm10(i,k,j)+chem(ii,k,jj,n)        
                enddo
-               pm10(i,k,j) = pm10(i,k,j) + sulfate*nh4_mfac        &
-                            +chem(ii,k,jj,p_dust_4)*d_10           &
+               pm10(i,k,j) = pm10(i,k,j) + ammonium + sulfate   &
+                            +chem(ii,k,jj,p_dust_4)*d_10        &
                             +chem(ii,k,jj,p_p10)                &
+                            +chem(ii,k,jj,p_no3an1)             &        
+                            +chem(ii,k,jj,p_no3an2)             &        
+                            +chem(ii,k,jj,p_no3an3)             &        
                             +(chem(ii,k,jj,p_oc1)+chem(ii,k,jj,p_oc2))*(oc_mfac-1.)
                pm10(i,k,j) = pm10(i,k,j)/ alt(ii,k,jj)
             enddo

@@ -1,11 +1,28 @@
 WRF Model Version 4.3
 
+<<<<<<< HEAD
 https://www2.mmm.ucar.edu/wrf/users/
+||||||| merged common ancestors
+We request that all new users of WRF please register. This allows us to better determine how to support and develop the model. Please register using this form:[http://www2.mmm.ucar.edu/wrf/users/download/wrf-regist.php](http://www2.mmm.ucar.edu/wrf/users/download/wrf-regist.php).
+=======
+We request that all new users of WRF please register. This allows us to better determine how to support and develop the model. Please register using this form:[https://www2.mmm.ucar.edu/wrf/users/download/wrf-regist.php](https://www2.mmm.ucar.edu/wrf/users/download/wrf-regist.php).
+>>>>>>> release-v4.4
 
+<<<<<<< HEAD
 ------------------------
 WRF PUBLIC DOMAIN NOTICE
 ------------------------
+||||||| merged common ancestors
+For an overview of the WRF modeling system, along with information regarding downloads, user support, documentation, publications, and additional resources, please see the WRF Model Users' Web Site: [http://www2.mmm.ucar.edu/wrf/users/](http://www2.mmm.ucar.edu/wrf/users/).
+ 
+Information regarding WRF Model citations (including a DOI) can be found here: [http://www2.mmm.ucar.edu/wrf/users/citing_wrf.html](http://www2.mmm.ucar.edu/wrf/users/citing_wrf.html).
+=======
+For an overview of the WRF modeling system, along with information regarding downloads, user support, documentation, publications, and additional resources, please see the WRF Model Users' Web Site: [https://www2.mmm.ucar.edu/wrf/users/](https://www2.mmm.ucar.edu/wrf/users/).
+ 
+Information regarding WRF Model citations (including a DOI) can be found here: [https://www2.mmm.ucar.edu/wrf/users/citing_wrf.html](https://www2.mmm.ucar.edu/wrf/users/citing_wrf.html).
+>>>>>>> release-v4.4
 
+<<<<<<< HEAD
 WRF was developed at the National Center for Atmospheric Research
 (NCAR) which is operated by the University Corporation for
 Atmospheric Research (UCAR). NCAR and UCAR make no proprietary
@@ -22,6 +39,11 @@ UCAR be liable for any damages, whatsoever, whether direct,
 indirect, consequential or special, that arise out of or in
 connection with the access, use or performance of WRF, including
 infringement actions.
+||||||| merged common ancestors
+The WRF Model is open-source code in the public domain, and its use is unrestricted. The name "WRF", however, is a registered trademark of the University Corporation for Atmospheric Research. The WRF public domain notice and related information may be found here: [http://www2.mmm.ucar.edu/wrf/users/public.html](http://www2.mmm.ucar.edu/wrf/users/public.html).
+=======
+The WRF Model is open-source code in the public domain, and its use is unrestricted. The name "WRF", however, is a registered trademark of the University Corporation for Atmospheric Research. The WRF public domain notice and related information may be found here: [https://www2.mmm.ucar.edu/wrf/users/public.html](https://www2.mmm.ucar.edu/wrf/users/public.html).
+>>>>>>> release-v4.4
 
 
 ======================================

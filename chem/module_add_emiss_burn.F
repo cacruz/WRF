@@ -247,6 +247,13 @@ CONTAINS
                          +r_q*ebu(i,k,j,p_ebu_pm25)/rho_phy(i,k,j)*dtstep/dz8w(i,k,j)
         chem(i,k,j,p_p10)  =  chem(i,k,j,p_p10)                        &
                          +r_q*ebu(i,k,j,p_ebu_pm10)/rho_phy(i,k,j)*dtstep/dz8w(i,k,j)
+
+!NUWRF: add CO by ZTao (11/2021)
+        chem(i,k,j,p_co)  =  chem(i,k,j,p_co)                        &
+                         +ebu(i,k,j,p_ebu_co)*conv_rho
+!NUWRF: add NH3 by ZTao (12/2021)
+        chem(i,k,j,p_nh3)  =  chem(i,k,j,p_nh3)                      &
+                         +ebu(i,k,j,p_ebu_nh3)*conv_rho
         enddo
         enddo
         enddo

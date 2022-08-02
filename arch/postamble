@@ -9,6 +9,7 @@ ARCHFLAGS       =    $(COREDEFS) -DIWORDSIZE=$(IWORDSIZE) -DDWORDSIZE=$(DWORDSIZ
                       CONFIGURE_DMPARALLEL \
                       CONFIGURE_STUBMPI \
                       CONFIGURE_NETCDF_FLAG \
+                      CONFIGURE_NETCDFPAR_FLAG \
                       CONFIGURE_PNETCDF_FLAG \
                       CONFIGURE_ESMF_FLAG \
                       CONFIGURE_GRIB2_FLAG \
@@ -60,7 +61,7 @@ INCLUDE_MODULES =    $(MODULE_SRCH_FLAG) \
 REGISTRY        =    Registry
 CC_TOOLS_CFLAGS = CONFIGURE_NMM_CORE
 
-#EMK BEGIN...Merge NUWRF and WRF 3.2.1
+#EMK BEGIN
 #NOWIN LIB_BUNDLED     = \
 #NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/fftpack/fftpack5 -lfftpack \
 #NOWIN                     -L$(WRF_SRC_ROOT_DIR)/external/io_grib1 -lio_grib1 \
@@ -76,7 +77,7 @@ CC_TOOLS_CFLAGS = CONFIGURE_NMM_CORE
 #EMK BEGIN...Merge NUWRF and WRF 3.2.1
 #NOWIN LIB_EXTERNAL    = \
 #NOWIN                      CONFIGURE_NETCDF_LIB_PATH CONFIGURE_PNETCDF_LIB_PATH CONFIGURE_BOXMG_LIB_PATH CONFIGURE_GRIB2_LIB CONFIGURE_ATMOCN_LIB  CONFIGURE_GRIBAPI_LIB_PATH CONFIGURE_HDFEOS_LIB_PATH CONFIGURE_HDF4_LIB_PATH CONFIGURE_HDF5_LIB_PATH CONFIGURE_ZLIB_LIB_PATH
-#EMK END...Merge NUWRF and WRF 3.2.1
+#EMK END
 
 LIB             =    $(LIB_BUNDLED) $(LIB_EXTERNAL) $(LIB_LOCAL) $(LIB_WRF_HYDRO) CONFIGURE_CTSM_LIB
 LDFLAGS         =    $(OMP) $(FCFLAGS) $(LDFLAGS_LOCAL) CONFIGURE_LDFLAGS
@@ -91,7 +92,7 @@ BOXMGPATH       =    CONFIGURE_BOXMG_PATH
 
 bundled:  io_only CONFIGURE_ATMOCN
 external: io_only CONFIGURE_COMMS_EXTERNAL $(ESMF_TARGET)
-io_only:  esmf_time CONFIGURE_WRFIO_NF CONFIGURE_WRFIO_PNF CONFIGURE_WRFIO_GRIB2 \
+io_only:  esmf_time CONFIGURE_WRFIO_NF CONFIGURE_WRFIO_NFPAR CONFIGURE_WRFIO_PNF CONFIGURE_WRFIO_GRIB2 \
 	  wrf_ioapi_includes wrfio_grib_share wrfio_grib1 wrfio_int fftpack
 
 
@@ -118,6 +119,11 @@ wrfio_nf :
           make $(J) NETCDFPATH="$(NETCDFPATH)" RANLIB="$(RANLIB)" CPP="$(CPP)" \
           CC="$(SCC)" CFLAGS="$(CFLAGS)" \
           FC="$(SFC) $(PROMOTION) $(OMP) $(FCFLAGS)" TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" )
+
+wrfio_nfpar : 
+	( cd $(WRF_SRC_ROOT_DIR)/external/io_netcdfpar ; \
+          make $(J) NETCDFPARPATH="$(NETCDFPATH)" RANLIB="$(RANLIB)" CPP="$(CPP) $(ARCHFLAGS)" \
+          FC="$(FC) $(PROMOTION) $(OMP) $(FCFLAGS)" TRADFLAG="$(TRADFLAG)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" )
 
 wrfio_pnf : 
 	( cd $(WRF_SRC_ROOT_DIR)/external/io_pnetcdf ; \

@@ -272,7 +272,7 @@ CONTAINS
 
     !...conversion factor to convert emissions rates in 
     !...mol km-2 hr-1 to concentrations in ppm
-    REAL :: emis2ppm
+    !REAL :: emis2ppm  ! NUWRF
 
     ! NUWRF by Z. Tao
     !...conversion factor to convert emissions rates in 
@@ -783,11 +783,11 @@ CONTAINS
           !         dz8w is layer height in meters
           !         dtstep is time step in seconds
 	  ! NUWRF...Using stepbioe
-          emis2ppm = 0.02897*stepbioe*dtstep/(rho_phy(i,kts,j)*dz8w(i,kts,j)*3600.)
+          !emis2ppm = 0.02897*stepbioe*dtstep/(rho_phy(i,kts,j)*dz8w(i,kts,j)*3600.)
 
 	  ! NUWRF by Z. Tao
 	  !...conversion factor from mol km-2 hr-1 to ug-C/kg-dryair
-	  !	    120 g/mol is MW of monoterpene
+	  ! 60 and 120 g/mol is MW of isoprene and monoterpene, respectively
 	  emis2mass = 120.*stepbioe*dtstep/(rho_phy(i,kts,j)*dz8w(i,kts,j)*3600.)
 
           !...conversion factor from mol km-2 hr-1 to ppm m min-1
@@ -820,21 +820,28 @@ is_mozcart_species : &
 ! Increase gas-phase concentrations (in ppmv) due to biogenic emissions
 !-----------------------------------------------------------------------
 
-! NU-WRF BEGIN
+! NUWRF BEGIN
 ! by Z. Tao. for GOCART related case
 ! Assuming 90% of monoterpene species goes to gas phase
 ! and 10% converted to SOA (ug-C/kg-dryair)
+!
+! by Z. Tao: in consistent with GEOS-5 implementation, assuming 3% isoprene and
+!            5% monoterpene (mol/km^2-hr) form GOCART SOA (ug-C/kg-dryair),
+!            and the balances go to gas phase (Nov 2021)
 
-		    if(config_flags%bio_emiss_soa .eq. 1 .and. 	&
-			config_flags%chem_opt .eq. GOCART_SIMPLE .and. p_in_chem .eq. p_c10h16) then
-                      chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + 0.9*gas_emis*emis2ppm
+                    if(config_flags%bio_emiss_soa .eq. 1 .and. config_flags%chem_opt .eq. GOCART_SIMPLE) then
+                      if(p_in_chem .eq. p_c10h16) then
 ! EMK NUWRF...Switched p_oc2 to p_oc2 per Z. Tao
-                      chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.1*gas_emis*emis2mass 
-		    else
-                      chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis*emis2ppm
-		    end if
+                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.05*gas_emis*emis2mass
+                        gas_emis = 0.95 * gas_emis
+                      else if(p_in_chem .eq. p_isopr) then
+! emis2mass for isoprene is half of that for monoterpene that is defined in this code
+                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.03*gas_emis*emis2mass*0.5
+                        gas_emis = 0.97 * gas_emis
+                      end if
+                    end if
 
-! NU-WRF END
+! NUWRF END
 !-----------------------------------------------------------------------
 
 !-----------------------------------------------------------------------
@@ -1197,6 +1204,11 @@ is_mozm_species : &
 ! added by Z. Tao to account for RADM2 and GOCART combinations
 ! Assume 90% of monoterpene species goes to gas phase and 10% converted to SOA
 ! NUWRF: GOCARTRADM2_KPP removed in WRF 3.7.1.
+!
+! by Z. Tao: in consistent with GEOS-5 implementation, assuming 3% isoprene and
+!            5% monoterpene (mol/km^2-hr) form GOCART SOA (ug-C/kg-dryair),
+!            and the balances go to gas phase (Nov 2021)
+
           CASE (GOCARTRADM2)
 
              DO icount = 1, n_megan2radm2
@@ -1216,14 +1228,17 @@ is_mozm_species : &
                       ! Increase gas-phase concentrations (in ppmv) due to
                       ! biogenic emissions
 
-		     if(config_flags%bio_emiss_soa .eq. 1 .and. icount .le. 27 .and.	&
-		 	 	 (p_in_chem .eq. p_oli .or. p_in_chem .eq. p_olt)) then
-                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + 0.9*gas_emis*emis2ppm
+                      if(config_flags%bio_emiss_soa .eq. 1 .and. icount .le. 27) then
+                         if (p_in_chem .eq. p_oli .or. p_in_chem .eq. p_olt) then
 ! NUWRF EMK...Changed p_oc1 to p_oc2 per Z. Tao
-                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.1*gas_emis*emis2mass 
-		     else
-                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis*emis2ppm
-		     end if
+                            chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.05*gas_emis*emis2mass
+                            gas_emis = 0.95 * gas_emis
+                         else if (p_in_chem .eq. p_iso) then
+! emis2mass for isoprene is half of that for monoterpene that is defined in this code
+                            chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.03*gas_emis*emis2mass*0.5
+                            gas_emis = 0.97 * gas_emis
+                         end if
+                      end if
 
                       ! Add emissions to diagnostic output variables.
                       ! ebio_xxx (mol km-2 hr-1) were originally used by the 
@@ -1259,6 +1274,10 @@ is_mozm_species : &
                       ELSE IF ( p_in_chem .EQ. p_co) THEN
                          ebio_co(i,j)         = ebio_co(i,j)        + gas_emis
                          e_bio(i,j,p_co-1)    = e_bio(i,j,p_co-1)   + gas_emis*convert2
+!NUWRF: add NH3 (ZTao)
+                      ELSE IF ( p_in_chem .EQ. p_nh3 ) THEN
+                         ebio_nh3(i,j) = ebio_nh3(i,j) + gas_emis
+                         e_bio(i,j,p_nh3-1)   = e_bio(i,j,p_nh3-1)  + gas_emis*convert2
                       ELSE IF ( p_in_chem .EQ. p_no) THEN
                          ebio_no(i,j)         = ebio_no(i,j)        + gas_emis   
                          e_bio(i,j,p_no-1)    = e_bio(i,j,p_no-1)   + gas_emis*convert2
@@ -1296,27 +1315,31 @@ is_mozm_species : &
                       ! Emission rate of mechanism species in mol km-2 hr-1
                       gas_emis =  racm_per_megan(icount) * E_megan2(p_of_megan2racm(icount))
 
-! NU-WRF BEGIN
+! NUWRF BEGIN
                       ! Increase gas-phase concentrations (in ppmv) due to
                       ! biogenic emissions
 
 ! by Z. Tao. for GOCART related case
 ! Assuming 90% of monoterpene species goes to gas phase
 ! and 10% converted to SOA (ug-C/kg-dryair)
+!
+! by Z. Tao: in consistent with GEOS-5 implementation, assuming 3% isoprene and
+!            5% monoterpene (mol/km^2-hr) form GOCART SOA (ug-C/kg-dryair),
+!            and the balances go to gas phase (Nov 2021)
 
-		    if(config_flags%bio_emiss_soa .eq. 1 .and. config_flags%chem_opt .eq. GOCARTRACM_KPP) then
-		      if(p_in_chem .eq. p_lim .or. p_in_chem .eq. p_api) then
-                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + 0.9 * gas_emis * emis2ppm
+                    if(config_flags%bio_emiss_soa .eq. 1 .and. config_flags%chem_opt .eq. GOCARTRACM_KPP) then
+                      if(p_in_chem .eq. p_lim .or. p_in_chem .eq. p_api) then
 ! NUWRF EMK...Changed p_oc1 to p_oc2 per Z. Tao
-                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.1 * gas_emis * emis2mass 
-		      else 
-                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis * emis2ppm
-		      end if
-		    else
-                      chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis * emis2ppm
-		    end if
+                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.05 * gas_emis * emis2mass
+                        gas_emis = 0.95 * gas_emis
+                      else if (p_in_chem .eq. p_iso) then
+! emis2mass for isoprene is half of that for monoterpene that is defined in this code
+                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.03*gas_emis*emis2mass*0.5
+                        gas_emis = 0.97 * gas_emis
+                      end if
+                    end if
 
-! NU-WRF END
+! NUWRF END
 
                       ! Add emissions to diagnostic output variables.
                       ! ebio_xxx (mol km-2 hr-1) were originally used by the 
@@ -1361,6 +1384,10 @@ is_mozm_species : &
                       ELSE IF ( p_in_chem .EQ. p_co) THEN
                          ebio_co(i,j)         = ebio_co(i,j)        + gas_emis
                          e_bio(i,j,p_co-1)    = e_bio(i,j,p_co-1)   + gas_emis*convert2
+!NUWRF: add NH3 (ZTao)
+                      ELSE IF ( p_in_chem .EQ. p_nh3 ) THEN
+                         ebio_nh3(i,j) = ebio_nh3(i,j) + gas_emis
+                         e_bio(i,j,p_nh3-1)   = e_bio(i,j,p_nh3-1)  + gas_emis*convert2
                       ELSE IF ( p_in_chem .EQ. p_no) THEN
                          ebio_no(i,j)         = ebio_no(i,j)        + gas_emis   
                          e_bio(i,j,p_no-1)    = e_bio(i,j,p_no-1)   + gas_emis*convert2

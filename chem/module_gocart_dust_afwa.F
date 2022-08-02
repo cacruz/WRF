@@ -14,9 +14,9 @@ MODULE GOCART_DUST_AFWA
   INTRINSIC max, min
 
 CONTAINS
-  SUBROUTINE gocart_dust_afwa_driver(ktau,dt,config_flags,julday,alt,t_phy,moist,u_phy,  &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod,erod_dri,dustin,snowh,zs,   &
-         ivgtyp,isltyp,vegfra,lai_vegmask,xland,xlat,xlong,gsw,dx,g,emis_dust,      &
+  SUBROUTINE gocart_dust_afwa_driver(dt,config_flags,alt,  &
+         chem,rho_phy,smois,u10,v10,dz8w,erod,erod_dri,dustin,snowh,   &
+         isltyp,vegfra,lai_vegmask,xland,g,emis_dust,      &
          ust,znt,clay_wrf,sand_wrf,clay_nga,sand_nga,afwa_dustloft,                 &
          tot_dust,tot_edust,vis_dust,alpha,gamma,smtune,ustune,            &
          ids,ide, jds,jde, kds,kde,                                        &
@@ -28,16 +28,12 @@ CONTAINS
 
    TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
 
-      INTEGER,      INTENT(IN   ) :: julday, ktau,                            &
-                                     ids,ide, jds,jde, kds,kde,               &
-                                     ims,ime, jms,jme, kms,kme,               &
-                                     its,ite, jts,jte, kts,kte
+   INTEGER,      INTENT(IN   ) :: ids,ide, jds,jde, kds,kde,               &
+                                  ims,ime, jms,jme, kms,kme,               &
+                                  its,ite, jts,jte, kts,kte
    INTEGER,DIMENSION( ims:ime , jms:jme )                  ,               &
-          INTENT(IN   ) ::                                                 &
-                                                     ivgtyp,               &
-                                                     isltyp
-   REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),                &
-         INTENT(IN ) ::                              moist
+          INTENT(IN   ) ::    isltyp
+                                                     
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
          INTENT(INOUT ) ::                           chem
    REAL, DIMENSION( ims:ime, 1, jms:jme,num_emis_dust),OPTIONAL,           &
@@ -45,8 +41,6 @@ CONTAINS
          
    REAL, DIMENSION( ims:ime, config_flags%num_soil_layers, jms:jme ) ,     &
          INTENT(IN   ) ::                            smois   
-   REAL, DIMENSION( config_flags%num_soil_layers ) ,                       &
-         INTENT(IN   ) ::                            zs
    REAL, DIMENSION( ims:ime , jms:jme, ndcls )             ,               &
          INTENT(IN   ) ::                            erod,erod_dri
    REAL, DIMENSION( ims:ime , jms:jme, 5 )                 ,               &
@@ -54,12 +48,9 @@ CONTAINS
    REAL, DIMENSION( ims:ime , jms:jme )                    ,               &
          INTENT(IN   ) ::                            u10,                  &
                                                      v10,                  &
-                                                     gsw,                  &
                                                      vegfra,               &
                                                      lai_vegmask,          &
                                                      xland,                &
-                                                     xlat,                 &
-                                                     xlong,                &
                                                      ust,                  &
                                                      znt,                  &
                                                      clay_wrf,             &
@@ -69,16 +60,15 @@ CONTAINS
                                                      snowh
    REAL, DIMENSION( ims:ime , kms:kme , jms:jme )   ,                      &
          INTENT(IN   ) ::                            alt,                  &
-                                                     t_phy,                &
-                                                     p8w,dz8w,             &
-                                                     u_phy,v_phy,rho_phy
+                                                     dz8w,                 &
+                                                     rho_phy
   REAL, DIMENSION( ims:ime , jms:jme )               ,                     &
          INTENT(  OUT) ::                            afwa_dustloft,        &
                                                      tot_edust
   REAL, DIMENSION( ims:ime , kms:kme , jms:jme ),                          &
          INTENT(  OUT) ::                            tot_dust,             &
                                                      vis_dust
-  REAL, INTENT(IN   ) :: dt,dx,g
+  REAL, INTENT(IN   ) :: dt,g
 
   ! Local variables
 

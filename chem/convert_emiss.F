@@ -99,6 +99,7 @@ PROGRAM convert_emissions
    REAL, ALLOCATABLE, DIMENSION(:) :: gocart_lev
    REAL, ALLOCATABLE, DIMENSION(:,:) :: tmp2
    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: tmp_oh,tmp_no3,tmp_h2o2,tmp3,interpolate
+   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: tmp_ch4,tmp_hno3 ! NUWRF dkim6
    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: gocart_ps ! NUWRF
    REAL, ALLOCATABLE :: dumc0(:,:,:),dumc4(:,:,:),zlevel(:,:,:)
    REAL, ALLOCATABLE :: dumc1(:,:)
@@ -166,8 +167,9 @@ PROGRAM convert_emissions
               'KET','ALD','HCHO','ETH','ORA2','CO','NR','SESQ','MBO',       &
               'NOAG_GROW','NOAG_NONGROW','NONONAG','ISOP'/
 
-! EMK...For NUWRF
-   logical :: new_gocart_bg_files
+! NUWRF
+   ! 0 = 'old', 1 = 'new', 2 = 'minds'            
+   integer :: gocart_bg_type
    integer :: extra_gfedv3_vars
 
 ! these are needed on some compilers, eg compaq/alpha, to
@@ -226,8 +228,9 @@ PROGRAM convert_emissions
    CALL set_wrf_debug_level ( debug_level )
    
 ! EMK...For NUWRF
-   call nl_get_new_gocart_bg_files(1, new_gocart_bg_files)
-   if (new_gocart_bg_files) then
+   call nl_get_gocart_bg_type(1, gocart_bg_type)
+   if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
+      ! 'new' and 'minds' types have 72 vertical levels
       iklev = 72
    else
       iklev = 55
@@ -385,12 +388,14 @@ PROGRAM convert_emissions
      ALLOCATE( tmp_oh(ids:ide,jds:jde,iklev) )
      ALLOCATE( tmp_h2o2(ids:ide,jds:jde,iklev) )
      ALLOCATE( tmp_no3(ids:ide,jds:jde,iklev) )
+     ALLOCATE( tmp_ch4(ids:ide,jds:jde,iklev) )
+     ALLOCATE( tmp_hno3(ids:ide,jds:jde,iklev) )
      ALLOCATE( tmp2(ids:ide,jds:jde) )
      ALLOCATE( tmp3(ids:ide,jds:jde,3) )
      ALLOCATE( interpolate(ids:ide,kds:kde,jds:jde) )
      ALLOCATE( gocart_lev(iklev))
 ! NUWRF
-     if (new_gocart_bg_files) then
+     if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
         allocate(gocart_ps(ids:ide,jds:jde,iklev))
      end if
 
@@ -492,7 +497,7 @@ PROGRAM convert_emissions
 #endif
 
 ! NUWRF
-       if (new_gocart_bg_files) then
+       if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
            read(19)gocart_ps(ids:ide,jds:jde,1:iklev)
@@ -500,6 +505,28 @@ PROGRAM convert_emissions
        DM_BCAST_MACRO(gocart_ps)
 #else
        read(19)gocart_ps(ids:ide,jds:jde,1:iklev)
+#endif
+       end if
+
+! NUWRF
+       if (gocart_bg_type == 2) then
+! dkim6, append here, note its order is after ps
+#ifdef DM_PARALLEL
+       IF (wrf_dm_on_monitor()) THEN
+           read(19)tmp_ch4(ids:ide,jds:jde,1:iklev)
+       ENDIF
+       DM_BCAST_MACRO(tmp_ch4)
+#else
+       read(19)tmp_ch4(ids:ide,jds:jde,1:iklev)
+#endif
+
+#ifdef DM_PARALLEL
+       IF (wrf_dm_on_monitor()) THEN
+           read(19)tmp_hno3(ids:ide,jds:jde,1:iklev)
+       ENDIF
+       DM_BCAST_MACRO(tmp_hno3)
+#else
+       read(19)tmp_hno3(ids:ide,jds:jde,1:iklev)
 #endif
        end if
 
@@ -547,7 +574,7 @@ PROGRAM convert_emissions
 !
 
 ! NUWRF
-      if (.not. new_gocart_bg_files) then
+      if (gocart_bg_type == 0) then
          do k=1,iklev
             p_g(k) = log10( gocart_lev(k) * 1023.) 
          enddo
@@ -565,7 +592,7 @@ PROGRAM convert_emissions
      do j=jps,jpe
      do i=ips,ipe
         ! NUWRF
-        if (new_gocart_bg_files) then
+        if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
            do k=1,iklev
               p_g(k) = log10( gocart_ps(i,j,k)) 
            enddo
@@ -599,6 +626,18 @@ PROGRAM convert_emissions
          grid%backg_h2o2(i, kw, j) = tmp_h2o2(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
          ! NUWRF
          if(grid%backg_h2o2(i, kw, j) <= 0.) grid%backg_h2o2(i, kw, j)=tmp_h2o2(i,j,kbot)
+
+! CH4
+         fac= (tmp_ch4(i  ,j  ,ktop)-tmp_ch4(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
+         grid%backg_ch4(i, kw, j) = tmp_ch4(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
+         ! NUWRF
+         if(grid%backg_ch4(i, kw, j) <= 0.) grid%backg_ch4(i, kw, j)=tmp_ch4(i,j,kbot)
+
+! HNO3 
+         fac= (tmp_hno3(i  ,j  ,ktop)-tmp_hno3(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
+         grid%backg_hno3(i, kw, j) = tmp_hno3(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
+         ! NUWRF
+         if(grid%backg_hno3(i, kw, j) <= 0.) grid%backg_hno3(i, kw, j)=tmp_hno3(i,j,kbot)
 
         enddo  ! kw loop
 
@@ -648,7 +687,7 @@ PROGRAM convert_emissions
      do i=ips,ipe
 
       ! NUWRF
-      if (new_gocart_bg_files) then
+      if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
          do k=1,iklev
             p_g(k) = log10( gocart_ps(i,j,k)) 
          enddo
@@ -679,6 +718,18 @@ PROGRAM convert_emissions
        ! NUWRF
        if(grid%backg_h2o2(i,kw,j) <= 0.) grid%backg_h2o2(i,kw,j)=tmp_h2o2(i,j,kbot)
 
+! CH4
+       fac= (tmp_ch4(i  ,j  ,ktop)-tmp_ch4(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
+       grid%backg_ch4(i, kw, j) = tmp_ch4(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
+       ! NUWRF
+       if(grid%backg_ch4(i,kw,j) <= 0.) grid%backg_ch4(i,kw,j)=tmp_ch4(i,j,kbot)
+
+! HNO3
+       fac= (tmp_hno3(i  ,j  ,ktop)-tmp_hno3(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
+       grid%backg_hno3(i, kw, j) = tmp_hno3(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
+       ! NUWRF
+       if(grid%backg_hno3(i,kw,j) <= 0.) grid%backg_hno3(i,kw,j)=tmp_hno3(i,j,kbot)
+
       enddo  ! kw loop
 
      enddo
@@ -697,6 +748,8 @@ PROGRAM convert_emissions
    DEALLOCATE( tmp_oh )
    DEALLOCATE( tmp_h2o2 )
    DEALLOCATE( tmp_no3 )
+   DEALLOCATE( tmp_ch4 )
+   DEALLOCATE( tmp_hno3 )
    DEALLOCATE( tmp2)
    DEALLOCATE( tmp3)
    DEALLOCATE( interpolate )

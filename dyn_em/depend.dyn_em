@@ -274,6 +274,7 @@ start_em.o:     module_bc_em.o \
 		../phys/module_diag_downscale.o \
 		../phys/module_diag_trad_fields.o \
                 ../phys/module_fr_fire_driver_wrf.o \
+                ../phys/module_firebrand_spotting.o \
 		$(CF)
 
 solve_em.o:     module_small_step_em.o \
@@ -303,8 +304,8 @@ solve_em.o:     module_small_step_em.o \
 		../phys/module_microphysics_zero_out.o \
 		../phys/module_physics_addtendc.o \
 		../phys/module_checkerror.o \
-                ../phys/module_crm_stat.o 
-                # added crm_stat #
+                ../phys/module_crm_stat.o \
+                ../phys/module_firebrand_spotting.o
 
 module_convtrans_prep.o : 
 

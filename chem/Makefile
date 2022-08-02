@@ -141,6 +141,8 @@ MODULES =                                 \
         module_cbmz_initmixrats.o         \
         module_cbmz_rodas_prep.o          \
         module_ctrans_grell.o             \
+        module_gocart_nitrate.o           \
+        module_gocart_wetscav.o           \
         module_gocart_chem.o              \
         module_input_tracer.o             \
 	module_lightning_nox_driver.o     \

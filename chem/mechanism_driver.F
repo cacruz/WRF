@@ -1,5 +1,8 @@
 !WRF:MODEL_LAYER:CHEMICS
 !
+! NUWRF: add backg_ch4 for CO chemistry in simple GOCART (ZTao, Dec. 2021)
+! NUWRF: add backg_hno3 and RH for nitrate in GOCART aerosols (ZTao, Dec. 2021)
+
     subroutine mechanism_driver(id,curr_secs,ktau,dtstep,ktauc,dtstepc,&
                config_flags,gmt,julday,t_phy,moist,p8w,t8w,gd_cldfr,   &
                p_phy,chem,rho_phy,dz8w,dx,g,z,z_at_w,xlat,xlong,vdrog3,&
@@ -11,6 +14,8 @@
                ph_ch3coch3,ph_ch3coc2h5,ph_hcocho,ph_ch3cocho,         &
                ph_hcochest,ph_ch3o2h,ph_ch3coo2h,ph_ch3ono2,ph_hcochob,&
                ph_n2o5,ph_o2,backg_oh,backg_h2o2,backg_no3,            &
+               backg_ch4,                                              &  !NUWRF: add backg_ch4 for CO chemistry
+               backg_hno3,rh,                                          &  !NUWRF: add for nitrate
                addt,addx,addc,etep,oltp,olip,cslp,limp,hc5p,hc8p,tolp, &
                xylp,apip,isop,hc3p,ethp,o3p,tco3,mo2,o1d,olnn,rpho,xo2,&
                ketp,olnd,                                              &
@@ -81,6 +86,8 @@
                                                       p_phy,           &
                                                     dz8w,              &
                         z    ,backg_oh,backg_h2o2,backg_no3,           &
+                                              backg_ch4,               & !NUWRF
+                                              backg_hno3, rh,          & !NUWRF
                                               t8w,p8w,z_at_w ,         &
                                                     rho_phy
    REAL,  DIMENSION( ims:ime , kms:kme , jms:jme )         ,           &
@@ -122,6 +129,8 @@
        call gocart_chem_driver(curr_secs,dtstepc,config_flags,        &
          gmt,julday,t_phy,moist,                                      &
          chem,rho_phy,dz8w,p8w,backg_oh,backg_h2o2,backg_no3,         &
+         backg_ch4,                            &   !NUWRF
+         backg_hno3,rh,                        &   !NUWRF
          gd_cldfr,dx,g,xlat,xlong,ttday,tcosz, &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
@@ -156,6 +165,8 @@
          call gocart_chem_driver(curr_secs,dtstepc,config_flags,        &
          gmt,julday,t_phy,moist,                                      &
          chem,rho_phy,dz8w,p8w,backg_oh,backg_h2o2,backg_no3,         &
+         backg_ch4,                            &  !NUWRF
+         backg_hno3,rh,                        &  !NUWRF
          gd_cldfr,dx,g,xlat,xlong,ttday,tcosz, &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &

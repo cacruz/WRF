@@ -112,7 +112,7 @@ contains
                    FSA     ,FSR     ,FIRA    ,FSH     ,FGEV    ,SSOIL   , & ! OUT : 
                    TRAD    ,EDIR    ,RUNSRF  ,RUNSUB  ,SAG     ,ALBEDO  , & ! OUT :
                    QSNBOT  ,PONDING ,PONDING1,PONDING2,T2M     ,Q2E     , & ! OUT :
-                   EMISSI,  FPICE,    CH2B                                & ! OUT :
+                   EMISSI,  FPICE,    CH2B   ,QMELT                       & ! OUT :
 #ifdef WRF_HYDRO
                    , sfcheadrt                                            &
 #endif
@@ -182,7 +182,7 @@ contains
   REAL                           , INTENT(OUT)   :: RUNSUB !baseflow (saturation excess) [mm/s]
   REAL                           , INTENT(OUT)   :: SAG    !solar rad absorbed by ground (w/m2)
   REAL                           , INTENT(OUT)   :: ALBEDO !surface albedo [-]
-  REAL                           , INTENT(OUT)   :: QSNBOT !snowmelt [mm/s]
+  REAL                           , INTENT(OUT)   :: QSNBOT !total liquid water (snowmelt + rain through pack)out of snowpack bottom [mm/s]
   REAL                           , INTENT(OUT)   :: PONDING!surface ponding [mm]
   REAL                           , INTENT(OUT)   :: PONDING1!surface ponding [mm]
   REAL                           , INTENT(OUT)   :: PONDING2!surface ponding [mm]
@@ -209,7 +209,7 @@ contains
   REAL                                           :: QDEW   !ground surface dew rate [mm/s]
   REAL                                           :: QVAP   !ground surface evap. rate [mm/s]
   REAL                                           :: LATHEA !latent heat [j/kg]
-  REAL                                           :: QMELT  !internal pack melt
+  REAL, INTENT(OUT)                              :: QMELT  !internal pack melt due to phase change [mm/s]
   REAL                                           :: SWDOWN !downward solar [w/m2]
   REAL                                           :: BEG_WB !beginning water for error check
   REAL                                           :: ZBOT = -8.0 
@@ -411,7 +411,7 @@ contains
   REAL   , DIMENSION(-NSNOW+1:    0), INTENT(OUT)   :: SNICEV !partial volume ice [m3/m3]
   REAL   , DIMENSION(-NSNOW+1:    0), INTENT(OUT)   :: SNLIQV !partial volume liq. water [m3/m3]
   REAL   , DIMENSION(-NSNOW+1:    0), INTENT(OUT)   :: EPORE  !effective porosity [m3/m3]
-  REAL                              , INTENT(OUT)   :: QMELT  !snowmelt [mm/s]
+  REAL                              , INTENT(OUT)   :: QMELT  !snowmelt due to phase change [mm/s]
   REAL                              , INTENT(OUT)   :: PONDING!pounding at ground [mm]
   REAL                              , INTENT(OUT)   :: SAG    !solar rad. absorbed by ground (w/m2)
   REAL                              , INTENT(OUT)   :: FSA    !tot. absorbed solar radiation (w/m2)
@@ -708,18 +708,23 @@ contains
   ALBICE(1) = 0.80    !albedo land ice: 1=vis, 2=nir
   ALBICE(2) = 0.55
 
-! snow age
+! compute snow albedo only if cosz >0
+! to be consistent with the main NoahMP code, currently do not include snow aging when sun is not present
+! this needs more future work
+  if (COSZ > 0.0) then
 
-  CALL SNOW_AGE_GLACIER (DT,TG,SNEQVO,SNEQV,TAUSS,FAGE)
+     ! snow age
 
-! snow albedos: age even when sun is not present
+     CALL SNOW_AGE_GLACIER (DT,TG,SNEQVO,SNEQV,TAUSS,FAGE)
 
-  IF(OPT_ALB == 1) &
-     CALL SNOWALB_BATS_GLACIER (NBAND,COSZ,FAGE,ALBSND,ALBSNI)
-  IF(OPT_ALB == 2) THEN
-     CALL SNOWALB_CLASS_GLACIER(NBAND,QSNOW,DT,ALB,ALBOLD,ALBSND,ALBSNI)
-     ALBOLD = ALB
-  END IF
+     IF(OPT_ALB == 1) &
+        CALL SNOWALB_BATS_GLACIER (NBAND,COSZ,FAGE,ALBSND,ALBSNI)
+     IF(OPT_ALB == 2) THEN
+        CALL SNOWALB_CLASS_GLACIER(NBAND,QSNOW,DT,ALB,ALBOLD,ALBSND,ALBSNI)
+        ALBOLD = ALB
+     END IF
+
+  endif
 
 ! zero summed solar fluxes
 
@@ -1196,9 +1201,9 @@ contains
     REAL,              INTENT(INOUT) :: FH     !sen heat stability correction, weighted by prior iters
     REAL,              INTENT(INOUT) :: FM2    !sen heat stability correction, weighted by prior iters
     REAL,              INTENT(INOUT) :: FH2    !sen heat stability correction, weighted by prior iters
+    REAL,              INTENT(INOUT) :: FV     !friction velocity (m/s)
 
 ! outputs
-    REAL,                INTENT(OUT) :: FV     !friction velocity (m/s)
     REAL,                INTENT(OUT) :: CM     !drag coefficient for momentum
     REAL,                INTENT(OUT) :: CH     !drag coefficient for heat
     REAL,                INTENT(OUT) :: CH2    !drag coefficient for heat
@@ -2036,7 +2041,7 @@ END IF   ! OPT_GLA == 1
   REAL,                            INTENT(OUT)   :: QSNOW   !snow at ground srf (mm/s) [+]
   REAL,                            INTENT(OUT)   :: PONDING1
   REAL,                            INTENT(OUT)   :: PONDING2
-  REAL,                            INTENT(OUT)   :: QSNBOT  !melting water out of snow bottom [mm/s]
+  REAL,                            INTENT(OUT)   :: QSNBOT  !total liquid water (snowmelt + rain through pack)out of snowpack bottom [mm/s]
   REAL,                            INTENT(OUT)   :: FPICE   !precipitation frozen fraction
 
 ! local
@@ -2204,7 +2209,7 @@ END IF   ! OPT_GLA == 1
   REAL                           , INTENT(INOUT) :: FSH     !total sensible heat (w/m2) [+ to atm]
 
 ! output
-  REAL,                              INTENT(OUT) :: QSNBOT !melting water out of snow bottom [mm/s]
+  REAL,                              INTENT(OUT) :: QSNBOT !total liquid water (snowmelt + rain through pack)out of snowpack bottom [mm/s]
   REAL,                              INTENT(OUT) :: SNOFLOW!glacier flow [mm]
   REAL,                              INTENT(OUT) :: PONDING1
   REAL,                              INTENT(OUT) :: PONDING2
@@ -2255,9 +2260,9 @@ END IF   ! OPT_GLA == 1
 
 !to obtain equilibrium state of snow in glacier region
        
-   IF(SNEQV > 2000.) THEN   ! 2000 mm -> maximum water depth
+   IF(SNEQV > 5000.0) THEN   ! 5000 mm -> maximum water depth
       BDSNOW      = SNICE(0) / DZSNSO(0)
-      SNOFLOW     = (SNEQV - 2000.)
+      SNOFLOW     = (SNEQV - 5000.0)
       SNICE(0)    = SNICE(0)  - SNOFLOW 
       DZSNSO(0)   = DZSNSO(0) - SNOFLOW/BDSNOW
       SNOFLOW     = SNOFLOW / DT
@@ -2829,7 +2834,7 @@ END IF   ! OPT_GLA == 1
 
 ! output
 
-   REAL,                            INTENT(OUT)   :: QSNBOT !melting water out of snow bottom [mm/s]
+   REAL,                            INTENT(OUT)   :: QSNBOT !total liquid water (snowmelt + rain through pack)out of snowpack bottom [mm/s]
 
 ! input and output
 

@@ -37,7 +37,8 @@ contains
    ! * Frozen precipitation water path (from snow, graupel, and hail)
    ! Based heavily on code from Takamichi Iguchi.
    SUBROUTINE cal_tpwtwp(dz8w, rho, qv, ql, qi, qr, qs, qg, qh,       &
-        tpw, lwp, iwp, clwp, rwp, ciwp, fpwp,         &
+      !  tpw, lwp, iwp, clwp, rwp, ciwp, fpwp,         &
+        clwp, rwp, ciwp, fpwp,         &   !AML 6/13/22: omit lwp & iwp
         ids,ide, jds,jde, kds,kde,                    & ! domain dims
         ims,ime, jms,jme, kms,kme,                    & ! memory dims
         its,ite, jts,jte, kts,kte                     ) ! tile   dims
@@ -53,7 +54,8 @@ contains
            INTENT(IN )               :: dz8w, rho,                    &
            qv, ql, qi, qr, qs, qg, qh
       REAL,    DIMENSION( ims:ime , jms:jme ),                            &
-           INTENT(OUT )               :: tpw, lwp, iwp, clwp, rwp, ciwp, fpwp
+           INTENT(OUT )               :: clwp, rwp, ciwp, fpwp    !AML 6/13/22 omit lwp & iwp
+!           INTENT(OUT )               :: tpw, lwp, iwp, clwp, rwp, ciwp, fpwp
       
       ! Local variables
       INTEGER :: i, k, j
@@ -61,9 +63,9 @@ contains
       ! Initialize
       do j = jts,jte
          do i = its,ite
-            tpw(i,j)  = 0.
-            lwp(i,j)  = 0.
-            iwp(i,j)  = 0.
+            !tpw(i,j)  = 0.
+            !lwp(i,j)  = 0.
+            !iwp(i,j)  = 0.
             clwp(i,j) = 0.
             rwp(i,j)  = 0.
             ciwp(i,j) = 0.
@@ -75,11 +77,11 @@ contains
 !         do k = kts, kte
          do k = kts, min(kte-1,kde-2)
             do i = its, min(ite,ide-1)
-               tpw(i,j) = tpw(i,j) + dz8w(i,k,j) * rho(i,k,j) * qv(i,k,j)
-               lwp(i,j) = lwp(i,j) + dz8w(i,k,j) * rho(i,k,j) * &
-                    (ql(i,k,j) + qr(i,k,j))
-               iwp(i,j) = iwp(i,j) + dz8w(i,k,j) * rho(i,k,j) * &
-                    (qi(i,k,j) + qs(i,k,j) + qg(i,k,j) + qh(i,k,j))
+!               tpw(i,j) = tpw(i,j) + dz8w(i,k,j) * rho(i,k,j) * qv(i,k,j)
+!               lwp(i,j) = lwp(i,j) + dz8w(i,k,j) * rho(i,k,j) * &
+!                    (ql(i,k,j) + qr(i,k,j))
+!               iwp(i,j) = iwp(i,j) + dz8w(i,k,j) * rho(i,k,j) * &
+!                    (qi(i,k,j) + qs(i,k,j) + qg(i,k,j) + qh(i,k,j))
                clwp(i,j) = clwp(i,j) + dz8w(i,k,j) * rho(i,k,j) * &
                     (ql(i,k,j))
                rwp(i,j) = rwp(i,j) + dz8w(i,k,j) * rho(i,k,j) * &

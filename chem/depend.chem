@@ -66,7 +66,7 @@ module_uoc_dustwd.o: module_data_uoc_wd.o
 
 module_gocart_seasalt.o: module_data_gocart_seas.o
 
-module_gocart_chem.o: module_data_gocartchem.o module_phot_mad.o
+module_gocart_chem.o: module_data_gocartchem.o module_phot_mad.o module_gocart_nitrate.o
 
 module_gocart_so2so4.o:
 
@@ -364,7 +364,7 @@ emissions_driver.o: module_add_emiss_burn.o module_data_radm2.o module_radm.o mo
 
 dry_dep_driver.o: module_data_radm2.o module_aer_drydep.o module_dep_simple.o module_aerosols_sorgam.o module_aerosols_soa_vbs.o module_aerosols_sorgam_vbs.o module_mosaic_drydep.o module_mixactivate_wrappers.o ../phys/module_mixactivate.o module_cam_mam_drydep.o ../phys/module_data_cam_mam_asect.o ../phys/module_data_cam_mam_aero.o ../phys/module_cam_support.o
 
-module_wetscav_driver.o: module_mosaic_wetscav.o module_aerosols_sorgam.o module_aerosols_sorgam_vbs.o module_mozcart_wetscav.o ../phys/module_data_cam_mam_aero.o module_cam_mam_wetscav.o module_aerosols_soa_vbs.o module_prep_wetscav_sorgam.o
+module_wetscav_driver.o: module_mosaic_wetscav.o module_aerosols_sorgam.o module_aerosols_sorgam_vbs.o module_mozcart_wetscav.o module_gocart_wetscav.o ../phys/module_data_cam_mam_aero.o module_cam_mam_wetscav.o module_aerosols_soa_vbs.o module_prep_wetscav_sorgam.o
 
 module_sorgam_aqchem.o: ../share/module_ctrans_aqchem.o module_data_sorgam.o
  

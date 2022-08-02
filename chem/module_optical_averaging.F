@@ -3548,6 +3548,7 @@ END subroutine optical_prep_modal_soa_vbs
           ims,ime, jms,jme, kms,kme,                                   &
           its,ite, jts,jte, kts,kte                                    )
 !
+! NUWRF: add in NH4 and NO3an1~3 aerosols (ZTao, Mar. 2022)
    USE module_configure
    USE module_model_constants
    USE module_data_sorgam
@@ -3628,6 +3629,7 @@ END subroutine optical_prep_modal_soa_vbs
          vol_api1  , vol_api2  , vol_lim1  , vol_lim2  , vol_h2o  ,  & 
          vol_dust
    real  conv1a, conv1b, conv1sulf
+   real  conv1nh4			!NUWRF
    real  mass_dry_a, mass_wet_a, vol_dry_a , vol_wet_a , vol_shell,  &
          dp_dry_a  , dp_wet_a  , num_a     , dp_bc_a
    real  ifac, jfac, cfac
@@ -3915,12 +3917,17 @@ END subroutine optical_prep_modal_soa_vbs
         conv1b = (1.0/alt(i,k,j)) * 1.0e-6
 ! convert ppmv sulfate (and coincidentally MSA) to g / cc  air
         conv1sulf = (1.0/alt(i,k,j)) * 1.0e-9 * 96./28.97
+! NUWRF: convert ppmv nh4 to g / cc  air
+        conv1nh4 = (1.0/alt(i,k,j)) * 1.0e-9 * 18./28.97
 
 ! Accumulation mode...
 ! SAM 7/18/09 - Put fraction of GOCART sulfate, organic, black carbon masses into modal accumulation mode
+! NUWRF: add in NH4 and NO3 (ZTao, 3/3/2022)
         mass_oinj = (1.-FRAC2Aitken)*chem(i,k,j,p_p25)*conv1a
         mass_so4j= (1.-FRAC2Aitken)*chem(i,k,j,p_sulf)*conv1sulf
-        mass_nh4j= (1.-FRAC2Aitken)*chem(i,k,j,p_sulf)*conv1sulf*(nh4_mfac-1.)
+        mass_nh4j= (1.-FRAC2Aitken)*chem(i,k,j,p_nh4)*conv1nh4         !NUWRF: NO3an2 and NO3an3 are all in accumulation mode
+        mass_no3j = ((1.-FRAC2Aitken)*chem(i,k,j,p_no3an1) +   &
+                     chem(i,k,j,p_no3an2)+chem(i,k,j,p_no3an3))*conv1a 
         mass_aro1j= (1.-FRAC2Aitken)*chem(i,k,j,p_oc1)*conv1a*oc_mfac
         mass_aro2j= (1.-FRAC2Aitken)*chem(i,k,j,p_oc2)*conv1a*oc_mfac
         mass_bc1j= (1.-FRAC2Aitken)*chem(i,k,j,p_bc1)*conv1a
@@ -3931,9 +3938,11 @@ END subroutine optical_prep_modal_soa_vbs
 
 ! Aitken mode...
 ! SAM 7/18/09 - Put fraction of GOCART sulfate, organic, black carbon masses into modal Aitken mode
+! NUWRF: add in NH4 and NO3 (ZTao, 3/3/2022)
         mass_oini = FRAC2Aitken*chem(i,k,j,p_p25)*conv1a
         mass_so4i= FRAC2Aitken*chem(i,k,j,p_sulf)*conv1sulf
-        mass_nh4i= FRAC2Aitken*chem(i,k,j,p_sulf)*conv1sulf*(nh4_mfac-1.)
+        mass_nh4i= FRAC2Aitken*chem(i,k,j,p_nh4)*conv1nh4
+        mass_no3i= FRAC2Aitken*chem(i,k,j,p_no3an1)*conv1a
         mass_aro1i= FRAC2Aitken*chem(i,k,j,p_oc1)*conv1a*oc_mfac
         mass_aro2i= FRAC2Aitken*chem(i,k,j,p_oc2)*conv1a*oc_mfac
         mass_bc1i= FRAC2Aitken*chem(i,k,j,p_bc1)*conv1a
@@ -4697,6 +4706,25 @@ END subroutine optical_prep_modal_soa_vbs
                 endif
           !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+! check for refr and refi outside of lookup table range to prevent unstable extrapolation 'binterp' below
+          if (refr < refrtabsw(1,ns)) then
+             refr = refrtabsw(1,ns)
+             write(*,*), 'Warning: refr is smaller than lookup table range and reset to minimum bound at SW band ', ns
+          endif
+          if (refr > refrtabsw(prefr,ns)) then
+             refr = refrtabsw(prefr,ns)
+             write(*,*), 'Warning: refr is larger than lookup table range and reset to maximum bound at SW band ', ns
+          endif
+          if (refi < refitabsw(1,ns)) then
+             refi = refitabsw(1,ns)
+             write(*,*), 'Warning: refi is smaller than lookup table range and reset to minimum bound at SW band ', ns
+          endif
+          if (refi > refitabsw(prefi,ns)) then
+             refi = refitabsw(prefi,ns)
+             write(*,*), 'Warning: refi is larger than lookup table range and reset to maximum bound at SW band ', ns
+          endif
+
+
 ! interpolate coefficients linear in refractive index
 ! first call calcs itab,jtab,ttab,utab
                   itab=0
@@ -4953,6 +4981,25 @@ END subroutine optical_prep_modal_soa_vbs
                      call peg_error_fatal( lunerr, msg )
                 endif
           !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+
+! check for refr and refi outside of lookup table range to prevent unstable extrapolation 'binterp' below
+          if (refr < refrtablw(1,ns)) then
+             refr = refrtablw(1,ns)
+             write(*,*), 'Warning: refr is smaller than lookup table range and reset to minimum bound at LW band ', ns
+          endif
+          if (refr > refrtablw(prefr,ns)) then
+             refr = refrtablw(prefr,ns)
+             write(*,*), 'Warning: refr is larger than lookup table range and reset to maximum bound at LW band ', ns
+          endif
+          if (refi < refitablw(1,ns)) then    
+             refi = refitablw(1,ns)
+             write(*,*), 'Warning: refi is smaller than lookup table range and reset to minimum bound at LW band ', ns
+          endif
+          if (refi > refitablw(prefi,ns)) then
+             refi = refitablw(prefi,ns)
+             write(*,*), 'Warning: refi is larger than lookup table range and reset to maximum bound at LW band ', ns
+          endif
 
 ! interpolate coefficients linear in refractive index
 ! first call calcs itab,jtab,ttab,utab

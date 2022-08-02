@@ -8,16 +8,17 @@ MODULE GOCART_DUST
   USE module_data_gocart_dust
 
 CONTAINS
-  subroutine gocart_dust_driver(dt,config_flags,alt,t_phy,u_phy,   &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,erod,dustin,           &
+  subroutine gocart_dust_driver(dt,config_flags,alt,t_phy,u_phy,          &
+         v_phy,chem,rho_phy,dz8w,smois,u10,v10,erod,dustin,               &
          ivgtyp,isltyp,vegfra,xland,xlat,xlong,gsw,dx,g,emis_dust,        &
 #ifdef WRF_LIS
          lisPorosity, & ! NUWRF
 #endif
-         ust, ust_t, & ! NUWRF, DEAD scheme
-         ids,ide, jds,jde, kds,kde,                                        &
-         ims,ime, jms,jme, kms,kme,                                        &
-         its,ite, jts,jte, kts,kte                                         )
+         w10m_out, ust, ust_t, & ! NUWRF, DEAD scheme
+         ids,ide, jds,jde, kds,kde,                                       &
+         ims,ime, jms,jme, kms,kme,                                       &
+         its,ite, jts,jte, kts,kte                                        )
+
   USE module_configure
   USE module_state_description
   IMPLICIT NONE
@@ -26,7 +27,6 @@ CONTAINS
    INTEGER,      INTENT(IN   ) :: ids,ide, jds,jde, kds,kde,               &
                                   ims,ime, jms,jme, kms,kme,               &
                                   its,ite, jts,jte, kts,kte
-   
    INTEGER,DIMENSION( ims:ime , jms:jme )                  ,               &
           INTENT(IN   ) ::                                                 &
                                                      ivgtyp,               &
@@ -43,6 +43,8 @@ CONTAINS
           INTENT(INout   ) ::    dustin
    REAL,  DIMENSION( ims:ime , jms:jme )                   ,               &  !NU-WRF DEAD scheme
           INTENT(INout   ) ::   ust_t                                         !registered by uoc 
+   REAL,  DIMENSION( ims:ime , jms:jme )                   ,               &  !dkim6
+          INTENT(INout   ) ::   w10m_out                                      !
    REAL,  DIMENSION( ims:ime , jms:jme )                   ,               &
           INTENT(IN   ) ::                                                 &
                                                      u10,                  &
@@ -60,9 +62,8 @@ CONTAINS
                                                      dz8w,                 &
                                               u_phy,v_phy,rho_phy
  
-
   REAL, INTENT(IN   ) :: dt, g
-  REAL, INTENT(IN   ) :: dx  ! DEAD scheme
+  REAL, INTENT(IN   ) :: dx  ! NUWRF DEAD scheme
 #ifdef WRF_LIS
   ! NU-WRF from LIS
   real, intent(in) :: lisPorosity(ims:ime,jms:jme)
@@ -95,6 +96,9 @@ CONTAINS
   k=kts
   DO j=jts,jte 
   DO i=its,ite
+
+     !w10m_out(i,j)=w10m(1,1)
+     w10m_out(i,j)=sqrt(u10(i,j)*u10(i,j)+v10(i,j)*v10(i,j)) 
 
 ! no dust over water!!!
 !
@@ -146,7 +150,9 @@ CONTAINS
      my_smois(1,1)=smois(i,1,j)
      my_ust(1,1)=ust(i,j)
 
-     gwet(1,1)=smois(i,1,j)/porosity(isltyp(i,j))
+
+     !dkim6, gwet is double counting, commenting out
+     !gwet(1,1)=smois(i,1,j)/porosity(isltyp(i,j))
      airden(1,1)=rho_phy(i,kts,j)
 
      dxy(1)=dx*dx
@@ -167,20 +173,19 @@ CONTAINS
 !    tc(4)  =  1.000000000000000d-030
 !    tc(5)  =  1.000000000000000d-030
 !    dttt=3600.
-  !dkim6, gocart_dustemiss_scheme (1:GOCART, 2:DEAD) 
-  if (config_flags%gocart_dustemiss_scheme == 1 ) then
-
      dz_lowest = dz8w(i,1,j)
+  !dkim6, gocart_dustemiss_scheme (1:GOCART, 2:DEAD) 
+  if (config_flags%gocart_dustemiss_scheme == 1 ) then  ! assumes NUWRF 
 
-    call source_du( imx,jmx,lmx,nmx, dt, tc, &
-                     erodin, ilwi, dxy, w10m, gwet, airden, airmas, &
+    call source_du_nuwrf( imx,jmx,lmx,nmx, dt, tc, &
+                     erodin, ilwi, w10m, gwet, airden, airmas, &
                      dz_lowest, bems,config_flags%start_month,g, &
                      config_flags%gocart_dustemiss_gwetthresh, &
                      config_flags%gocart_dustemiss_resfactor)
   else if (config_flags%gocart_dustemiss_scheme == 2 ) then 
     call source_du_dead( imx,jmx,lmx,nmx, dt, tc, &
                      erodin, ilwi, dxy, w10m, gwet, airden, airmas, &
-                     bems,config_flags%start_month,g, &
+                     dz_lowest, bems,config_flags%start_month,g, &
                      my_ust, my_ust_t, my_smois, my_porosity, &
                      config_flags%gocart_dustemiss_gwetthresh, &
                      config_flags%gocart_dustemiss_resfactor)
@@ -219,11 +224,11 @@ CONTAINS
 
 ! NU-WRF:  Output this, but make sure optional variable is available.
      if (present(emis_dust)) then
-        emis_dust(i,1,j,p_edust1)=bems(1)
-        emis_dust(i,1,j,p_edust2)=bems(2)
-        emis_dust(i,1,j,p_edust3)=bems(3)
-        emis_dust(i,1,j,p_edust4)=bems(4)
-        emis_dust(i,1,j,p_edust5)=bems(5)
+        !emis_dust(i,1,j,p_edust1)=bems(1)
+        !emis_dust(i,1,j,p_edust2)=bems(2)
+        !emis_dust(i,1,j,p_edust3)=bems(3)
+        !emis_dust(i,1,j,p_edust4)=bems(4)
+        !emis_dust(i,1,j,p_edust5)=bems(5)
         ust_t(i,j)=my_ust_t
      end if
 
@@ -244,12 +249,10 @@ CONTAINS
 
 end subroutine gocart_dust_driver
 
-  
+! used by module_mosaic_addemiss
   SUBROUTINE source_du( imx,jmx,lmx,nmx, dt1, tc, &
-                     erod, ilwi, dxy, w10m, gwet, airden, airmas, &
-                     dz_lowest, bems,month,g0, &
-                     gocart_dustemiss_gwetthresh,gocart_dustemiss_resfactor)
-                     ! NU-WRF:  Added dust emission tuning factors
+                     erod, ilwi, w10m, gwet, airden, &
+                     dz_lowest,bems,month,g0)
 
 ! ****************************************************************************
 ! *  Evaluate the source of each dust particles size classes  (kg/m3)        
@@ -273,10 +276,95 @@ end subroutine gocart_dust_driver
 ! *
 ! ****************************************************************************
 
+  INTEGER,   INTENT(IN)    :: nmx,imx,jmx,lmx
+  REAL*8,    INTENT(IN)    :: erod(imx,jmx,ndcls,ndsrc)
+  INTEGER,   INTENT(IN)    :: ilwi(imx,jmx),month
 
-! USE module_data_gocart
-! USE module_data_gocart_dust
+  REAL*8,    INTENT(IN)    :: w10m(imx,jmx), gwet(imx,jmx)
+  REAL*8,    INTENT(IN)    :: airden(imx,jmx,lmx)
+  REAL*8,    INTENT(INOUT) :: tc(imx,jmx,lmx,nmx)
+  REAL*8,    INTENT(OUT)   :: bems(imx,jmx,nmx) 
+  REAL,      INTENT(IN  )  :: dz_lowest
 
+  REAL*8    :: den(nmx), diam(nmx)
+  REAL*8    :: u_ts0, u_ts, dsrc, srce
+  REAL, intent(in)    :: g0
+  REAL    :: rhoa, g,dt1
+  INTEGER :: i, j, n, m, k
+
+  ! executable statemenst
+
+  DO n = 1, nmx
+     ! Threshold velocity as a function of the dust density and the diameter
+     ! from Bagnold (1941)
+     den(n) = den_dust(n)*1.0D-3
+     diam(n) = 2.0*reff_dust(n)*1.0D2
+     g = g0*1.0E2
+     ! Pointer to the 3 classes considered in the source data files
+     m = ipoint(n)
+     DO k = 1, ndsrc
+        ! No flux if wet soil 
+        DO i = 1,imx
+           DO j = 1,jmx
+              rhoa = airden(i,j,1)*1.0D-3
+              u_ts0 = 0.13*1.0D-2*SQRT(den(n)*g*diam(n)/rhoa)* &
+                   SQRT(1.0+0.006/den(n)/g/(diam(n))**2.5)/ &
+                   SQRT(1.928*(1331.0*(diam(n))**1.56+0.38)**0.092-1.0) 
+!             write(0,*)u_ts0,den(n),diam(n),rhoa,g
+              
+              ! Case of surface dry enough to erode
+              IF (gwet(i,j) < 0.5) THEN  
+                 u_ts = MAX(0.0D+0,u_ts0*(1.2D+0+2.0D-1*LOG10(MAX(1.0D-3, gwet(i,j)))))
+              ELSE
+                 ! Case of wet surface, no erosion
+                 u_ts = 100.0
+              END IF
+              srce = frac_s(n)*erod(i,j,m,k)   ! (kg s^2 m^-5)
+              IF (ilwi(i,j) == 1 ) THEN
+                                    !(kg s^2 m^-5)*(m^3 s^-3)*s = (kg/m2) per dt1
+                 dsrc = ch_dust(n,month)*srce*w10m(i,j)**2 * (w10m(i,j) - u_ts)*dt1 
+              ELSE 
+                 dsrc = 0.0
+              END IF
+              IF (dsrc < 0.0) dsrc = 0.0
+              
+              ! Update dust mixing ratio at first model level.
+              tc(i,j,1,n) = tc(i,j,1,n) + dsrc/dz_lowest/airden(i,j,1)  ! (kg/kg)
+              bems(i,j,n) = dsrc                     ! diagnostic (kg/m2) per dt1
+           END DO
+        END DO
+     END DO
+  END DO
+  
+  END SUBROUTINE source_du
+  
+  SUBROUTINE source_du_nuwrf( imx, jmx,lmx, nmx, dt1, tc, &
+                     erod, ilwi, w10m, gwet, airden, airmas, &
+                     dz_lowest, bems,month, g0, &
+                     gocart_dustemiss_gwetthresh, gocart_dustemiss_resfactor)
+                     ! NU-WRF:  Added dust emission tuning factors
+
+! ****************************************************************************
+! *  Evaluate the source of each dust particles size classes  (kg/m3)        
+! *  by soil emission.
+! *  Input:
+! *         EROD      Fraction of erodible grid cell                (-)
+! *                   for 1: Sand, 2: Silt, 3: Clay
+! *         AIRVOL    Volume occupy by each grid boxes              (m3)
+! *         DT1       Time step                                      (s)
+! *         W10m      Velocity at the anemometer level (10meters)   (m/s)
+! *         u_tresh   Threshold velocity for particule uplifting    (m/s)
+! *         CH_dust   Constant to fudge the total emission of dust  (s2/m2)
+! *         dz_lowest heigth of the lowest layer                     (m)
+! *      
+! *  Output:
+! *         DSRC      Source of each dust type           (kg/timestep/m2)
+! *         BEMS      Source of each dust type           (kg/timestep/m2)
+! *
+! *  Working:
+! *         SRC       Potential source                   (kg/m/timestep/cell)
+! *
+! ****************************************************************************
   use module_wrf_error, only:  wrf_err_message
   
   INTEGER,   INTENT(IN)    :: nmx,imx,jmx,lmx
@@ -284,7 +372,6 @@ end subroutine gocart_dust_driver
   INTEGER,   INTENT(IN)    :: ilwi(imx,jmx),month
 
   REAL*8,    INTENT(IN)    :: w10m(imx,jmx), gwet(imx,jmx)
-  REAL*8,    INTENT(IN)    :: dxy(jmx)
   REAL*8,    INTENT(IN)    :: airden(imx,jmx,lmx), airmas(imx,jmx,lmx)
   REAL*8,    INTENT(INOUT) :: tc(imx,jmx,lmx,nmx)
   REAL*8,    INTENT(OUT)   :: bems(imx,jmx,nmx) 
@@ -331,12 +418,10 @@ end subroutine gocart_dust_driver
               u_ts0 = 0.13*1.0D-2*SQRT(den(n)*g*diam(n)/rhoa)* &
                    SQRT(1.0+0.006/den(n)/g/(diam(n))**2.5)/ &
                    SQRT(1.928*(1331.0*(diam(n))**1.56+0.38)**0.092-1.0) 
-!             write(0,*)u_ts0,den(n),diam(n),rhoa,g
               
               ! Case of surface dry enough to erode
               ! NU-WRF:  User-defined threshold from namelist
               IF (gwet(i,j) < gocart_dustemiss_gwetthresh) THEN
-!              IF (gwet(i,j) < 0.5) THEN  
                  u_ts = MAX(0.0D+0,u_ts0*(1.2D+0+2.0D-1*LOG10(MAX(1.0D-3, gwet(i,j)))))
               ELSE
                  ! Case of wet surface, no erosion
@@ -353,25 +438,18 @@ end subroutine gocart_dust_driver
               
               ! Update dust mixing ratio at first model level.
               ! NU-WRF:  User defined factor
-!              tc(i,j,1,n) = tc(i,j,1,n) + .2*dsrc / airmas(i,j,1)
-!              bems(i,j,n) = .2*dsrc
-              tc(i,j,1,n) = tc(i,j,1,n) + &
-                   gocart_dustemiss_resfactor*dsrc / airmas(i,j,1)
+              tc(i,j,1,n) = tc(i,j,1,n) + gocart_dustemiss_resfactor*dsrc / airmas(i,j,1)
               bems(i,j,n) = gocart_dustemiss_resfactor*dsrc
-
-!              tc(i,j,1,n) = tc(i,j,1,n) + dsrc/dz_lowest/airden(i,j,1)  ! (kg/kg)  ! CC: v4.3
-!              bems(i,j,n) = dsrc                     ! diagnostic (kg/m2) per dt1  ! CC: v4.3
-
            END DO
         END DO
      END DO
   END DO
   
-END SUBROUTINE source_du
+  END SUBROUTINE source_du_nuwrf
 
   SUBROUTINE source_du_dead( imx,jmx,lmx,nmx, dt1, tc, &
                      erod, ilwi, dxy, w10m, gwet, airden, airmas, &
-                     bems,month,g0, &
+                     dz_lowest, bems,month,g0, &
                      my_ust, my_ust_t, my_smois, my_porosity, &
                      gocart_dustemiss_gwetthresh,gocart_dustemiss_resfactor)
 ! ****************************************************************************
@@ -396,6 +474,7 @@ END SUBROUTINE source_du
   REAL*8,    INTENT(IN)    :: airden(imx,jmx,lmx), airmas(imx,jmx,lmx)
   REAL*8,    INTENT(INOUT) :: tc(imx,jmx,lmx,nmx)
   REAL*8,    INTENT(OUT)   :: bems(imx,jmx,nmx)
+  REAL,      INTENT(IN  )  :: dz_lowest
   REAL :: my_ust_t
 
   ! NU-WRF:  Added tunable dust emission factors
@@ -522,7 +601,8 @@ END SUBROUTINE source_du
               u_thresh_drag_water = u_thresh_drag*fw
 
               !  output final threshold friction velocity (ust_t)
-              my_ust_t = u_thresh_drag_water
+              !my_ust_t = u_thresh_drag_water
+              my_ust_t = max(0.4, u_thresh_drag_water)
 
               !  Modify friction velocity for Owen Effect
               !  Assumption of stable atmospheric profile to go from saltation
@@ -558,12 +638,16 @@ END SUBROUTINE source_du
                 vert_flux = 0.
               ENDIF
 
-              srce = frac_s_dead(n)*erod(i,j,m,k)*dxy(j)  ! (m2)
+              !srce = frac_s_dead(n)*erod(i,j,m,k)*dxy(j)  ! (m2)
+              srce = frac_s_dead(n)*erod(i,j,m,k)          ! (kg s^2 m^-5) 
               IF (ilwi(i,j) == 1 ) THEN
                  !dsrc = ch_dust(n,month)*srce*w10m(i,j)**2 &           [GOCART]
                  !     * (w10m(i,j) - u_ts)*dt1  ! (kg)
-                 dsrc = ch_dust(n,month)*srce*vert_flux*dt1 ! (kg)      [DEAD]
-                 dsrc = dsrc*scheme_factor                  ! (kg)      [DEAD]
+                 !dsrc = ch_dust(n,month)*srce*vert_flux*dt1 ! (kg)      [DEAD]
+                 !dsrc = dsrc*scheme_factor                  ! (kg)      [DEAD]
+                                    !(kg s^2 m^-5)*(m^3 s^-3)*s = (kg/m2) per dt1
+                 dsrc = ch_dust(n,month)*srce*vert_flux*dt1 ! [DEAD]
+                 dsrc = dsrc*scheme_factor                  ! [DEAD]
                  !print*, 'dsrc ',ch_dust(n,month),srce,vert_flux,dt1
               ELSE
                  dsrc = 0.0
@@ -572,7 +656,8 @@ END SUBROUTINE source_du
 
               ! Update dust mixing ratio at first model level.
               tc(i,j,1,n) = tc(i,j,1,n) + &
-                   gocart_dustemiss_resfactor*dsrc / airmas(i,j,1)
+                   !gocart_dustemiss_resfactor*dsrc / airmas(i,j,1)
+                   gocart_dustemiss_resfactor*dsrc/dz_lowest/airden(i,j,1)  ! (kg/kg)
               bems(i,j,n) = gocart_dustemiss_resfactor*dsrc
               !print*, 'bems ',dsrc,gocart_dustemiss_resfactor,bems(i,j,n)
 

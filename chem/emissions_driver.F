@@ -75,7 +75,7 @@ CONTAINS
          vprm_in,rad_vprm,lambda_vprm,alpha_vprm,resp_vprm,               &
          xtime,tslb,wet_in,rainc,rainnc,potevp,sfcevp,lu_index,            &
          biomt_par,emit_par,ebio_co2oce,eghg_bio,                          &
-         dust_flux, seas_flux,                                             &
+         seas_flux,                                                        &
 #ifdef WRF_LIS
          lisPorosity,                                                      &
 #endif
@@ -86,6 +86,8 @@ CONTAINS
          bareness_dyn_climo,                                               &
 !NUWRF EMK...New dynamic bareness for dynamic EROD
          bareness_dyn,topodep,                                             &
+!dkim6, output w10m_out
+         w10m_out,                                                         &
          julyr,                                                            &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
@@ -272,6 +274,7 @@ CONTAINS
                
    REAL,  DIMENSION( ims:ime , jms:jme ) , OPTIONAL  ,                 &
           INTENT(INOUT) ::                                    ust_t,   & 
+                                                           w10m_out,   &
                                                           rough_cor,   &
                                                           smois_cor          
 ! dust source area information from WPS        
@@ -341,7 +344,7 @@ CONTAINS
       REAL, DIMENSION(ims:ime, 8, jms:jme, num_vprm_in), INTENT(IN)     ::  vprm_in
       REAL, DIMENSION(ims:ime, 1,jms:jme, num_eghg_bio), INTENT(INOUT ) ::  eghg_bio
 
-      REAL, DIMENSION(ims:ime, jms:jme), INTENT(OUT)   :: dust_flux, seas_flux
+      REAL, DIMENSION(ims:ime, jms:jme), INTENT(OUT)   :: seas_flux
 ! CO2
       REAL, DIMENSION(8) :: rad_vprm,lambda_vprm,alpha_vprm,resp_vprm
 ! CH4
@@ -376,15 +379,18 @@ CONTAINS
      REAL, DIMENSION( ims:ime,          jms:jme ),           INTENT(IN   ) :: ht, ic_flashrate, cg_flashrate
      REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),           INTENT(IN   ) :: refl_10cm
 ! end stuff for lightning NOx
+
+! NUWRF for updated SOA scheme (ZTao)
+     REAL, PARAMETER  ::  mw_co = 28.0       !molecular weight
+     REAL, PARAMETER  ::  mw_voc = 150.0     !molecular weight
+
 !
 ! Local variables...
 !
-      INTEGER :: begday,endday,i, j, k, ksub, dust_emiss_active, seasalt_emiss_active,emiss_ash_hgt
-      REAL :: conv,conv3,conv4,oconv3,oconv4, conv_rho_aer
-!      INTEGER :: begday,endday,i, j, k, m, p_in_chem, ksub, dust_emiss_active, seasalt_emiss_active,emiss_ash_hgt ! CC: v4.3
-!      REAL :: conv,conv3,conv4,oconv3,oconv4 ! CC: v4.3
+      INTEGER :: begday,endday,i, j, k, m, p_in_chem, ksub, dust_emiss_active, seasalt_emiss_active,emiss_ash_hgt
+      REAL :: conv,conv3,conv4,oconv3,oconv4,conv_rho_aer
 #if( WRF_USE_CLM == 1)
-      REAL :: convert2(its:ite,jts:jte) ! CC: v4.3
+      REAL :: convert2(its:ite,jts:jte)
 #endif
 
       CHARACTER (LEN=80) :: message
@@ -414,6 +420,7 @@ CONTAINS
         ! julyr,julday, &
          julyr,julday,curr_hours, &               !dkim6
          config_flags%gocart_dustemiss_suppress, & !dkim6
+         xlong,xlat, &                             !dkim6 
          tslb, &
          tsk,snowh,current_month, &
          bareness_dyn, topodep, ivgtyp, &
@@ -797,17 +804,16 @@ CONTAINS
 #ifdef WRF_LIS      
          lisPorosity, & ! NU-WRF
 #endif
-         ust, ust_t, & ! NU-WRF, DEAD scheme
+         w10m_out, ust, ust_t, & ! NU-WRF, DEAD scheme
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
       CASE (DUSTGOCARTAFWA)
         CALL wrf_debug(15,'AFWA modified Gocart dust emissions')
-
-        call gocart_dust_afwa_driver(ktau,dtstep,config_flags,julday,alt,t_phy,moist,u_phy,  &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod_tmp,erod_dri,dustin,snowh,zs,   &
-         ivgtyp,isltyp,vegfra,lai_vegmask,xland,xlat,xlong,gsw,dx,g,emis_dust,      &
-         ust,znt,clayfrac,sandfrac,clayfrac_nga,sandfrac_nga,afwa_dustloft,         &!EDH
+        call gocart_dust_afwa_driver(dtstep,config_flags,alt,             &
+         chem,rho_phy,smois,u10,v10,dz8w,erod_tmp,erod_dri,dustin,snowh,      &
+         isltyp,vegfra,lai_vegmask,xland,g,emis_dust,                     &
+         ust,znt,clayfrac,sandfrac,clayfrac_nga,sandfrac_nga,afwa_dustloft,&!EDH
          tot_dust,tot_edust,vis_dust,dust_alpha,dust_gamma,dust_smtune,dust_ustune, &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
@@ -879,6 +885,27 @@ CONTAINS
             num_chem,ids,ide, jds,jde, kds,kde,                                   &
             ims,ime, jms,jme, kms,kme,                                   &
             its,ite, jts,jte, kts,kte                                    )
+!
+! NUWRF:
+! Add SOA formation from fire(B) and anthropogenic(A) VOC emissions.
+! Anthrop. and biomass burning VOC emissions (AVOC and BVOC) are scaled to
+!  the repective CO emissions (Kim et al. ACP, 10411-10433, 2015):
+!    AVOC(g) = 0.069*AEMIS(CO); BVOC(g) = 0.013*BEMIS(CO)
+! Only apply to GOCART related chem_opt (ZTao)
+!
+       if(config_flags%chem_opt .eq. GOCART_SIMPLE .or. config_flags%chem_opt .eq.   &
+            GOCARTRADM2 .or. config_flags%chem_opt .eq. GOCARTRACM_KPP) then
+         do j = jts, jte
+           do k = kts, kte
+             do i = its, ite
+! g/km^2/hr to ppmv: 0.02897 (mw_air)/3600 (s/hr) = 8.047e-6
+               chem(i,k,j,p_abbvoc)  = chem(i,k,j,p_abbvoc) + 0.013*ebu(i,k,j,p_ebu_co)*mw_co*              &
+                  8.047e-6*dtstep/(rho_phy(i,k,j)*dz8w(i,k,j)*mw_voc)
+             end do
+           end do
+         end do
+       end if 
+
      CASE DEFAULT 
        CALL wrf_debug(15,'no biomass burning')
     END SELECT fire_select
@@ -926,19 +953,25 @@ CONTAINS
 ! NUWRF added by Z. Tao to convert monoterpene emissions (moles/km^2-hr) to SOA for GOCART 
 !	assuming 10% is converted into SOA and the remaining 90% goes to gas phase 
 !	the unit of SOA is ug C/kg-dryair
-! 	MW of monoterpene is 120 gC/mole
 !
+! by Z. Tao: in consistent with GEOS-5 implementation, assuming 3% isoprene and 
+!            5% monoterpene (mol/km^2-hr) form GOCART SOA (ug-C/kg-dryair), 
+!            and the balances go to gas phase (Nov 2021)
+! 	MW of monoterpene is 120 gC/mole, isoprene is 60 gC/mol
 	apply2gocart_beis3: SELECT CASE(config_flags%chem_opt)
 	  CASE (GOCARTRACM_KPP,GOCARTRADM2,GOCART_SIMPLE)
             if (config_flags%bio_emiss_soa == 1) then ! EMK
                do j=jts,jte  
                   do i=its,ite  
                      ! EMK NUWRF...Changed p_oc1 to p_oc2 per Z. Tao
-                     chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2) +			&
-                          0.1*(ebio_api(i,j) + ebio_lim(i,j))*120.*stepbioe*      &
-                          dtstep/(3600.*rho_phy(i,kts,j)*dz8w(i,kts,j))
-                     ebio_api(i,j) = 0.9 * ebio_api(i,j)
-                     ebio_lim(i,j) = 0.9 * ebio_lim(i,j)
+                     chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2) +                  &
+                          0.05*(ebio_api(i,j) + ebio_lim(i,j))*120.*stepbioe*      &
+                          dtstep/(3600.*rho_phy(i,kts,j)*dz8w(i,kts,j)) +          &
+                          0.03*ebio_iso(i,j)*60.*stepbioe*dtstep/                  &
+                          (3600.*rho_phy(i,kts,j)*dz8w(i,kts,j)) 
+                     ebio_api(i,j) = 0.95 * ebio_api(i,j)
+                     ebio_lim(i,j) = 0.95 * ebio_lim(i,j)
+                     ebio_iso(i,j) = 0.97 * ebio_iso(i,j)
                   end do
                end do
             end if
@@ -1044,17 +1077,24 @@ CONTAINS
 !     into CBMZ/MOSAIC.
 ! NUWRF added by Z. Tao to convert offline monoterpene emissions (moles/km^2-hr) 
 ! to SOA for GOCART assuming 10% is converted into SOA 
+!
+! by Z. Tao: in consistent with GEOS-5 implementation, assuming 3% isoprene and 
+!            5% monoterpene (mol/km^2-hr) form GOCART SOA (ug-C/kg-dryair), 
+!            and the balances go to gas phase (Nov 2021)
+!
 !	the unit of SOA is ug C/kg-dryair
-! 	MW of monoterpene is 120 gC/mole
+! 	MW of monoterpene is 120 gC/mole, isoprene is 60 gC/mole 
 !
 	apply2gocart: SELECT CASE(config_flags%chem_opt)
 	  CASE (GOCARTRACM_KPP,GOCARTRADM2,GOCART_SIMPLE)
             if (config_flags%bio_emiss_soa == 1) then ! EMK
                do j=jts,jte  
                   do i=its,ite  
-                     ! EMK NUWRF...Changed p_oc1 to p_oc2 per Z. Tao
+                     ! EMK NUWRF...Changed p_oc1 to p_oc2 per Z. Tao (for ecptec emiss_opt = 5)
                      chem(i,kts,j,p_oc2)  = chem(i,kts,j,p_oc2) +			&
-                          0.1*emis_ant(i,kts,j,p_e_terp)*120.*  		        &
+                          0.05*emis_ant(i,kts,j,p_e_terp)*120.*  			& 
+                          dtstep/(3600.*rho_phy(i,kts,j)*dz8w(i,kts,j)) +		&
+                          0.03*emis_ant(i,kts,j,p_e_iso)*60.*				& 
                           dtstep/(3600.*rho_phy(i,kts,j)*dz8w(i,kts,j))
                   end do
                end do
@@ -1085,6 +1125,8 @@ CONTAINS
             ims,ime, jms,jme, kms,kme,                                  &
             its,ite, jts,jte, kts,kte                                   )
        call wrf_debug(15,'emissions_driver calling add_biogenics')
+       ! Do NOT call add_biogenics if using MEGAN v2.04 biogenic emissions
+       ! module
        call add_biogenics(id,dtstep,dz8w,config_flags, rho_phy,chem,    &
             e_bio,ne_area,                                              &
             ebio_iso,ebio_oli,ebio_api,ebio_lim,ebio_xyl,               &
@@ -1536,6 +1578,24 @@ CONTAINS
             ids,ide, jds,jde, kds,kde,                                  &
             ims,ime, jms,jme, kms,kme,                                  &
             its,ite, jts,jte, kts,kte                                   )
+
+! NUWRF:
+! Add SOA formation from fire(B) and anthropogenic(A) VOC emissions.
+! Anthrop. and biomass burning VOC emissions (AVOC and BVOC) are scaled to
+!  the repective CO emissions (Kim et al. ACP, 10411-10433, 2015):
+!    AVOC(g) = 0.069*AEMIS(CO); BVOC(g) = 0.013*BEMIS(CO)
+! Only apply to GOCART related chem_opt (ZTao)
+!
+         do j = jts, jte
+           do k = kts, min(config_flags%kemit,kte)
+             do i = its, ite
+! g/km^2/hr to ppmv: 0.02897 (mw_air)/3600 (s/hr) = 8.047e-6
+               chem(i,k,j,p_abbvoc)  = chem(i,k,j,p_abbvoc) + 0.069*emis_ant(i,k,j,p_e_co)*mw_co*              &
+                  8.047e-6*dtstep/(rho_phy(i,k,j)*dz8w(i,k,j)*mw_voc)
+             end do
+           end do
+         end do
+
        call wrf_debug(15,'emissions_driver calling add_biogenics')
        ! Do NOT call add_biogenics if using MEGAN v2.04 biogenic emissions
        ! module
@@ -1558,15 +1618,43 @@ CONTAINS
 !  only add gas phase species here - SO2 only for the case  by Z. Tao (April 2021)
 !   aerosol species added in aer_addemiss_select block
 !
-       do j=jts,jte  
-          do i=its,ite  
-             do k=kts,min(config_flags%kemit,kte-ksub)
+! NUWRF: add CO and NH3 emissions for the updated GOCART scheme by ZTao (Dec 2021)
+!
+       do j=jts,jte
+          do k=kts,min(config_flags%kemit,kte-ksub)
+             do i=its,ite
                 conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
                 chem(i,k,j,p_so2)  = chem(i,k,j,p_so2)                   &
                      +emis_ant(i,k,j,p_e_so2)*conv
+                chem(i,k,j,p_co)  = chem(i,k,j,p_co)                     &
+                     +emis_ant(i,k,j,p_e_co)*conv
+                chem(i,k,j,p_nh3)  = chem(i,k,j,p_nh3)                   &
+                     +emis_ant(i,k,j,p_e_nh3)*conv
              end do
           end do
        end do
+
+! NUWRF: abbvoc is used to form SOA out of biomass burning and anthropogenic sources
+         do j = jts, jte
+           do k = kts, min(config_flags%kemit,kte-ksub)
+             do i = its, ite
+! g/km^2/hr to ppmv: 0.02897 (mw_air)/3600 (s/hr) = 8.047e-6
+               chem(i,k,j,p_abbvoc)  = chem(i,k,j,p_abbvoc) + 0.069*emis_ant(i,k,j,p_e_co)*mw_co*              &
+                  8.047e-6*dtstep/(rho_phy(i,k,j)*dz8w(i,k,j)*mw_voc)
+             end do
+           end do
+         end do
+
+       call wrf_debug(15,'emissions_driver calling add_biogenics')
+       call add_biogenics(id,dtstep,dz8w,config_flags,rho_phy,chem,     &
+            e_bio,ne_area,                                              &
+            ebio_iso,ebio_oli,ebio_api,ebio_lim,ebio_xyl,               &
+            ebio_hc3,ebio_ete,ebio_olt,ebio_ket,ebio_ald,               &
+            ebio_hcho,ebio_eth,ebio_ora2,ebio_co,ebio_nr,ebio_no,       &
+            ebio_sesq,ebio_mbo,                                         &
+            ids,ide, jds,jde, kds,kde,                                  &
+            ims,ime, jms,jme, kms,kme,                                  &
+            its,ite, jts,jte, kts,kte                                   )
 
     CASE DEFAULT
        call wrf_debug(15,'emissions_driver NOT CALLING gas add_... routines')
@@ -1655,9 +1743,9 @@ CONTAINS
             config_flags, chem, slai, ust, smois, ivgtyp, isltyp,        &
             emis_ant,ebu,config_flags%biomass_burn_opt,                  &
             config_flags%dust_opt,                                       &
-            ktau,p8w,u_phy,v_phy,rho_phy,g,dx,erod_tmp,                  &
+            ktau,u_phy,v_phy,rho_phy,g,dx,erod_tmp,                      & ! NUWRF erod_tmp
             dust_emiss_active, seasalt_emiss_active,                     &
-            dust_flux, seas_flux,                                        &
+            seas_flux,emis_dust,                                         &
             ids,ide, jds,jde, kds,kde,                                   &
             ims,ime, jms,jme, kms,kme,                                   &
             its,ite, jts,jte, kts,kte                                    )
@@ -1692,8 +1780,9 @@ CONTAINS
                 chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
                      +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*conv_rho_aer
                 chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
-                     +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i) &
-                     + emis_ant(i,k,j,p_e_no3j)+emis_ant(i,k,j,p_e_no3i))*conv_rho_aer
+                     +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i))*conv_rho_aer
+                chem(i,k,j,p_no3an1)  = chem(i,k,j,p_no3an1)+emis_ant(i,k,j,p_e_no3i)*conv_rho_aer  !NUWRF, added by ZTao (Mar. 2022)
+                chem(i,k,j,p_no3an2)  = chem(i,k,j,p_no3an2)+emis_ant(i,k,j,p_e_no3j)*conv_rho_aer
 ! unit for sulf is ppmv
                 chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   &
                      +(emis_ant(i,k,j,p_e_so4i)+emis_ant(i,k,j,p_e_so4j))*dtstep/dz8w(i,k,j)*mwdry/mw_so4_aer*1.e-3
@@ -1802,8 +1891,9 @@ CONTAINS
 !         erod_dyn_climo_sand,erod_dyn_climo_silt,erod_dyn_climo_clay, &
          bareness_dyn_climo, &
          !current_julyr,current_julday, &
-         current_julyr,current_julday,curr_hours, &   !dkim6
-         gocart_dustemiss_suppress, &                  !dkim6
+         current_julyr,current_julday,curr_hours, &    !NUWRF dkim6
+         gocart_dustemiss_suppress, &                  !NUWRF dkim6
+         xlong,xlat,                &                  !NUWRF dkim6
          tslb, &
          tsk,snowh,current_month, &
          bareness_dyn,topodep,ivgtyp, &
@@ -1831,8 +1921,10 @@ CONTAINS
 
        integer, intent(in) :: current_julyr
        integer, intent(in) :: current_julday
-       integer, intent(in) :: curr_hours                    !dkim6
-       integer, intent(in) :: gocart_dustemiss_suppress      !dkim6
+       integer, intent(in) :: curr_hours                    !NUWRF dkim6
+       integer, intent(in) :: gocart_dustemiss_suppress     !dkim6
+       real, intent(in) :: xlong(ims:ime,jms:jme)           !dkim6
+       real, intent(in) :: xlat(ims:ime,jms:jme)            !dkim6
        real, intent(in) :: tslb(ims:ime,num_soil_layers,jms:jme) ! EMK
        real,intent(in) :: tsk(ims:ime,jms:jme)
        real,intent(in) :: snowh(ims:ime,jms:jme)

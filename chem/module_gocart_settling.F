@@ -6,6 +6,10 @@ MODULE MODULE_GOCART_SETTLING
 !
 ! 11/29/18 - A. Ukhov, bug fix: dust (and sea salt) mass balance was
 ! violated in the "settling" routine 
+!
+! NUWRF: Dec 2021 - ZTao
+!   Add in subroutines to consider settling of sulf, NH4 and NO3 aerosols
+!   The code was adapted from the relevant components of GEOS-5  
 
 CONTAINS
 
@@ -52,6 +56,19 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
   REAL*8, DIMENSION (1,1,kte-kts+1)   :: tmp,airden,p_mid,delz,rh
   REAL*8, DIMENSION (1,1,kte-kts+1,5) :: ddust
   REAL*8, DIMENSION (1,1,kte-kts+1,4) :: sea_salt
+
+!NUWRF added variables
+  INTEGER         :: iflag                                          !iflag used for control particle swelling
+  REAL, PARAMETER :: reff_sulf = 0.2659e-6, reff_nh4 = 0.2659e-6    !effective dry particle radium (m)
+  REAL, PARAMETER :: reff_no3an1 = 0.2659e-6, reff_no3an2 = 2.1e-6
+  REAL, PARAMETER :: reff_no3an3 = 7.57e-6
+
+  REAL, PARAMETER :: rho_sulf = 1769., rho_nh4 = 1769.        !dry particle density (kg/m^3)
+  REAL, PARAMETER :: rho_no3an1 = 1725., rho_no3an2 = 2200.
+  REAL, PARAMETER :: rho_no3an3 = 2650.
+
+  REAL, PARAMETER :: mwso4 = 96.06, mwnh4 = 18.04, mwair = 28.97  !molecular weight (g/mol)
+  REAL*8, DIMENSION(1,1,kte-kts+1) :: tc_species, delzz
   
   INTEGER :: uoc_flag  ! flag for UoC dust schemes 
 !
@@ -155,11 +172,11 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
 !
 ! gravitional settling in [ug/m2/s]; from settling, graset_dust in [ug/kg][m/s]
 !
-       dustgraset_1(i,j)=graset_dust(1,1,1)*airden(1,1,1)*(-1.d0)
-       dustgraset_2(i,j)=graset_dust(1,1,2)*airden(1,1,1)*(-1.d0)
-       dustgraset_3(i,j)=graset_dust(1,1,3)*airden(1,1,1)*(-1.d0)
-       dustgraset_4(i,j)=graset_dust(1,1,4)*airden(1,1,1)*(-1.d0)
-       dustgraset_5(i,j)=graset_dust(1,1,5)*airden(1,1,1)*(-1.d0)
+       dustgraset_1(i,j)=dustgraset_1(i,j)+conver*graset_dust(1,1,1)*airden(1,1,1)*dt   !dustgraset [kg/m2]
+       dustgraset_2(i,j)=dustgraset_2(i,j)+conver*graset_dust(1,1,2)*airden(1,1,1)*dt
+       dustgraset_3(i,j)=dustgraset_3(i,j)+conver*graset_dust(1,1,3)*airden(1,1,1)*dt
+       dustgraset_4(i,j)=dustgraset_4(i,j)+conver*graset_dust(1,1,4)*airden(1,1,1)*dt
+       dustgraset_5(i,j)=dustgraset_5(i,j)+conver*graset_dust(1,1,5)*airden(1,1,1)*dt
 
        setvel_1(i,j)=grasetvel_dust(1,1,1)                            ! settling velocity [m/s]
        setvel_2(i,j)=grasetvel_dust(1,1,2)
@@ -198,8 +215,91 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
           ENDDO
        ENDIF 
        
+! NUWRF: begin process of NH4/NO3 settling (ZTao)
+!! 1) sulf (ppmv -> ug/kg)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        tc_species(1,1,kk) = 1.e3 * chem(i,k,j,p_sulf) * mwso4/mwair
+        delzz(1,1,kk) = dz8w(i,k,j)
+      end do
+      iflag = 3                                                         !ammonium sulfate
+
+      call settling_nitrate(1,1,1,1,lmx, iflag, reff_sulf, rho_sulf,  &
+                             dt, tc_species, tmp, airden, rh, delzz)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        chem(i,k,j,p_sulf) = 1.e-3 * tc_species(1,1,kk) * mwair/mwso4   !ug/kg -> ppmv
+      end do
+
+!! 2) NH4 (ppmv -> ug/kg)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        tc_species(1,1,kk) = 1.e3 * chem(i,k,j,p_nh4) * mwnh4/mwair
+      end do
+      iflag = 3
+
+      call settling_nitrate(1,1,1,1,lmx, iflag, reff_nh4, rho_nh4,    &
+                            dt, tc_species, tmp, airden, rh, delzz)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        chem(i,k,j,p_nh4) = 1.e-3 * tc_species(1,1,kk) * mwair/mwnh4    !ug/kg -> ppmv
+      end do
+
+!! 3) NO3an1 (ug/kg)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        tc_species(1,1,kk) = chem(i,k,j,p_no3an1) 
+      end do
+      iflag = 3                                                         !like (NH4)SO4
+
+      call settling_nitrate(1,1,1,1,lmx, iflag, reff_no3an1, rho_no3an1,  &
+                               dt, tc_species, tmp, airden, rh, delzz)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        chem(i,k,j,p_no3an1) = tc_species(1,1,kk)
+      end do
+
+!! 4) NO3an2 (ug/kg)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        tc_species(1,1,kk) = chem(i,k,j,p_no3an2) 
+      end do
+      iflag = 2                                                          !like sea salt
+
+      call settling_nitrate(1,1,1,1,lmx, iflag, reff_no3an2, rho_no3an2,  &
+                               dt, tc_species, tmp, airden, rh, delzz)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        chem(i,k,j,p_no3an2) = tc_species(1,1,kk)
+      end do
+
+!! 5) NO3an3 (ug/kg)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        tc_species(1,1,kk) = chem(i,k,j,p_no3an3) 
+      end do
+      iflag = 0                                                          !like dust
+
+      call settling_nitrate(1,1,1,1,lmx, iflag, reff_no3an3, rho_no3an3,  &
+                               dt, tc_species, tmp, airden, rh, delzz)
+      kk = 0
+      do k = kts, kte
+        kk = kk + 1
+        chem(i,k,j,p_no3an3) = tc_species(1,1,kk)
+      end do
+
     enddo  ! i
   enddo  ! j 
+
 
  END SUBROUTINE gocart_settling_driver
 
@@ -366,5 +466,211 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
 !$OMP END PARALLEL DO
 
 END SUBROUTINE settling
+
+subroutine settling_nitrate(i1,i2,j1,j2,km, flag, radiusInp, rhopInp, &
+                                cdt, tc, tmpu, rhoa, rh, dz)
+
+! This subroutine was adapted from subroutine Chem_SettlingSimple
+!   in GEOS-5 for NU-WRF application.
+!
+! !DESCRIPTION: Gravitational settling of aerosol between vertical
+!               layers.  Assumes input radius in [m] and density (rhop) 
+!               in [kg m-3]. If flag is set, use the Fitzgerald 1975 (flag = 1)
+!               or Gerber 1985 (flag = 2) parameterization to update the 
+!               particle radius for the calculation (local variables radius
+!               and rhop).
+!
+! REVISION HISTORY:
+!   12/27/2021   Z. Tao
+
+   implicit none
+
+   integer, intent(in) :: i1, i2, j1, j2, km
+   integer, intent(in) :: flag                 ! flag to control particle swelling (see note)
+   real, intent(in)    :: cdt                  ! main dt (time_step in namelist) 
+   real, intent(in)    :: radiusInp, rhopInp   ! particle effective radius (m) and density (kg/m^3)
+   real*8, dimension(i1:i2,j1:j2,1:km), intent(in) :: tmpu, rhoa   ! air temperature (K) and density (kg/m^3) 
+   real*8, dimension(i1:i2,j1:j2,1:km), intent(in) :: rh, dz       ! relative humidity and layer thickness (m)
+   real*8, dimension(i1:i2,j1:j2,1:km), intent(inout) :: tc        ! mass mixing ratio (ug/kg)
+
+! Local Variables
+   integer  ::  i, j, k, iit
+   integer  ::  nsubstep             ! # of sub steps in each time step
+   real, parameter ::  rhow = 1000.  ! Density of water [kg m-3]
+   real :: vsettle(i1:i2,j1:j2,km)   ! fall speed [m s-1]
+   real :: diff_coef                 ! Brownian diffusion coefficient [m2 s-1]
+   real :: qdel(i1:i2,j1:j2), qsrc(i1:i2,j1:j2)
+
+! The following parameters relate to the swelling of seasalt like particles
+!    following Fitzgerald, Journal of Applied Meteorology, 1975.
+   real, parameter :: epsilon = 1.   ! soluble fraction of deliqeuscing particle
+   real, parameter :: alphaNaCl = 1.35
+   real :: alpha, alpha1, alpharat, beta, theta, f1, f2
+
+! parameter from Gerber 1985 (units require radius in cm, see rcm)
+   real :: rcm
+   real, parameter :: c1=0.7674, c2=3.079, c3=2.573e-11, c4=-1.424
+! parameters for ammonium sulfate
+   real, parameter :: SU_c1=0.4809, SU_c2=3.082, SU_c3=3.110e-11, SU_c4=-1.428
+
+   real :: sat, rrat
+   real :: radius, rhop   ! particle radius and density passed to fall velocity calculation
+   real :: dtmax          ! max time step to satisfy CFL
+   real :: dt_settle      ! sub time step of settling
+
+   radius = radiusInp
+   rhop = rhopInp
+   if(radius .le. 0.) return    !get out of loop if particle radius <= 0
+
+   do k = 1, km
+     do j = j1, j2
+       do i = i1, i2
+
+! Adjust the particle size for relative humidity effects
+
+       sat = max(rh(i,j,k),tiny(1.0)) !        to avoid zero FPE
+       if(flag .eq. 1 .and. sat .ge. 0.80) then                                 ! Fitzgerald
+! parameterization blows up for RH > 0.995, so set that as max rh needs to be scaled 0 - 1
+        sat = min(0.995,sat)
+! Calculate the alpha and beta parameters for the wet particle relative to amonium sulfate
+        beta = exp( (0.00077*sat) / (1.009-sat) )
+        if(sat .le. 0.97) then
+         theta = 1.058
+        else
+         theta = 1.058 - (0.0155*(sat-0.97)) /(1.02-sat**1.4)
+        endif
+        alpha1 = 1.2*exp( (0.066*sat) / (theta-sat) )
+        f1 = 10.2 - 23.7*sat + 14.5*sat**2.
+        f2 = -6.7 + 15.5*sat - 9.2*sat**2.
+        alpharat = 1. - f1*(1.-epsilon) - f2*(1.-epsilon**2.)
+        alpha = alphaNaCl * (alpha1*alpharat)
+        radius = alpha * radiusInp**beta      ! radius of the wet particle
+        rrat = (radiusInp/radius)**3.
+        rhop = rrat*rhopInp + (1.-rrat)*rhow
+
+       else if(flag .eq. 2) then         ! Gerber
+        sat = min(0.995,sat)
+        rcm = radiusInp*100.
+        radius = 0.01 * (c1*rcm**c2 / (c3*rcm**c4-alog10(sat)) &
+                          + rcm**3.)**(1./3.)
+        rrat = (radiusInp/radius)**3.
+        rhop = rrat*rhopInp + (1.-rrat)*rhow
+
+       else if(flag .eq. 3) then        ! Gerber parameterization for Ammonium Sulfate
+        sat = min(0.995,sat)
+        rcm = radiusInp*100.
+        radius = 0.01 * (SU_c1*rcm**SU_c2 / (SU_c3*rcm**SU_c4-alog10(sat)) &
+                      + rcm**3.)**(1./3.)
+        rrat = (radiusInp/radius)**3.
+        rhop = rrat*rhopInp + (1.-rrat)*rhow
+
+       else if(flag .eq. 4) then        ! Petters and Kreidenweis (ACP2007) parameterization
+        sat = min(0.99,sat)
+        radius = (radiusInp**3 * (1+1.19*sat/(1-sat)))**(1./3.)
+        rrat = (radiusInp/radius)**3
+        rhop = rrat*rhopInp + (1.-rrat)*rhow
+       endif
+
+! Calculate the settling velocity
+       call Chem_CalcVsettle(radius, rhop, rhoa(i,j,k),   &
+                 tmpu(i,j,k), diff_coef, vsettle(i,j,k))
+       end do
+     end do
+   end do 
+
+! Determine the maximum time-step satisying CFL: dt <= min(dz/vsettle)
+   dtmax = MINVAL((dz(:,:,:)/vsettle(:,:,:)))
+   if(dtmax .ge. cdt) then
+     nsubstep = 1
+     dt_settle = cdt
+   else
+     nsubstep = cdt/dtmax + 1
+     dt_settle = cdt/nsubstep
+   end if
+
+! Loop over sub-timeste
+   do iit = 1, nsubstep
+! Update mixing ratio with order of top->sfc
+     qdel(i1:i2,j1:j2) = tc(i1:i2,j1:j2,km) * dt_settle * vsettle(i1:i2,j1:j2,km)/dz(i1:i2,j1:j2,km)  
+     tc(i1:i2,j1:j2,km) = tc(i1:i2,j1:j2,km) - qdel(i1:i2,j1:j2)           !ug/kg
+
+     do k = km-1, 1, -1
+       qsrc(i1:i2,j1:j2) = qdel(i1:i2,j1:j2) * (dz(i1:i2,j1:j2,k+1)*rhoa(i1:i2,j1:j2,k+1))    &
+                                             /(dz(i1:i2,j1:j2,k)*rhoa(i1:i2,j1:j2,k))
+       qdel(i1:i2,j1:j2) = tc(i1:i2,j1:j2,k) * dt_settle * vsettle(i1:i2,j1:j2,k)/dz(i1:i2,j1:j2,k)
+       tc(i1:i2,j1:j2,k) = tc(i1:i2,j1:j2,k) - qdel(i1:i2,j1:j2) + qsrc(i1:i2,j1:j2)
+     end do
+   end do  ! iit=1,nsubstep
+
+end subroutine settling_nitrate
+
+
+subroutine Chem_CalcVsettle(radius, rhop, rhoa, tmpu, diff_coef, vsettle)
+!
+! DESCRIPTION: Calculates the aerosol settling velocity and Brownian diffusion
+!              coefficient
+!              Follows discussions in Seinfeld and Pandis, Pruppacher and
+!              Klett, and the coding in CARMA (Toon et al., 1988)
+!              Should work satisfactorily for al reasonable sized aerosols
+!              (up to Reynolds number 300)
+   implicit none
+
+   real, intent(in)    :: radius              ! Particle radius [m]
+   real, intent(in)    :: rhop                ! Particle density [kg m-3]
+   real, intent(out)   :: diff_coef           ! Brownian diffusion coefficient [m2 s-1]
+   real, intent(out)   :: vsettle             ! Layer fall speed [m s-1]
+   real*8, intent(in)    :: rhoa              ! Layer air density [kg m-3]
+   real*8, intent(in)    :: tmpu              ! Layer temperature [K]
+
+! Local Variables
+   real*8 rmu                       ! Dynamic viscosity [kg m-1 s-1]
+   real*8 vt                        ! Thermal velocity of air molecule [m s-1]
+   real*8 rmfp                      ! Air molecule mean free path [m]
+   real*8 bpm                       ! Cunningham slip correction factor
+   real*8 rkn                       ! Knudsen number
+   real*8 re, x, y                  ! reynold's number and parameters
+   real, parameter :: grav = 9.81   ! Earth gravity constant [m s-2], added by ZTao
+   real, parameter :: kb = 1.3807e-23    ! Boltzmann constant [kg m2 s-1 K-1 mol-1]
+   real, parameter :: m_air = 4.8096e-26 ! Mass of <avg> air molecule [kg]
+   real, parameter :: pi = 3.141529265
+
+!  Dynamic viscosity from corrected Sutherland's Equation
+   rmu = 1.8325e-5*(416.16/(tmpu+120.))*(tmpu/296.16)**1.5
+
+!  Thermal velocity of air molecule
+   vt = sqrt(8.*kb*tmpu/pi/m_air)
+
+!  Air molecule mean free path
+   rmfp = 2.*rmu/rhoa/vt
+
+!  Knudsen number
+   rkn = rmfp/radius
+
+!  Cunningham slip correction factor
+   bpm = 1. + 1.246*rkn + 0.42*rkn*exp(-0.87/rkn)
+
+!  Brownian diffusion coefficient
+   diff_coef = kb*tmpu*bpm/3./pi/rmu/(2.*radius)
+
+!  Fall speed (assumes Reynolds # < 0.01)
+   vsettle = 2./9.*rhop*radius**2.*grav*bpm/rmu
+
+!  Check the Reynold's number to see if we need a drag correction
+!  First guess at Reynold's number using Stoke's calculation
+   re = 2.*rhoa*radius*vsettle/rmu
+
+!  If Re > 0.01 then apply drag correction following Pruppacher and
+!  Klett regime 2 (eq. 10-142).  Assuming reasonable aerosols we
+!  do not consider that particle Re may exceed 300.
+   if(re .gt. 0.01) then
+    x = log(24.*re/bpm)
+    y = -3.18657 + 0.992696   *x     - .00153193   *x**2. &
+                 - 0.000987059*x**3. - .000578878  *x**4. &
+                 + 8.55176E-05*x**5. -  3.27815E-06*x**6.
+    re = exp(y)*bpm
+    vsettle = rmu*re/2./rhoa/radius
+   endif
+end subroutine Chem_CalcVsettle
+
 
 END MODULE MODULE_GOCART_SETTLING
