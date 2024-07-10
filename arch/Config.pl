@@ -710,7 +710,7 @@ while ( <CONFIGURE_DEFAULTS> )
       { $_ =~ s/CONFIGURE_GRIBAPI_LIB_PATH//g ;
 	 }
     if ( $sw_hdf4_path ) 
-      { $_ =~ s:CONFIGURE_HDF4_LIB_PATH:-L$sw_hdf4_path/lib -lmfhdf -ldf -ljpeg : ;
+      { $_ =~ s:CONFIGURE_HDF4_LIB_PATH:-L$sw_hdf4_path/lib -lmfhdf -ldf -ljpeg -ltirpc : ;
 	 }
     else                   
       { $_ =~ s/CONFIGURE_HDF4_LIB_PATH//g ;

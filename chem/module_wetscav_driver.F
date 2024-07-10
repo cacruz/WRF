@@ -22,9 +22,8 @@ CONTAINS
                t8w, dx, dy, p_phy, chem,                                   &
                rho_phy, cldfra, cldfra2, rainprod, evapprod,               &
                hno3_col_mdel, qlsink, precr, preci, precs, precg,          &
-               wdflx,                                                      &
-               raincv, rainncv,                                            & !NUWRF: add raincv and rainncv (ZTao)
-               precr3d, preci3d, precs3d, precg3d,                         & !NUWRF: add prec* for GCE 4ice MP (Ztao)
+               wdflx, raincv, rainncv,                                     & !NUWRF - add raincv and rainncv (ZTao)
+               precr3d, preci3d, precs3d, precg3d,                         & !NUWRF - add by ZTao for GCE 4ice MP
 	       gas_aqfrac, numgas_aqfrac, dz8w,                            &
 	       h2oaj,h2oai,nu3,ac3,cor3,asulf,ahno3,anh3,cvaro1,           &
                cvaro2,cvalk1,cvole1,cvapi1,cvapi2,cvlim1,cvlim2,           &
@@ -315,7 +314,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'nh3', .false., 0.0, tmpchem,   &
+       CALL wetscav_gocart_driver(dtstepc, 'nh3', .false., 1.0, tmpchem,   &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -447,7 +446,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'nh4', .true., 0.4, tmpchem,    &
+       CALL wetscav_gocart_driver(dtstepc, 'nh4', .true., 1.0, tmpchem,    &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -469,7 +468,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'NO3an1', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'NO3an1', .true., 1.0, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -491,7 +490,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'NO3an2', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'NO3an2', .true., 1.0, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -513,7 +512,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'NO3an3', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'NO3an3', .true., 0.3, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -527,6 +526,28 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
 
+! For P25 (aerosol) - pass .true.
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         tmpchem(ii,kk,jj) = chem(ii,kk,jj,p_p25)
+       enddo
+       enddo
+       enddo
+       CALL wetscav_gocart_driver(dtstepc, 'P25', .true., 0.3, tmpchem, &
+                          p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
+                          precg3d, raincv, rainncv,                        &
+                          ids,ide, jds,jde, kds,kde,                       &
+                          ims,ime, jms,jme, kms,kme,                       &
+                          its,ite, jts,jte, kts,kte)
+       do jj=jts,jte
+       do kk=kts,kte
+       do ii=its,ite
+         chem(ii,kk,jj,p_p25) = tmpchem(ii,kk,jj)
+       enddo
+       enddo
+       enddo
+
 ! For DUST_1 (aerosol) - pass .true.
        do jj=jts,jte
        do kk=kts,kte
@@ -535,7 +556,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'DUST_1', .true., 0.2, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_1', .true., 0.3, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -557,7 +578,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'DUST_2', .true., 0.2, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_2', .true., 0.3, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -579,7 +600,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'DUST_3', .true., 0.2, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_3', .true., 0.3, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -601,7 +622,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'DUST_4', .true., 0.2, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_4', .true., 0.3, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -623,7 +644,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'DUST_5', .true., 0.2, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'DUST_5', .true., 0.3, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -645,7 +666,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'SEAS_1', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_1', .true., 1.0, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -667,7 +688,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'SEAS_2', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_2', .true., 1.0, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -689,7 +710,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'SEAS_3', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_3', .true., 1.0, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &
@@ -711,7 +732,7 @@ REAL,  DIMENSION( ims:ime , kms:kme , jms:jme , ntot_amode ),       &
        enddo
        enddo
        enddo
-       CALL wetscav_gocart_driver(dtstepc, 'SEAS_4', .true., 0.4, tmpchem, &
+       CALL wetscav_gocart_driver(dtstepc, 'SEAS_4', .true., 0.6, tmpchem, &
                           p8w, t_phy, rho_phy, precr3d, preci3d, precs3d,  &
                           precg3d, raincv, rainncv,                        &
                           ids,ide, jds,jde, kds,kde,                       &

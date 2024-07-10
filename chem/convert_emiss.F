@@ -169,7 +169,7 @@ PROGRAM convert_emissions
 
 ! NUWRF
    ! 0 = 'old', 1 = 'new', 2 = 'minds'            
-   integer :: gocart_bg_type
+   integer :: gocart_nuwrf_type
    integer :: extra_gfedv3_vars
 
 ! these are needed on some compilers, eg compaq/alpha, to
@@ -228,8 +228,8 @@ PROGRAM convert_emissions
    CALL set_wrf_debug_level ( debug_level )
    
 ! EMK...For NUWRF
-   call nl_get_gocart_bg_type(1, gocart_bg_type)
-   if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
+   call nl_get_gocart_nuwrf_type(1, gocart_nuwrf_type)
+   if (gocart_nuwrf_type == 1 .or. gocart_nuwrf_type == 2) then
       ! 'new' and 'minds' types have 72 vertical levels
       iklev = 72
    else
@@ -395,7 +395,7 @@ PROGRAM convert_emissions
      ALLOCATE( interpolate(ids:ide,kds:kde,jds:jde) )
      ALLOCATE( gocart_lev(iklev))
 ! NUWRF
-     if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
+     if (gocart_nuwrf_type == 1 .or. gocart_nuwrf_type == 2) then
         allocate(gocart_ps(ids:ide,jds:jde,iklev))
      end if
 
@@ -497,7 +497,7 @@ PROGRAM convert_emissions
 #endif
 
 ! NUWRF
-       if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
+       if (gocart_nuwrf_type == 1 .or. gocart_nuwrf_type == 2) then
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
            read(19)gocart_ps(ids:ide,jds:jde,1:iklev)
@@ -509,7 +509,7 @@ PROGRAM convert_emissions
        end if
 
 ! NUWRF
-       if (gocart_bg_type == 2) then
+       if (gocart_nuwrf_type == 2) then
 ! dkim6, append here, note its order is after ps
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
@@ -532,7 +532,6 @@ PROGRAM convert_emissions
 
      CLOSE(19)
 
-!  CALL input_ext_chem_gocart_bg ( grid ) 
    write(message,FMT='(A)') ' PAST  GOCART BACKGROUND DATA'
    CALL  wrf_debug ( 00, message )
 
@@ -574,7 +573,7 @@ PROGRAM convert_emissions
 !
 
 ! NUWRF
-      if (gocart_bg_type == 0) then
+      if (gocart_nuwrf_type == 0) then
          do k=1,iklev
             p_g(k) = log10( gocart_lev(k) * 1023.) 
          enddo
@@ -592,7 +591,7 @@ PROGRAM convert_emissions
      do j=jps,jpe
      do i=ips,ipe
         ! NUWRF
-        if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
+        if (gocart_nuwrf_type == 1 .or. gocart_nuwrf_type == 2) then
            do k=1,iklev
               p_g(k) = log10( gocart_ps(i,j,k)) 
            enddo
@@ -687,7 +686,7 @@ PROGRAM convert_emissions
      do i=ips,ipe
 
       ! NUWRF
-      if (gocart_bg_type == 1 .or. gocart_bg_type == 2) then
+      if (gocart_nuwrf_type == 1 .or. gocart_nuwrf_type == 2) then
          do k=1,iklev
             p_g(k) = log10( gocart_ps(i,j,k)) 
          enddo
@@ -989,6 +988,7 @@ PROGRAM convert_emissions
         DEALLOCATE( vert_mass_dist)
      endif
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 ! now do fire and/or global emissions
 !
@@ -1307,6 +1307,7 @@ PROGRAM convert_emissions
          call wrf_message( TRIM( message ) )
          write(message, FMT='(A)') ' NO TIME DEPENDENCE IN THIS DATASET'
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 ! emissions from retro/edgar/gocart
 !

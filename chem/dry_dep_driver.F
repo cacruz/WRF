@@ -264,9 +264,9 @@ CONTAINS
            config_flags%chem_opt /= GHG_TRACER     .and.                  &
            config_flags%chem_opt /= CHEM_VASH      .and.                  &
            config_flags%chem_opt /= CHEM_VOLC_4BIN .and.                  &
-           config_flags%chem_opt /= DUST           .and.                  &
-           config_flags%chem_opt /= GOCART_SIMPLE  .and.                  &
-           config_flags%chem_opt /= GOCARTRACM_KPP )THEN
+           config_flags%chem_opt /= DUST ) THEN           !include GOCART_SIMPLE and GOCARTRACM_KPP (ZTao, 09/2023)
+!           config_flags%chem_opt /= GOCART_SIMPLE  .and.                  &
+!           config_flags%chem_opt /= GOCARTRACM_KPP )THEN
           call wesely_driver(id,ktau,dtstep,                              &
                config_flags,current_month,                                &
                gmt,julday,t_phy,moist,p8w,t8w,raincv,                     &
@@ -276,12 +276,8 @@ CONTAINS
                ids,ide, jds,jde, kds,kde,                                 &
                ims,ime, jms,jme, kms,kme,                                 &
                its,ite, jts,jte, kts,kte                                  )
-!-----------------------------------------------------------------
-! this does aerosol species (dust,seas, bc,oc) for gocart only
-!-----------------------------------------------------------------
-!
+ 
           IF ( config_flags%chem_opt == MOZCART_KPP .or. &
-	       config_flags%chem_opt == GOCARTRADM2 .or. & ! NUWRF, ZT
                config_flags%chem_opt == T1_MOZCART_KPP ) then
             call gocart_drydep_driver( dtstep,                            &
                   config_flags, numgas,                                   &
@@ -374,60 +370,10 @@ CONTAINS
                 enddo
            endif
 
-       ELSEIF ( config_flags%chem_opt == GOCART_SIMPLE ) then
-          call wesely_driver(id,ktau,dtstep,                              &
-               config_flags,current_month,                                &
-               gmt,julday,t_phy,moist,p8w,t8w,raincv,                     &
-               p_phy,chem,rho_phy,dz8w,ddvel,aer_res_def,aer_res_zcen,    & 
-               ivgtyp,tsk,gsw,vegfra,pbl,rmol,ust,znt,xlat,xlong,z,z_at_w,&
-               snowh, numgas,                                             &
-               ids,ide, jds,jde, kds,kde,                                 &
-               ims,ime, jms,jme, kms,kme,                                 &
-               its,ite, jts,jte, kts,kte                                  )
-!
-! this does aerosol species (dust,seas, bc,oc) for gocart only
-!
-         call gocart_drydep_driver(dtstep,                                &
-               config_flags,numgas,                                       &
-               t_phy,moist,p8w,t8w,rmol,aer_res_def,                      &
-               p_phy,chem,rho_phy,dz8w,ddvel,xland,hfx,                   &
-               ivgtyp,tsk,vegfra,pbl,ust,znt,xlat,xlong,                  &
-               dustdrydep_1,dustdrydep_2,dustdrydep_3,                    &
-               dustdrydep_4,dustdrydep_5,                                 &
-               depvelocity,                                               &                    
-               ids,ide, jds,jde, kds,kde,                                 &
-               ims,ime, jms,jme, kms,kme,                                 &
-               its,ite, jts,jte, kts,kte                                  )
        ELSEIF ( config_flags%chem_opt == DUST) then
 !
 ! this does aerosol species (dust) for gocart only
 !
-         call gocart_drydep_driver(dtstep,                                &
-               config_flags,numgas,                                       &
-               t_phy,moist,p8w,t8w,rmol,aer_res_def,                      &
-               p_phy,chem,rho_phy,dz8w,ddvel,xland,hfx,                   &
-               ivgtyp,tsk,vegfra,pbl,ust,znt,xlat,xlong,                  &
-               dustdrydep_1,dustdrydep_2,dustdrydep_3,                    &
-               dustdrydep_4,dustdrydep_5,                                 &
-               depvelocity,                                               &                    
-               ids,ide, jds,jde, kds,kde,                                 &
-               ims,ime, jms,jme, kms,kme,                                 &
-               its,ite, jts,jte, kts,kte                                  )
-
-
-       ELSEIF ( config_flags%chem_opt == GOCARTRACM_KPP) then
-!
-! this does aerosol species (dust,seas, bc,oc) for gocart only
-!
-          call wesely_driver(id,ktau,dtstep,                              &
-               config_flags,current_month,                                &
-               gmt,julday,t_phy,moist,p8w,t8w,raincv,                     &
-               p_phy,chem,rho_phy,dz8w,ddvel,aer_res_def,aer_res_zcen,    &
-               ivgtyp,tsk,gsw,vegfra,pbl,rmol,ust,znt,xlat,xlong,z,z_at_w,&
-               snowh, numgas,                                             &
-               ids,ide, jds,jde, kds,kde,                                 &
-               ims,ime, jms,jme, kms,kme,                                 &
-               its,ite, jts,jte, kts,kte                                  )
          call gocart_drydep_driver(dtstep,                                &
                config_flags,numgas,                                       &
                t_phy,moist,p8w,t8w,rmol,aer_res_def,                      &
@@ -485,6 +431,9 @@ CONTAINS
              aer_mech_id = 3
           CASE ( CBMZ_CAM_MAM3_NOAQ, CBMZ_CAM_MAM3_AQ, CBMZ_CAM_MAM7_NOAQ, CBMZ_CAM_MAM7_AQ )
              aer_mech_id = 4
+!! Add GOCART related aerosol mechanisms (ZTao, 09/2023)
+          CASE (GOCART_SIMPLE, GOCARTRACM_KPP, GOCARTRADM2)
+             aer_mech_id = 5
           CASE DEFAULT
              aer_mech_id = 0
        END SELECT aer_mech_id_select
@@ -593,7 +542,21 @@ CONTAINS
                ids,ide, jds,jde, kds,kde,                               &
                ims,ime, jms,jme, kms,kme,                               &
                its,ite, jts,jte, kts,kte                                )
-!
+
+!! Do GOCART related aerosol dry deposition (ZTao, 09/2023)
+    CASE (GOCART_SIMPLE, GOCARTRACM_KPP, GOCARTRADM2)
+            call gocart_drydep_driver( dtstep,                            &
+                  config_flags, numgas,                                   &
+                  t_phy, moist, p8w, t8w, rmol,aer_res_def,               &
+                  p_phy, chem, rho_phy, dz8w, ddvel, xland, hfx,          &
+                  ivgtyp, tsk, vegfra, pbl, ust, znt, xlat, xlong,        &
+                  dustdrydep_1,dustdrydep_2,dustdrydep_3,                 &
+                  dustdrydep_4,dustdrydep_5,                              &
+                  depvelocity,                                            &
+                  ids,ide, jds,jde, kds,kde,                              &
+                  ims,ime, jms,jme, kms,kme,                              &
+                  its,ite, jts,jte, kts,kte )
+
      CASE DEFAULT
                                                      
      END SELECT adrydep_select
@@ -639,6 +602,7 @@ CONTAINS
    END SELECT drydep_select                              
 
 ! Add dep_vel here for all aerosol and gas species in the dvel array 
+!   num_vert_mix = numgas/num_chem if bl_pbl_physics = ACMPBLSCHEME and = 0 otherwise (defined in chemics_init.F, ZTao)
       ll = max( 1, min( config_flags%ndepvel, num_vert_mix ) )
       dep_vel(:,:,:,:) = 0.
       do l=1,ll
@@ -659,7 +623,7 @@ CONTAINS
       end if
 
       dep_vel_o3=0.
-      if (num_vert_mix == 0) then
+     if (num_vert_mix == 0) then
       do 100 j=jts,jte
       do 100 i=its,ite
       pblst=0.
@@ -684,6 +648,7 @@ CONTAINS
 !!$!     if e_co > 0., the grid cell should not be over water
 !!$!     if e_co > 200, the grid cell should be over a large urban region
 !!$!
+
 ! Do NOT increase mixing at surface/kts, where exch==0
 ! this code is wrong - doesn't work if e_co is == param_first_scalar
 ! (like it happened to be the case for MOZCART)

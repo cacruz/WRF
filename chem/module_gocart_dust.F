@@ -6,8 +6,14 @@ MODULE GOCART_DUST
 ! were not processed. Code cleanup, remove unused variables.
 
   USE module_data_gocart_dust
-
+  USE module_configure
+  USE module_state_description
+  use module_wrf_error, only:  wrf_err_message
+  
+  implicit none    
+        
 CONTAINS
+      
   subroutine gocart_dust_driver(dt,config_flags,alt,t_phy,u_phy,          &
          v_phy,chem,rho_phy,dz8w,smois,u10,v10,erod,dustin,               &
          ivgtyp,isltyp,vegfra,xland,xlat,xlong,gsw,dx,g,emis_dust,        &
@@ -19,33 +25,31 @@ CONTAINS
          ims,ime, jms,jme, kms,kme,                                       &
          its,ite, jts,jte, kts,kte                                        )
 
-  USE module_configure
-  USE module_state_description
-  IMPLICIT NONE
-   TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
+      
+  TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
 
-   INTEGER,      INTENT(IN   ) :: ids,ide, jds,jde, kds,kde,               &
+  INTEGER,      INTENT(IN   ) :: ids,ide, jds,jde, kds,kde,                &
                                   ims,ime, jms,jme, kms,kme,               &
                                   its,ite, jts,jte, kts,kte
-   INTEGER,DIMENSION( ims:ime , jms:jme )                  ,               &
+  INTEGER,DIMENSION( ims:ime , jms:jme )                  ,                &
           INTENT(IN   ) ::                                                 &
                                                      ivgtyp,               &
                                                      isltyp
-   REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
+  REAL, DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                  &
          INTENT(INOUT ) ::                           chem
-   REAL, DIMENSION( ims:ime, 1, jms:jme,num_emis_dust),OPTIONAL,&
+  REAL, DIMENSION( ims:ime, 1, jms:jme,num_emis_dust),OPTIONAL,&
          INTENT(INOUT ) ::                           emis_dust
   REAL, DIMENSION( ims:ime, config_flags%num_soil_layers, jms:jme ) ,      &
       INTENT(INOUT) ::                               smois
-   REAL,  DIMENSION( ims:ime , jms:jme, 3 )                   ,            &
+  REAL,  DIMENSION( ims:ime , jms:jme, 3 )                   ,             &
           INTENT(IN   ) ::    erod
-   REAL,  DIMENSION( ims:ime , jms:jme, 5 )                   ,            &
+  REAL,  DIMENSION( ims:ime , jms:jme, 5 )                   ,             &
           INTENT(INout   ) ::    dustin
-   REAL,  DIMENSION( ims:ime , jms:jme )                   ,               &  !NU-WRF DEAD scheme
+  REAL,  DIMENSION( ims:ime , jms:jme )                   ,                &  !NU-WRF DEAD scheme
           INTENT(INout   ) ::   ust_t                                         !registered by uoc 
-   REAL,  DIMENSION( ims:ime , jms:jme )                   ,               &  !dkim6
+  REAL,  DIMENSION( ims:ime , jms:jme )                   ,                &  !dkim6
           INTENT(INout   ) ::   w10m_out                                      !
-   REAL,  DIMENSION( ims:ime , jms:jme )                   ,               &
+  REAL,  DIMENSION( ims:ime , jms:jme )                   ,                &
           INTENT(IN   ) ::                                                 &
                                                      u10,                  &
                                                      v10,                  &
@@ -56,7 +60,7 @@ CONTAINS
                                                      xlat,                 &
                                                      xlong
 
-   REAL,  DIMENSION( ims:ime , kms:kme , jms:jme ),                        &
+  REAL,  DIMENSION( ims:ime , kms:kme , jms:jme ),                        &
           INTENT(IN ) ::                                alt,               &
                                                       t_phy,               &
                                                      dz8w,                 &
@@ -178,7 +182,7 @@ CONTAINS
   if (config_flags%gocart_dustemiss_scheme == 1 ) then  ! assumes NUWRF 
 
     call source_du_nuwrf( imx,jmx,lmx,nmx, dt, tc, &
-                     erodin, ilwi, w10m, gwet, airden, airmas, &
+                     erodin, ilwi, dxy, w10m, gwet, airden, airmas, &
                      dz_lowest, bems,config_flags%start_month,g, &
                      config_flags%gocart_dustemiss_gwetthresh, &
                      config_flags%gocart_dustemiss_resfactor)
@@ -285,10 +289,10 @@ end subroutine gocart_dust_driver
   REAL*8,    INTENT(INOUT) :: tc(imx,jmx,lmx,nmx)
   REAL*8,    INTENT(OUT)   :: bems(imx,jmx,nmx) 
   REAL,      INTENT(IN  )  :: dz_lowest
+  REAL,      intent(in)    :: g0
 
   REAL*8    :: den(nmx), diam(nmx)
   REAL*8    :: u_ts0, u_ts, dsrc, srce
-  REAL, intent(in)    :: g0
   REAL    :: rhoa, g,dt1
   INTEGER :: i, j, n, m, k
 
@@ -338,10 +342,10 @@ end subroutine gocart_dust_driver
   
   END SUBROUTINE source_du
   
-  SUBROUTINE source_du_nuwrf( imx, jmx,lmx, nmx, dt1, tc, &
-                     erod, ilwi, w10m, gwet, airden, airmas, &
-                     dz_lowest, bems,month, g0, &
-                     gocart_dustemiss_gwetthresh, gocart_dustemiss_resfactor)
+  SUBROUTINE source_du_nuwrf( imx,jmx,lmx,nmx, dt1, tc, &
+                     erod, ilwi, dxy, w10m, gwet, airden, airmas, &
+                     dz_lowest, bems,month,g0, &
+                     gocart_dustemiss_gwetthresh,gocart_dustemiss_resfactor)
                      ! NU-WRF:  Added dust emission tuning factors
 
 ! ****************************************************************************
@@ -365,6 +369,11 @@ end subroutine gocart_dust_driver
 ! *         SRC       Potential source                   (kg/m/timestep/cell)
 ! *
 ! ****************************************************************************
+
+
+! USE module_data_gocart
+! USE module_data_gocart_dust
+
   use module_wrf_error, only:  wrf_err_message
   
   INTEGER,   INTENT(IN)    :: nmx,imx,jmx,lmx
@@ -372,6 +381,7 @@ end subroutine gocart_dust_driver
   INTEGER,   INTENT(IN)    :: ilwi(imx,jmx),month
 
   REAL*8,    INTENT(IN)    :: w10m(imx,jmx), gwet(imx,jmx)
+  REAL*8,    INTENT(IN)    :: dxy(jmx)
   REAL*8,    INTENT(IN)    :: airden(imx,jmx,lmx), airmas(imx,jmx,lmx)
   REAL*8,    INTENT(INOUT) :: tc(imx,jmx,lmx,nmx)
   REAL*8,    INTENT(OUT)   :: bems(imx,jmx,nmx) 
@@ -418,7 +428,6 @@ end subroutine gocart_dust_driver
               u_ts0 = 0.13*1.0D-2*SQRT(den(n)*g*diam(n)/rhoa)* &
                    SQRT(1.0+0.006/den(n)/g/(diam(n))**2.5)/ &
                    SQRT(1.928*(1331.0*(diam(n))**1.56+0.38)**0.092-1.0) 
-              
               ! Case of surface dry enough to erode
               ! NU-WRF:  User-defined threshold from namelist
               IF (gwet(i,j) < gocart_dustemiss_gwetthresh) THEN
@@ -438,7 +447,8 @@ end subroutine gocart_dust_driver
               
               ! Update dust mixing ratio at first model level.
               ! NU-WRF:  User defined factor
-              tc(i,j,1,n) = tc(i,j,1,n) + gocart_dustemiss_resfactor*dsrc / airmas(i,j,1)
+              tc(i,j,1,n) = tc(i,j,1,n) + &
+                   gocart_dustemiss_resfactor*dsrc/dz_lowest/airden(i,j,1)  ! (kg/kg)
               bems(i,j,n) = gocart_dustemiss_resfactor*dsrc
            END DO
         END DO
@@ -479,6 +489,8 @@ end subroutine gocart_dust_driver
 
   ! NU-WRF:  Added tunable dust emission factors
   real, intent(in) :: gocart_dustemiss_gwetthresh
+  real, intent(in) :: gocart_dustemiss_resfactor
+
   real, intent(in) :: my_ust(imx,jmx)
   real*8, intent(in) :: my_smois(imx,jmx), my_porosity(imx,jmx)
 

@@ -1745,7 +1745,7 @@ CONTAINS
                         + sktrs_sslt(temp(i,k,j),rh(i,k,j),sad_ss(3),ad,rad_ss(3))
             kan3 = kan3 + sktrs_sslt(temp(i,k,j),rh(i,k,j),sad_ss(4),ad,rad_ss(4))
 
-! Compute nitric acid loss (but dont' actually update)
+! Compute nitric acid loss and update hno3 if bankg_yn = no 
 ! Generation of NO3an1-an3 is a function of HNO3 loss
             if(kan1+kan2+kan3 > 0.) then
               if(backg_yn) then
@@ -1754,6 +1754,7 @@ CONTAINS
               else
                 deltahno3 = chem(i,k,j, p_hno3) * 1.e-6 * MWHNO3/airmw     &
                               * (1. - exp(-(kan1+kan2+kan3)*dt))            !unit: kg/kg (from ppmv)
+                chem(i,k,j,p_hno3) = chem(i,k,j,p_hno3) - 1.e6 * deltahno3 * airmw/MWHNO3	!kg/kg to ppmv
               end if
 
               chem(i,k,j,p_no3an1) = chem(i,k,j,p_no3an1) + 1.e9 *     &
@@ -1865,7 +1866,8 @@ CONTAINS
       real  sktrs_sslt
       real, optional :: gammaInp
 !... local variables
-      REAL,  PARAMETER   :: GAMMA_SSLT = 0.1 !0.1 ~ 0.2
+      REAL,  PARAMETER   :: GAMMA_SSLT = 0.05 !0.05 ~ 0.2
+
       real  dfkg
       real  avgvel
 

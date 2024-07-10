@@ -236,9 +236,9 @@ state    real  e_num_a3        i+jf     emis_ant     1         Z      i5      "E
 state    real  e_dms           i+jf     emis_ant     1         Z      i5r     "E_DMS"               "EMISSIONS"               "mol km^-2 hr^-1"
 
 # soiltexturef is texture category fraction for each grid cell
-state    real  ust_t         ij       misc         1         -      i012rh "UST_T"               "Threshold Friction Velocity"          "m s-1"
-state    real  rough_cor     ij       misc         1         -       rh      "Rough_cor"     "roughness elements correction"        ""
-state    real  smois_cor     ij       misc         1         -       rh      "Smois_cor"     "soil moisture correction"             ""
+state    real  ust_t         ij       misc         1         -      i012r   "UST_T"               "Threshold Friction Velocity"          "m s-1"
+state    real  rough_cor     ij       misc         1         -       r      "Rough_cor"     "roughness elements correction"        ""
+state    real  smois_cor     ij       misc         1         -       r      "Smois_cor"     "soil moisture correction"             ""
 state    real  dustload_1    ij       misc         1         -       r      "dustload_1"     "dust loading for size 1"        "ug/m2"
 state    real  dustload_2    ij       misc         1         -       r      "dustload_2"     "dust loading for size 2"        "ug/m2"
 state    real  dustload_3    ij       misc         1         -       r      "dustload_3"     "dust loading for size 3"        "ug/m2"
@@ -259,16 +259,16 @@ state    real  setvel_2      ij       misc         1         -       r      "set
 state    real  setvel_3      ij       misc         1         -       r      "setvel_3"     "dust gravitational settling velocity for size 3"    "m/s"
 state    real  setvel_4      ij       misc         1         -       r      "setvel_4"     "dust gravitational settling velocity for size 4"    "m/s"
 state    real  setvel_5      ij       misc         1         -       r      "setvel_5"     "effective gravitational settling velocity for total"    "m/s"
-state    real  dustgraset_1  ij       misc         1         -       r      "graset_1"     "Accumulated dust gravitational settling  for size 1"        "kg/m2"
-state    real  dustgraset_2  ij       misc         1         -       r      "graset_2"     "Accumulated dust gravitational settling  for size 2"        "kg/m2"
-state    real  dustgraset_3  ij       misc         1         -       r      "graset_3"     "Accumulated dust gravitational settling  for size 3"        "kg/m2"
-state    real  dustgraset_4  ij       misc         1         -       r      "graset_4"     "Accumulated dust gravitational settling  for size 4"        "kg/m2"
-state    real  dustgraset_5  ij       misc         1         -       r      "graset_5"     "Accumulated dust gravitational settling  for size 5"        "kg/m2"
-state    real  dustdrydep_1   ij      misc        1         -       r      "drydep_1"     "Accumulated dust dry deposition for size 1"        "kg/m2"
-state    real  dustdrydep_2   ij      misc        1         -       r      "drydep_2"     "Accumulated dust dry deposition for size 2"        "kg/m2"
-state    real  dustdrydep_3   ij      misc        1         -       r      "drydep_3"     "Accumulated dust dry deposition for size 3"        "kg/m2"
-state    real  dustdrydep_4   ij      misc        1         -       r      "drydep_4"     "Accumulated dust dry deposition for size 4"        "kg/m2"
-state    real  dustdrydep_5   ij      misc        1         -       r      "drydep_5"     "Accumulated dust dry deposition for size 5"        "kg/m2"
+state    real  dustgraset_1  ij       misc         1         -       r      "graset_1"     "dust gravitational settling  for size 1"        "ug/m2/s"
+state    real  dustgraset_2  ij       misc         1         -       r      "graset_2"     "dust gravitational settling  for size 2"        "ug/m2/s"
+state    real  dustgraset_3  ij       misc         1         -       r      "graset_3"     "dust gravitational settling  for size 3"        "ug/m2/s"
+state    real  dustgraset_4  ij       misc         1         -       r      "graset_4"     "dust gravitational settling  for size 4"        "ug/m2/s"
+state    real  dustgraset_5  ij       misc         1         -       r      "graset_5"     "dust gravitational settling  for size 5"        "ug/m2/s"
+state    real  dustdrydep_1   ij      misc        1         -       r      "drydep_1"     "dust dry deposition for size 1"        "ug/m2/s"
+state    real  dustdrydep_2   ij      misc        1         -       r      "drydep_2"     "dust dry deposition for size 2"        "ug/m2/s"
+state    real  dustdrydep_3   ij      misc        1         -       r      "drydep_3"     "dust dry deposition for size 3"        "ug/m2/s"
+state    real  dustdrydep_4   ij      misc        1         -       r      "drydep_4"     "dust dry deposition for size 4"        "ug/m2/s"
+state    real  dustdrydep_5   ij      misc        1         -       r      "drydep_5"     "dust dry deposition for size 5"        "ug/m2/s"
 state    real  dustwd_1       ikj      misc        1         -      r       "dustwd_1"       "dust loss by wet deposition for size 1"        "ug/kg-dryair"
 state    real  dustwd_2       ikj      misc        1         -      r       "dustwd_2"       "dust loss by wet deposition for size 2"        "ug/kg-dryair"
 state    real  dustwd_3       ikj      misc        1         -      r       "dustwd_3"       "dust loss by wet deposition for size 3"        "ug/kg-dryair"
@@ -360,13 +360,13 @@ state    real  e_hum          i+jf     emis_ant     1         Z      i5     "E_H
 # dust and seas emission arrays
 state   real     -          i{dust}jf      emis_dust      -        -        -         -                    "Dust Emissions"         ""
 state    real  edust1       i{dust}jf      emis_dust      1         Z      -     "EDUST1"         "Accumulated DUST emissions bin1"  "kg/m2"
-state    real  edust2       i{dust}jf      emis_dust      1         Z      -     "EDUST2"         "Accumulated DUST emissions bin2"  "kg/m2"
+state    real  edust2       i{dust}jf      emis_dust      1         Z      h     "EDUST2"         "Accumulated DUST emissions bin2"  "kg/m2"
 state    real  edust3       i{dust}jf      emis_dust      1         Z      -     "EDUST3"         "Accumulated DUST emissions bin3"  "kg/m2"
 state    real  edust4       i{dust}jf      emis_dust      1         Z      -     "EDUST4"         "Accumulated DUST emissions bin4"  "kg/m2"
 state    real  edust5       i{dust}jf      emis_dust      1         Z      -     "EDUST5"         "Accumulated DUST emissions bin5"  "kg/m2"
 state   real     -          i{dust}jf      emis_seas      -        -        -         -                    "Sea-Salt Emissions"         ""
 state    real  eseas1       i{dust}jf      emis_seas      1         Z      -     "ESEAS1"         "Sea-Salt emissions bin1 "  ""
-state    real  eseas2       i{dust}jf      emis_seas      1         Z      -     "ESEAS2"         "Sea-Salt emissions bin2 "  ""
+state    real  eseas2       i{dust}jf      emis_seas      1         Z      h     "ESEAS2"         "Sea-Salt emissions bin2 "  ""
 state    real  eseas3       i{dust}jf      emis_seas      1         Z      -     "ESEAS3"         "Sea-Salt emissions bin3 "  ""
 state    real  eseas4       i{dust}jf      emis_seas      1         Z      -     "ESEAS4"         "Sea-Salt emissions bin4 "  ""
 
@@ -379,7 +379,7 @@ state    real  eseasc       i{dust}jf      emis_seas2      1         Z      -   
 # volcanic ash emissions
 #
 state   real     -              ikjf     emis_vol     -         -      -       -                      "Volcanic Emissions"         ""
-state    real  e_vash1          ikjf     emis_vol     1         Z      i{13}hr    "E_VASH1"               "Volcanic Emissions, bin1"   "ug/m2/s"
+state    real  e_vash1          ikjf     emis_vol     1         Z      i{13}r    "E_VASH1"               "Volcanic Emissions, bin1"   "ug/m2/s"
 state    real  e_vash2          ikjf     emis_vol     1         Z      i{13}hr    "E_VASH2"               "Volcanic Emissions, bin2"   "ug/m2/s"
 state    real  e_vash3          ikjf     emis_vol     1         Z      i{13}r    "E_VASH3"               "Volcanic Emissions, bin3"   "ug/m2/s"
 state    real  e_vash4          ikjf     emis_vol     1         Z      i{13}r    "E_VASH4"               "Volcanic Emissions, bin4"   "ug/m2/s"
@@ -422,7 +422,7 @@ state    real  ebu_ora2     ikjf     ebu           1         Z        -      "eb
 state    real  ebu_nh3      ikjf     ebu           1         Z        -      "ebu_nh3"       "biomass burning emiss"  "mol km^-2 hr^-1"
 state    real  ebu_so2      ikjf     ebu           1         Z        -      "ebu_so2"       "biomass burning emiss"  "mol km^-2 hr^-1"
 state    real  ebu_dms      ikjf     ebu           1         Z        -      "ebu_dms"       "biomass burning emiss"  "mol km^-2 hr^-1"
-state    real  ebu_oc       ikjf     ebu           1         Z        h      "ebu_oc"        "biomass burning emiss"  "ug/m2/s"        
+state    real  ebu_oc       ikjf     ebu           1         Z        -      "ebu_oc"        "biomass burning emiss"  "ug/m2/s"        
 state    real  ebu_bc       ikjf     ebu           1         Z        -      "ebu_bc"        "biomass burning emiss"  "ug/m2/s"        
 state    real  ebu_sulf     ikjf     ebu           1         Z        -      "ebu_sulf"      "biomass burning emiss"  "mol km^-2 hr^-1"
 # additional arrays for mozcart biomass burning
@@ -540,14 +540,14 @@ state    real  ebu_in_ch4         i]jf      ebu_in      1         -        i07  
 # NUWRF EMK...Added dry mass burned (DM) for future use in on-line adjustments to emission factors
 state    real  ebu_in_dm         i]jf      ebu_in      1         -        i07        "ebu_in_dm"            "EMISSIONS"          "kg km^-2 hr^-1"        
 #
-state    real  mean_fct_agtf      ij      misc      1         -        i07h       "mean_fct_agtf"         "mean fraction of tropical forest"  "?"
-state    real  mean_fct_agef      ij      misc      1         -        i07h       "mean_fct_agef"         "mean fraction of extra tropical forest"  "?"
-state    real  mean_fct_agsv      ij      misc      1         -        i07h       "mean_fct_agsv"         "mean fraction of savanna"  "?"
-state    real  mean_fct_aggr      ij      misc      1         -        i07h       "mean_fct_aggr"         "mean fraction of grassland"  "?"
-state    real  firesize_agtf      ij      misc      1         -        i07h       "firesize_agtf"         "mean firesize for tropical forest"  "?"
-state    real  firesize_agef      ij      misc      1         -        i07h       "firesize_agef"         "mean firesize for extratropical forest"  "?"
-state    real  firesize_agsv      ij      misc      1         -        i07h       "firesize_agsv"         "mean firesize for savanna"  "?"
-state    real  firesize_aggr      ij      misc      1         -        i07h       "firesize_aggr"         "mean firesize for grassland"  "?"
+state    real  mean_fct_agtf      ij      misc      1         -        i07        "mean_fct_agtf"         "mean fraction of tropical forest"  "?"
+state    real  mean_fct_agef      ij      misc      1         -        i07        "mean_fct_agef"         "mean fraction of extra tropical forest"  "?"
+state    real  mean_fct_agsv      ij      misc      1         -        i07        "mean_fct_agsv"         "mean fraction of savanna"  "?"
+state    real  mean_fct_aggr      ij      misc      1         -        i07        "mean_fct_aggr"         "mean fraction of grassland"  "?"
+state    real  firesize_agtf      ij      misc      1         -        i07        "firesize_agtf"         "mean firesize for tropical forest"  "?"
+state    real  firesize_agef      ij      misc      1         -        i07        "firesize_agef"         "mean firesize for extratropical forest"  "?"
+state    real  firesize_agsv      ij      misc      1         -        i07        "firesize_agsv"         "mean firesize for savanna"  "?"
+state    real  firesize_aggr      ij      misc      1         -        i07        "firesize_aggr"         "mean firesize for grassland"  "?"
 
 # track state filed
 state    real  radfld        i{tz}j{tr}   misc     1        -      -       "radfld"             "radfld"                     ""
@@ -587,7 +587,7 @@ state    real  eac_ch4          i{airc}jf    emis_aircraft    1         Z      i
 #
 state   real     -            ikjf     ext_coef     -         -      -       -                       "Extinction coefficients"         ""
 state   real  extcof3         ikjf     ext_coef     1         Z      -     "EXTCOF3"                 "Extinction coefficients for .3um"  "km^-1"
-state   real  extcof55        ikjf     ext_coef     1         Z      h     "EXTCOF55"                "Extinction coefficients for .55um"  "km^-1"
+state   real  extcof55        ikjf     ext_coef     1         Z      -     "EXTCOF55"                "Extinction coefficients for .55um"  "km^-1"
 state   real  extcof106       ikjf     ext_coef     1         Z      -     "EXTCOF106"               "Extinction coefficients for 1.06um"  "km^-1"
 state   real  extcof3_5       ikjf     ext_coef     1         Z      -     "EXTCOF3_5"               "Band averaged extinction coefficients for 3-5um"  "km^-1"
 state   real  extcof8_12      ikjf     ext_coef     1         Z      -     "EXTCOF8_12"              "Band averaged extinction coefficients for 8-12um"  "km^-1"
@@ -601,7 +601,7 @@ state   real  asympar55       ikjf     asym_par     1         Z      -     "ASYM
 state   real  asympar106      ikjf     asym_par     1         Z      -     "ASYMPAR106"              "assymetry parameter for 1.06um"  "?"
 
 #for dep outputs
-state    real  ddlen          ijo     misc        1         Z      rh       "DRY_DEP_LEN"       "dry deposition velocity"           "cm/s"
+state    real  ddlen          ijo     misc        1         Z      r        "DRY_DEP_LEN"       "dry deposition velocity"           "cm/s"
 state    real  ddflx          ijo     misc        1         Z      r       "DRY_DEP_FLUX"      "dry deposition flux"             "mol or ug m^-2"
 state    real  wdflx          ijo     misc        1         Z      r       "WET_DEP_FLUX"      "column wet scavening flux"       "mmol or ug m^-2"
 
@@ -626,9 +626,9 @@ state    real  noag_grow      ij      misc        1         -      i06r     "noa
 state    real  noag_nongrow   ij      misc        1         -      i06r     "noag_nongrow"      "Reference biog emiss"  "mol km^-2 hr^-1"
 state    real  nononag        ij      misc        1         -      i06r     "nononag"           "Reference biog emiss"  "mol km^-2 hr^-1"
 state    real  slai           ij      misc        1         -      i06r     "slai"              "Leaf area index isop"  ""
-state    real  ebio_iso       ij      misc        1         -      rh        "EBIO_ISO"         "Actual biog emiss"  "mol km^-2 hr^-1"
+state    real  ebio_iso       ij      misc        1         -       r        "EBIO_ISO"         "Actual biog emiss"  "mol km^-2 hr^-1"
 state    real  ebio_oli       ij      misc        1         -       r        "ebio_oli"         "Actual biog emiss"  "mol km^-2 hr^-1"
-state    real  ebio_api       ij      misc        1         -      rh        "ebio_api"         "Actual biog emiss"  "mol km^-2 hr^-1"
+state    real  ebio_api       ij      misc        1         -       r        "ebio_api"         "Actual biog emiss"  "mol km^-2 hr^-1"
 state    real  ebio_lim       ij      misc        1         -       r        "ebio_lim"         "Actual biog emiss"  "mol km^-2 hr^-1"
 state    real  ebio_xyl       ij      misc        1         -       r        "ebio_xyl"         "Actual biog emiss"  "mol km^-2 hr^-1"
 state    real  ebio_hc3       ij      misc        1         -       r        "ebio_hc3"         "Actual biog emiss"  "mol km^-2 hr^-1"
@@ -824,7 +824,7 @@ state  real  advz_ho2   ikjf    advz_ct    1    -    r   "advz_ho2"   "ACCUMULAT
 # deposition velocities for diagnostic package, feel free to add if you like!
 #
 state    real    -           i%jf      dvel           -         -     -    -      "deposition velocities"           ""                                       
-state    real  dvel_o3       i%jf      dvel           1         -      -      "dvel_o3"        "O3 deposition velocity  "  "cm/s"
+state    real  dvel_o3       i%jf      dvel           1         -      r       "dvel_o3"        "O3 deposition velocity  "  "cm/s"
 state    real  dvel_no       i%jf      dvel           1         -      -       "dvel_no"        "NO deposition velocity  "  "cm/s"
 state    real  dvel_no2      i%jf      dvel           1         -      -       "dvel_no2"       "NO2 deposition velocity "  "cm/s"
 state    real  dvel_nh3      i%jf      dvel           1         -      -       "dvel_nh3"       "NH3 deposition velocity "  "cm/s"
@@ -1403,7 +1403,7 @@ state    real  ph_pan          ikj     misc        1         -      r        "PH
 state    real  ph_acet         ikj     misc        1         -      r        "PHOTR102"              "acetone photolysis rate" "min{-1}"
 state    real  ph_mglo         ikj     misc        1         -      r        "PHOTR103"              "mglo photolysis rate" "min{-1}"
 state    real  ph_hno4_2       ikj     misc        1         -      r        "PHOTR104"              "mglo photolysis rate" "min{-1}"
-state    real  ph_clno2        ikj     misc        1         -      r         "PHOTR204"                "CLNO2 Photolysis Rate" "min{-1}"
+state    real  ph_clno2        ikj     misc        1         -      r        "PHOTR204"                "CLNO2 Photolysis Rate" "min{-1}"
 # mozart photolysis rates
 state    real  ph_n2o          ikj     misc        1         -      r        "PHOTR114"              "n2o photolysis rate" "min{-1}"
 state    real  ph_pooh         ikj     misc        1         -      r        "PHOTR118"              "pooh photolysis rate" "min{-1}"
@@ -1476,10 +1476,10 @@ state    real  extaer1         ikj     misc        1         -      -        "EX
 state    real  extaer2         ikj     misc        1         -      -        "EXTAER2"               "bin 2 layer extinction coef" "1/km"
 state    real  extaer3         ikj     misc        1         -      -        "EXTAER3"               "bin 3 layer extinction coef" "1/km"
 state    real  extaer4         ikj     misc        1         -      -        "EXTAER4"               "bin 4 layer extinction coef" "1/km"
-state    real  tauaer1         ikj     misc        1         -      r       "TAUAER1"               "bin 1 layer optical thickness" "?"
-state    real  tauaer2         ikj     misc        1         -      r       "TAUAER2"               "bin 2 layer optical thickness" "?"
-state    real  tauaer3         ikj     misc        1         -      r       "TAUAER3"               "bin 3 layer optical thickness" "?"
-state    real  tauaer4         ikj     misc        1         -      r       "TAUAER4"               "bin 4 layer optical thickness" "?"
+state    real  tauaer1         ikj     misc        1         -      rh       "TAUAER1"               "bin 1 layer optical thickness" "?"
+state    real  tauaer2         ikj     misc        1         -      rh       "TAUAER2"               "bin 2 layer optical thickness" "?"
+state    real  tauaer3         ikj     misc        1         -      rh       "TAUAER3"               "bin 3 layer optical thickness" "?"
+state    real  tauaer4         ikj     misc        1         -      rh       "TAUAER4"               "bin 4 layer optical thickness" "?"
 state    real  gaer1           ikj     misc        1         -      r       "GAER1"                 "bin 1 layer assymetry parameter" "?"
 state    real  gaer2           ikj     misc        1         -      r       "GAER2"                 "bin 2 layer assymetry parameter" "?"
 state    real  gaer3           ikj     misc        1         -      r       "GAER3"                 "bin 3 layer assymetry parameter" "?"
@@ -1557,8 +1557,8 @@ state    real  cvapi1          ikj     misc        1         -      r        "cv
 state    real  cvapi2          ikj     misc        1         -      r        "cvapi2"                "cond.vapor from biogenics"            "?"
 state    real  cvlim1          ikj     misc        1         -      r        "cvlim1"                "cond.vapor from biogenics"            "?"
 state    real  cvlim2          ikj     misc        1         -      r        "cvlim2"                "cond.vapor from biogenics"            "?"
-state    real  snu             ikj     misc        1         -      rh        "snu"                   "2nd moment Aitken mode"               "m2 m-3"
-state    real  sac             ikj     misc        1         -      rh        "sac"                   "2nd moment Aitken mode"               "m2 m-3"
+state    real  snu             ikj     misc        1         -      r        "snu"                   "2nd moment Aitken mode"               "m2 m-3"
+state    real  sac             ikj     misc        1         -      r        "sac"                   "2nd moment Aitken mode"               "m2 m-3"
 # non-transported radical species for RACM
 state    real  addt         ikj     misc        1         -      r        "addt"                "Radicals" "ppm"
 state    real  addx         ikj     misc        1         -      r        "addx"                "Radicals" "ppm"
@@ -1768,7 +1768,7 @@ state   real   biog2_o       ikjftb   chem        1         -   i0{12}rusdf=(bdy
 state   real   biog3_o       ikjftb   chem        1         -   i0{12}rusdf=(bdy_interp:dt)  "biog3_o"         "biog3_o mixing ratio"        "ppmv"
 state   real   biog4_o       ikjftb   chem        1         -   i0{12}rusdf=(bdy_interp:dt)  "biog4_o"         "biog4_o mixing ratio"        "ppmv"
 state   real   smpa       ikjftb   chem        1         -   i0{12}rusdf=(bdy_interp:dt)  "smpa"         "smpa mixing ratio"        "ppmv"
-state   real   smpbb       ikjftb   chem        1         -   i0{12}rusdf=(bdy_interp:dt)  "smpbb"         "smpbb mixing ratio"        "ppmv"
+state   real   smpbb      ikjftb   chem        1         -   i0{12}rusdf=(bdy_interp:dt)  "smpbb"         "smpbb mixing ratio"        "ppmv"
 
 #RACM has a few more variables to those of RADM2 (ETE is equivilant to OL2 from RADM2)
 state   real   ete         ikjftb   chem        1         -   i0{12}rusdf=(bdy_interp:dt)   "ete"           "ETE mixing ratio"         "ppmv"
@@ -3923,7 +3923,7 @@ rconfig   integer     aer_ic_opt          namelist,chem          max_domains    
 rconfig   logical     have_bcs_chem       namelist,chem          max_domains    .false. rh    "have_bcs_chem"       ""      ""
 rconfig   logical     have_bcs_tracer     namelist,chem          max_domains    .false. rh    "have_bcs_tracer"     ""      ""
 # NU-WRF for new GOCART background files
-rconfig   logical     gocart_bg_type      namelist,chem          1              1        -    "gocart_bg_type"       ""      ""
+rconfig   integer     gocart_nuwrf_type   namelist,chem          1              1        -    "gocart_nuwrf_type"   ""      ""
 rconfig   logical     scale_fire_emiss    namelist,chem          max_domains    .false. rh    "scale_fire_emiss"    ""      ""
 rconfig   integer     aer_ra_feedback     namelist,chem          max_domains    0       rh    "aer_ra_feedback"     ""      ""
 rconfig   integer     aer_op_opt          namelist,chem          max_domains    1       rh    "aer_op_opt"          ""      ""
@@ -4104,13 +4104,13 @@ package   nmhc9_kpp     chem_opt==200                   -             chem:o3,h2
 
 # GOCART Packages (no Ozone chemistry in this choice)
 # NUWRF: add new species for the updated SIMPLE GOCART (ZTao)
-package   gocart_simple     chem_opt==300                   -             chem:co,nh3,nh4,abbvoc,so2,sulf,dms,msa,p25,bc1,bc2,oc1,oc2,dust_1,dust_2,dust_3,dust_4,dust_5,seas_1,seas_2,seas_3,seas_4,p10,no3an1,no3an2,no3an3
+package   gocart_simple     chem_opt==300                   -             chem:abbvoc,co,nh3,nh4,so2,sulf,dms,msa,p25,bc1,bc2,oc1,oc2,dust_1,dust_2,dust_3,dust_4,dust_5,seas_1,seas_2,seas_3,seas_4,p10,no3an1,no3an2,no3an3
 
 # NUWRF: add new species for the updated GOCARTRACM_KPP (ZTao)
-package   gocartracm_kpp     chem_opt==301                   -             chem:nh4,abbvoc,so2,sulf,no2,no,o3,hno3,h2o2,ald,hcho,op1,op2,paa,ora1,ora2,nh3,n2o5,no3,pan,hc3,hc5,hc8,eth,co,ete,olt,oli,tol,xyl,aco3,tpan,hono,hno4,ket,gly,mgly,dcb,onit,csl,iso,co2,ch4,udd,hket,api,lim,dien,macr,ho,ho2,dms,msa,p25,bc1,bc2,oc1,oc2,dust_1,dust_2,dust_3,dust_4,dust_5,seas_1,seas_2,seas_3,seas_4,p10,no3an1,no3an2,no3an3
+package   gocartracm_kpp     chem_opt==301                   -             chem:abbvoc,nh4,so2,sulf,no2,no,o3,hno3,h2o2,ald,hcho,op1,op2,paa,ora1,ora2,nh3,n2o5,no3,pan,hc3,hc5,hc8,eth,co,ete,olt,oli,tol,xyl,aco3,tpan,hono,hno4,ket,gly,mgly,dcb,onit,csl,iso,co2,ch4,udd,hket,api,lim,dien,macr,ho,ho2,dms,msa,p25,bc1,bc2,oc1,oc2,dust_1,dust_2,dust_3,dust_4,dust_5,seas_1,seas_2,seas_3,seas_4,p10,no3an1,no3an2,no3an3
 
 # NUWRF: add new species for the updated GOCARTRADM2 (ZTao)
-package   gocartradm2     chem_opt==303                   -             chem:nh4,abbvoc,so2,sulf,no2,no,o3,hno3,h2o2,ald,hcho,op1,op2,paa,ora1,ora2,nh3,n2o5,no3,pan,hc3,hc5,hc8,eth,co,ol2,olt,oli,tol,xyl,aco3,tpan,hono,hno4,ket,gly
+package   gocartradm2     chem_opt==303                   -             chem:abbvoc,nh4,so2,sulf,no2,no,o3,hno3,h2o2,ald,hcho,op1,op2,paa,ora1,ora2,nh3,n2o5,no3,pan,hc3,hc5,hc8,eth,co,ol2,olt,oli,tol,xyl,aco3,tpan,hono,hno4,ket,gly,mgly,dcb,onit,csl,iso,hcl,ho,ho2,dms,msa,p25,bc1,bc2,oc1,oc2,dust_1,dust_2,dust_3,dust_4,dust_5,seas_1,seas_2,seas_3,seas_4,p10,no3an1,no3an2,no3an3
 
 # volcanic ash for ash-fall and conc prediction, not other aerosols in this option (so for other "400" options)
 package   chem_vash   chem_opt==400              -             chem:vash_1,vash_2,vash_3,vash_4,vash_5,vash_6,vash_7,vash_8,vash_9,vash_10
@@ -4165,7 +4165,6 @@ package   eco2            emiss_opt==16                  -             emis_ant:
 package   eghg            emiss_opt==17                  -             emis_ant:e_co2,e_co2tst,e_co,e_cotst,e_ch4,e_ch4tst
 package   ecrimech        emiss_opt==19                   -             emis_ant:e_co,e_no,e_no2,e_so2,e_nh3,e_c2h6,e_c3h8,e_c2h4,e_c3h6,e_c5h8,e_tm123b,e_tm124b,e_tm135b,e_oethtol,e_methtol,e_pethtol,e_dime35eb,e_hcho,e_ch3cho,e_c2h5cho,e_ket,e_mek,e_ch3oh,e_c2h5oh,e_c2h2,e_benzene,e_nc4h10,e_toluene,e_oxyl,e_tbut2ene,e_ch3co2h
 package   ecrimechtno     emiss_opt==20                  -             emis_ant:e_co,e_no,e_no2,e_so2,e_nh3,e_c2h6,e_c3h8,e_c2h4,e_c3h6,e_c5h8,e_tm123b,e_tm124b,e_tm135b,e_oethtol,e_methtol,e_pethtol,e_dime35eb,e_hcho,e_ch3cho,e_c2h5cho,e_ket,e_mek,e_ch3oh,e_c2h5oh,e_c2h2,e_benzene,e_nc4h10,e_toluene,e_oxyl,e_tbut2ene,e_ch3co2h,e_bc_1,e_ec_1_25,e_ec_25_10,e_oc_dom,e_oc_tra,e_oc_25_10,e_pm25,e_oin_25,e_oin_10
-
 #
 # NUWRF: CASA CO2 emissions
 package   ecasaco2            emiss_opt==18                  -             emis_ant:e_casaco2,et_casaco2
@@ -4203,7 +4202,8 @@ package   ebioghg       bio_emiss_opt==17            -             state:rad_vpr
 
 # the following arrays only needed for burn options
 # NUWRF EMK...Added CH4 biomass burn emissions, plus DM (dry mass burned)
-package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ash,ebu_in_ch4,ebu_in_dm
+package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms,ebu_ch4,ebu_dm;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ch4,ebu_in_dm,ebu_in_ash
+#package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ash,ebu_in_ch4,ebu_in_dm
 #package   biomassb      biomass_burn_opt==1             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_no,ebu_no2,ebu_co,ebu_co2,ebu_eth,ebu_hc3,ebu_hc5,ebu_hc8,ebu_ete,ebu_olt,ebu_oli,ebu_pm25,ebu_pm10,ebu_dien,ebu_iso,ebu_api,ebu_lim,ebu_tol,ebu_csl,ebu_hcho,ebu_ald,ebu_ket,ebu_macr,ebu_ora1,ebu_ora2,ebu_so2,ebu_nh3,ebu_oc,ebu_bc,ebu_sulf,ebu_dms;ebu_in:ebu_in_no,ebu_in_no2,ebu_in_co,ebu_in_co2,ebu_in_eth,ebu_in_hc3,ebu_in_hc5,ebu_in_hc8,ebu_in_ete,ebu_in_olt,ebu_in_oli,ebu_in_pm25,ebu_in_pm10,ebu_in_dien,ebu_in_iso,ebu_in_api,ebu_in_lim,ebu_in_tol,ebu_in_csl,ebu_in_hcho,ebu_in_ald,ebu_in_xyl,ebu_in_ket,ebu_in_macr,ebu_in_ora1,ebu_in_ora2,ebu_in_so2,ebu_in_nh3,ebu_in_oc,ebu_in_bc,ebu_in_sulf,ebu_in_dms,ebu_in_ash
 package   biomassb_mozc      biomass_burn_opt==2             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_co,ebu_no,ebu_no2,ebu_bigalk,ebu_bigene,ebu_c2h4,ebu_c2h5oh,ebu_c2h6,ebu_c3h6,ebu_c3h8,ebu_ch2o,ebu_ch3cho,ebu_ch3coch3,ebu_ch3oh,ebu_mek,ebu_so2,ebu_toluene,ebu_nh3,ebu_oc,ebu_bc,ebu_pm25,ebu_pm10,ebu_open,ebu_c10h16,ebu_mgly,ebu_ch3cooh,ebu_cres,ebu_glyald,ebu_gly,ebu_acetol,ebu_isop,ebu_macr,ebu_mvk;ebu_in:ebu_in_co,ebu_in_no,ebu_in_bigalk,ebu_in_bigene,ebu_in_c2h4,ebu_in_c2h5oh,ebu_in_c2h6,ebu_in_c3h6,ebu_in_c3h8,ebu_in_ch2o,ebu_in_ch3cho,ebu_in_ch3coch3,ebu_in_ch3oh,ebu_in_mek,ebu_in_so2,ebu_in_toluene,ebu_in_nh3,ebu_in_no2,ebu_in_open,ebu_in_c10h16,ebu_in_mgly,ebu_in_ch3cooh,ebu_in_cres,ebu_in_glyald,ebu_in_gly,ebu_in_acetol,ebu_in_isop,ebu_in_macr,ebu_in_mvk,ebu_in_pm25,ebu_in_pm10,ebu_in_oc,ebu_in_bc
 package   biomassb_moz       biomass_burn_opt==3             -          state:mean_fct_agtf,mean_fct_agef,mean_fct_agsv,mean_fct_aggr,firesize_agtf,firesize_agef,firesize_agsv,firesize_aggr;ebu:ebu_co,ebu_no,ebu_no2,ebu_bigalk,ebu_bigene,ebu_c2h4,ebu_c2h5oh,ebu_c2h6,ebu_c3h6,ebu_c3h8,ebu_ch2o,ebu_ch3cho,ebu_ch3coch3,ebu_ch3oh,ebu_mek,ebu_so2,ebu_toluene,ebu_nh3,ebu_open,ebu_c10h16,ebu_mgly,ebu_ch3cooh,ebu_cres,ebu_glyald,ebu_gly,ebu_acetol,ebu_isop,ebu_macr,ebu_mvk;ebu_in:ebu_in_co,ebu_in_no,ebu_in_bigalk,ebu_in_bigene,ebu_in_c2h4,ebu_in_c2h5oh,ebu_in_c2h6,ebu_in_c3h6,ebu_in_c3h8,ebu_in_ch2o,ebu_in_ch3cho,ebu_in_ch3coch3,ebu_in_ch3oh,ebu_in_mek,ebu_in_so2,ebu_in_toluene,ebu_in_nh3,ebu_in_no2,ebu_in_open,ebu_in_c10h16,ebu_in_mgly,ebu_in_ch3cooh,ebu_in_cres,ebu_in_glyald,ebu_in_gly,ebu_in_acetol,ebu_in_isop,ebu_in_macr,ebu_in_mvk

@@ -50,12 +50,14 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
                        
   REAL*8,  DIMENSION (1,1,5)          :: graset_dust,grasetvel_dust 
   REAL*8,  DIMENSION (1,1,4)          :: graset_ss,grasetvel_ss
+  REAL*8,  DIMENSION (1,1,1)          :: graset_p25,grasetvel_p25
 
   REAL, INTENT(IN) :: dt,dx,g
   INTEGER          :: kkk,nmx,i,j,k,kk,lmx,iseas,idust
   REAL*8, DIMENSION (1,1,kte-kts+1)   :: tmp,airden,p_mid,delz,rh
   REAL*8, DIMENSION (1,1,kte-kts+1,5) :: ddust
   REAL*8, DIMENSION (1,1,kte-kts+1,4) :: sea_salt
+  REAL*8, DIMENSION (1,1,kte-kts+1,1) :: dp25
 
 !NUWRF added variables
   INTEGER         :: iflag                                          !iflag used for control particle swelling
@@ -68,6 +70,7 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
   REAL, PARAMETER :: rho_no3an3 = 2650.
 
   REAL, PARAMETER :: mwso4 = 96.06, mwnh4 = 18.04, mwair = 28.97  !molecular weight (g/mol)
+  REAL*8, DIMENSION(1) :: reff_p25, rho_p25
   REAL*8, DIMENSION(1,1,kte-kts+1) :: tc_species, delzz
   
   INTEGER :: uoc_flag  ! flag for UoC dust schemes 
@@ -215,6 +218,29 @@ SUBROUTINE gocart_settling_driver(dt,config_flags,t_phy,moist,      &
           ENDDO
        ENDIF 
        
+! NUWRF: process of P25 settling (ZTao)
+!  same treatment as dust assuming identical density and reff to those of dust bin 1
+       kk=0
+       do k=kts,kte
+         kk=kk+1
+	 dp25(1,1,kk,1) = chem(i,k,j,p_p25)
+       end do
+
+       graset_p25(1,1,:)=0.                                           
+       reff_p25(1) = 0.73e-6
+       rho_p25(1) = 2500.
+       iseas=0
+       idust=1
+
+       CALL settling(1,1,lmx,1,g,dyn_visc,dp25,tmp,p_mid,delz,       &
+                     imod,graset_p25,grasetvel_p25, uoc_flag,        & 
+                     rho_p25,reff_p25,dt,rh,idust,iseas,airden)
+       kk = 0
+       do k = kts, kte
+         kk = kk + 1
+         chem(i,k,j,p_p25) = dp25(1,1,kk,1)
+       end do
+
 ! NUWRF: begin process of NH4/NO3 settling (ZTao)
 !! 1) sulf (ppmv -> ug/kg)
       kk = 0

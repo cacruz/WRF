@@ -348,8 +348,8 @@ call wrf_message("**************************************************************
                                300 or 301 or 303 or 503 or 504 or 601 or 611 to function.")
        endif
        if ( config_flags%mp_physics /= 2 .and. config_flags%mp_physics /= 7 .and. config_flags%mp_physics /= 10 .and. config_flags%mp_physics /= 11  &
-            .and. config_flags%mp_physics /= 17 .and. config_flags%mp_physics /= 18 .and. config_flags%mp_physics /= 22) then  !NUWRF: added Goddard MP (=7) option (ZTao, Mar 2022)
-         call wrf_error_fatal("ERROR: wet scavenging option requires mp_phys = 2 (Lin et al.) or 7 (Goddard 4ice) or 10 (Morrison) or 11 (CAMMGMP) or 17/18/22 NSSL_2mom to function.")
+            .and. config_flags%mp_physics /= 17 .and. config_flags%mp_physics /= 18 .and. config_flags%mp_physics /= 22 .and. config_flags%mp_physics /= 107) then  !NUWRF: added Goddard MP (=7) option (ZTao, Mar 2022) and 2-moment GODDARD MP (=107)
+         call wrf_error_fatal("ERROR: wet scavenging option requires mp_phys = 2 (Lin et al.) or 7 (Goddard 4ice) or 10 (Morrison) or 11 (CAMMGMP) or 17/18/22 NSSL_2mom or 107 (Goddard 2-moment) to function.")
        endif
      elseif( id == 1 ) then
        if ( config_flags%mp_physics /= 6 .and. config_flags%mp_physics /= 8 .and. config_flags%mp_physics /= 10 .and. config_flags%mp_physics /= 17  &
