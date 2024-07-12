@@ -47,7 +47,7 @@ DA_CONVERTOR_MODULES = $(DA_CONVERTOR_MOD_DIR) $(INCLUDE_MODULES)
 
 #### 3.d.   add macros to specify the modules for this core
 
-ifeq ($(WRF_LIS),"1")
+ifeq ($(WRF_LIS),1)
 current_dir = $(shell pwd)
 LIS_MODULES = -I$(current_dir)/../LISF/lis/make
 endif
@@ -112,7 +112,7 @@ configcheck:
          exit 21 ; \
 	fi
 
-ifeq ($(WRF_LIS),"1")
+ifeq ($(WRF_LIS),1)
 framework_only : configcheck
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" ext
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" toolsdir
@@ -131,7 +131,7 @@ framework_only : configcheck
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" shared
 endif
 # LIS as library to WRF
-ifeq ($(WRF_LIS),"1")
+ifeq ($(WRF_LIS),1)
 explis :
 	@ echo '----------- WRF/LIS ----------------------'
 	$(MAKE) -C $(current_dir)/../LISF/lis/make -j 4 explis
@@ -557,7 +557,7 @@ em_scm_xy : wrf
 	fi
 
 # Needs LIS
-ifeq ($(WRF_LIS),"1")
+ifeq ($(WRF_LIS),1)
 em_scm_lis_xy : wrf
 	@/bin/rm -f ideal.exe > /dev/null 2>&1
 	@/bin/rm -f wrf.exe   > /dev/null 2>&1

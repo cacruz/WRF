@@ -25,6 +25,7 @@ MODULE module_bioemi_megan2
 CONTAINS
 
   SUBROUTINE bio_emissions_megan2(id,config_flags,ktau,dtstep,         &
+       stepbioe, & ! NUWRF
        curr_secs,julday,gmt,xlat,xlong,p_phy,rho_phy,dz8w,             &
        chem, ne_area,                                                  &
        current_month,                                                  &
@@ -79,7 +80,8 @@ CONTAINS
     INTEGER, INTENT (IN) :: julday   
     !...GTM hour of start of simulation, time step in seconds
     REAL, INTENT(IN) :: gmt,dtstep
-
+    INTEGER, INTENT(IN) :: stepbioe !NUWRF Z. Tao add this newly passed parameter
+      
     ! ...number of seconds into the simulation
     REAL(KIND=8), INTENT(IN) :: curr_secs
 
@@ -267,6 +269,15 @@ CONTAINS
 
     !...Some light-dependent factor (dimensionless)
     REAL :: ldf
+
+    !...conversion factor to convert emissions rates in 
+    !...mol km-2 hr-1 to concentrations in ppm
+    REAL :: emis2ppm
+
+    ! NUWRF by Z. Tao
+    !...conversion factor to convert emissions rates in 
+    !...mol km-2 hr-1 to concentrations in ug-C/kg-dryair
+    REAL :: emis2mass
 
     !...conversion factor from mol km-2 hr-1 to ppm m min-1
     REAL :: convert2
@@ -470,7 +481,7 @@ CONTAINS
     CASE ( CB05_SORG_VBS_AQ_KPP)
        CALL get_megan2cb05vbs_table
 
-    CASE ( MOZART_KPP, MOZCART_KPP )
+    CASE ( MOZART_KPP, MOZCART_KPP, GOCART_SIMPLE ) ! NUWRF, GOCART_SIMPLE
        ! get p_of_megan2mozcart(:), p_of_mozcart(:), and mozcart_per_megan(:)
        CALL get_megan2mozcart_table
     CASE (  T1_MOZCART_KPP )
@@ -765,6 +776,19 @@ CONTAINS
           ! Speciate the n_spca_spc=nmegan=138 species into
           ! the gas-phase mechanism species
 
+          !...conversion factor to convert emissions rates in 
+          !...mol km-2 hr-1 to concentrations in ppm
+          !         0.02897 kg/mol is molecular of air
+          !         rho_phy is air density in kg air/m3
+          !         dz8w is layer height in meters
+          !         dtstep is time step in seconds
+	  ! NUWRF...Using stepbioe
+          emis2ppm = 0.02897*stepbioe*dtstep/(rho_phy(i,kts,j)*dz8w(i,kts,j)*3600.)
+
+	  ! NUWRF by Z. Tao
+	  !...conversion factor from mol km-2 hr-1 to ug-C/kg-dryair
+	  !	    120 g/mol is MW of monoterpene
+	  emis2mass = 120.*stepbioe*dtstep/(rho_phy(i,kts,j)*dz8w(i,kts,j)*3600.)
 
           !...conversion factor from mol km-2 hr-1 to ppm m min-1
           !...(e_bio is in units of ppm m min-1)
@@ -774,7 +798,7 @@ CONTAINS
           !...
           GAS_MECH_SELECT: SELECT CASE (config_flags%chem_opt)
 
-          CASE ( MOZART_KPP, MOZCART_KPP )
+          CASE ( MOZART_KPP, MOZCART_KPP, GOCART_SIMPLE ) ! NUWRF, GOCART_SIMPLE
 
              DO icount = 1, n_megan2mozcart
 !-----------------------------------------------------------------------
@@ -792,6 +816,27 @@ is_mozcart_species : &
 ! Emission rate for mechanism species in mol km-2 hr-1
 !-----------------------------------------------------------------------
                       gas_emis = mozcart_per_megan(icount) * E_megan2(p_of_megan2mozcart(icount))
+
+! Increase gas-phase concentrations (in ppmv) due to biogenic emissions
+!-----------------------------------------------------------------------
+
+! NU-WRF BEGIN
+! by Z. Tao. for GOCART related case
+! Assuming 90% of monoterpene species goes to gas phase
+! and 10% converted to SOA (ug-C/kg-dryair)
+
+		    if(config_flags%bio_emiss_soa .eq. 1 .and. 	&
+			config_flags%chem_opt .eq. GOCART_SIMPLE .and. p_in_chem .eq. p_c10h16) then
+                      chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + 0.9*gas_emis*emis2ppm
+! EMK NUWRF...Switched p_oc2 to p_oc2 per Z. Tao
+                      chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.1*gas_emis*emis2mass 
+		    else
+                      chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis*emis2ppm
+		    end if
+
+! NU-WRF END
+!-----------------------------------------------------------------------
+
 !-----------------------------------------------------------------------
 ! Add emissions to diagnostic output variables.
 ! ebio_xxx (mol km-2 hr-1) were originally used by the 
@@ -1077,8 +1122,10 @@ is_mozm_species : &
                 END IF use_megan_emis
              END DO
 
-          CASE (RADM2, RADM2_KPP, RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM, RADM2SORG_KPP,GOCARTRADM2)
-
+          ! NU-WRF...Removed GOCARTRADM2 and GOCARTRADM2_KPP, as these are
+          ! treated separately further below.
+          ! NUWRF: GOCARTRADM2_KPP removed in WRF 3.7.1.
+          CASE (RADM2, RADM2_KPP, RADM2SORG, RADM2SORG_AQ, RADM2SORG_AQCHEM, RADM2SORG_KPP)
              DO icount = 1, n_megan2radm2
 
                 IF ( p_of_radm2(icount) .NE. non_react ) THEN
@@ -1140,11 +1187,97 @@ is_mozm_species : &
                           e_bio(i,j,p_ora1-1) = e_bio(i,j,p_ora1-1) + gas_emis*convert2
                       END IF
 
+                   END IF !( p_in_chem > param_first_scalar )
+
+                END IF !( p_of_ramd2(icount) .NE. non_react )
+                
+             END DO
+
+! NU-WRF.
+! added by Z. Tao to account for RADM2 and GOCART combinations
+! Assume 90% of monoterpene species goes to gas phase and 10% converted to SOA
+! NUWRF: GOCARTRADM2_KPP removed in WRF 3.7.1.
+          CASE (GOCARTRADM2)
+
+             DO icount = 1, n_megan2radm2
+
+                IF ( p_of_radm2(icount) .NE. non_react ) THEN
+                
+                   ! Get index to chem array for the corresponding RADM2
+                   ! species.  
+                   p_in_chem = p_of_radm2(icount)
+
+                   ! Check if the species is actually in the mechanism
+                   IF ( p_in_chem >= param_first_scalar ) THEN
+                      
+                      ! Emission rate for mechanism species in mol km-2 hr-1
+                      gas_emis = radm2_per_megan(icount) * E_megan2(p_of_megan2radm2(icount))
+
+                      ! Increase gas-phase concentrations (in ppmv) due to
+                      ! biogenic emissions
+
+		     if(config_flags%bio_emiss_soa .eq. 1 .and. icount .le. 27 .and.	&
+		 	 	 (p_in_chem .eq. p_oli .or. p_in_chem .eq. p_olt)) then
+                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + 0.9*gas_emis*emis2ppm
+! NUWRF EMK...Changed p_oc1 to p_oc2 per Z. Tao
+                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.1*gas_emis*emis2mass 
+		     else
+                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis*emis2ppm
+		     end if
+
+                      ! Add emissions to diagnostic output variables.
+                      ! ebio_xxx (mol km-2 hr-1) were originally used by the 
+                      ! BEIS3.11 biogenic emissions module. 
+                      ! I have also borrowed variable e_bio (ppm m min-1).
+                      IF ( p_in_chem .EQ. p_iso ) THEN
+                         ebio_iso(i,j)        = ebio_iso(i,j)       + gas_emis
+                         e_bio(i,j,p_iso-1)   = e_bio(i,j,p_iso-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_oli) THEN
+                         ebio_oli(i,j)        = ebio_oli(i,j)       + gas_emis
+                         e_bio(i,j,p_oli-1)   = e_bio(i,j,p_oli-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_hc3) THEN
+                         ebio_hc3(i,j)        = ebio_hc3(i,j)       + gas_emis
+                         e_bio(i,j,p_hc3-1)   = e_bio(i,j,p_hc3-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_olt) THEN
+                         ebio_olt(i,j)        = ebio_olt(i,j)       + gas_emis
+                         e_bio(i,j,p_olt-1)   = e_bio(i,j,p_olt-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_ket) THEN
+                         ebio_ket(i,j)        = ebio_ket(i,j)       + gas_emis
+                         e_bio(i,j,p_ket-1)   = e_bio(i,j,p_ket-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_ald) THEN
+                         ebio_ald(i,j)        = ebio_ald(i,j)       + gas_emis
+                         e_bio(i,j,p_ald-1)   = e_bio(i,j,p_ald-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_hcho) THEN
+                         ebio_hcho(i,j)       = ebio_hcho(i,j)      + gas_emis
+                         e_bio(i,j,p_hcho-1)  = e_bio(i,j,p_hcho-1) + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_eth) THEN
+                         ebio_eth(i,j)        = ebio_eth(i,j)       + gas_emis
+                         e_bio(i,j,p_eth-1)   = e_bio(i,j,p_eth-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_ora2) THEN
+                         ebio_ora2(i,j)       = ebio_ora2(i,j)      + gas_emis
+                         e_bio(i,j,p_ora2-1)  = e_bio(i,j,p_ora2-1) + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_co) THEN
+                         ebio_co(i,j)         = ebio_co(i,j)        + gas_emis
+                         e_bio(i,j,p_co-1)    = e_bio(i,j,p_co-1)   + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_no) THEN
+                         ebio_no(i,j)         = ebio_no(i,j)        + gas_emis   
+                         e_bio(i,j,p_no-1)    = e_bio(i,j,p_no-1)   + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_ol2) THEN
+                          e_bio(i,j,p_ol2-1)  = e_bio(i,j,p_ol2-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_hc5) THEN
+                          e_bio(i,j,p_hc5-1)  = e_bio(i,j,p_hc5-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_hc8) THEN
+                          e_bio(i,j,p_hc8-1)  = e_bio(i,j,p_hc8-1)  + gas_emis*convert2
+                      ELSE IF ( p_in_chem .EQ. p_ora1) THEN
+                          e_bio(i,j,p_ora1-1) = e_bio(i,j,p_ora1-1) + gas_emis*convert2
+                      END IF
+
                    END IF !( p_in_chem >= param_first_scalar )
 
                 END IF !( p_of_ramd2(icount) .NE. non_react )
                 
              END DO
+! NUWRF END
 
            CASE (RACMSORG_AQ, RACMSORG_AQCHEM_KPP, RACM_ESRLSORG_AQCHEM_KPP, RACM_ESRLSORG_KPP, RACM_KPP, GOCARTRACM_KPP, &
                  RACMSORG_KPP, RACM_MIM_KPP, RACMPM_KPP)
@@ -1162,6 +1295,28 @@ is_mozm_species : &
 
                       ! Emission rate of mechanism species in mol km-2 hr-1
                       gas_emis =  racm_per_megan(icount) * E_megan2(p_of_megan2racm(icount))
+
+! NU-WRF BEGIN
+                      ! Increase gas-phase concentrations (in ppmv) due to
+                      ! biogenic emissions
+
+! by Z. Tao. for GOCART related case
+! Assuming 90% of monoterpene species goes to gas phase
+! and 10% converted to SOA (ug-C/kg-dryair)
+
+		    if(config_flags%bio_emiss_soa .eq. 1 .and. config_flags%chem_opt .eq. GOCARTRACM_KPP) then
+		      if(p_in_chem .eq. p_lim .or. p_in_chem .eq. p_api) then
+                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + 0.9 * gas_emis * emis2ppm
+! NUWRF EMK...Changed p_oc1 to p_oc2 per Z. Tao
+                        chem(i,kts,j,p_oc2) = chem(i,kts,j,p_oc2) + 0.1 * gas_emis * emis2mass 
+		      else 
+                        chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis * emis2ppm
+		      end if
+		    else
+                      chem(i,kts,j,p_in_chem) = chem(i,kts,j,p_in_chem) + gas_emis * emis2ppm
+		    end if
+
+! NU-WRF END
 
                       ! Add emissions to diagnostic output variables.
                       ! ebio_xxx (mol km-2 hr-1) were originally used by the 

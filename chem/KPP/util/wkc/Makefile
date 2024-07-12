@@ -4,7 +4,9 @@
 
 include ../../configure.kpp
 
-CFLAGS = #-ansi
+# EMK NUWRF...Use same compile flags as WRF
+#CFLAGS = #-ansi
+CFLAGS = $(CC_FLAGS)
 LDFLAGS =
 DEBUG = -O0 -g 
 OBJ = registry_kpp.o  my_strtok.o data.o type.o misc.o reg_parse.o \
@@ -23,7 +25,7 @@ registry : $(OBJ)
 	$(SCC) -I../../../../inc $(CFLAGS) -c $(DEBUG) $<
 
 clean:
-	@/bin/rm -f $(OBJ) gen_comms.c
+	/bin/rm -f $(OBJ) gen_comms.c
 
 gen_comms.c : gen_comms.stub
 	/bin/cp gen_comms.stub gen_comms.c

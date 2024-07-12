@@ -66,7 +66,9 @@ USE module_configure, only:p_extcof3,p_extcof55,p_extcof106,p_extcof3_5,p_extcof
       slope= slopessa*(1.06-.999)+waer999(i,k,j) ! slope is scratch variable, = single scat albedo at 1.06 micron
       slope=AMIN1(1.0,AMAX1(0.4,slope))   ! SSA has same limits as in PNNL
       bscat_coeff(i,k,j,p_bscof106)=ext_coeff(i,k,j,p_extcof106)*slope  ! 1060nm scat. coeff. (1/km)
-      asym_par(i,k,j,p_asympar106)=AMIN1(1.,AMAX1(0.5,slopeg*(1.06-.999)+gaer600(i,k,j)))  ! 1060nm assym. parameter (no units)
+! NUWRF, Z. Tao
+!      asym_par(i,k,j,p_asympar106)=AMIN1(1.,AMAX1(0.5,slopeg*(1.06-.999)+gaer600(i,k,j)))  ! 1060nm assym. parameter (no units)
+      asym_par(i,k,j,p_asympar106)=AMIN1(1.,AMAX1(0.5,slopeg*(1.06-.999)+gaer999(i,k,j)))  ! 1060nm assym. parameter (no units)
 ! 3.-5.  and 8. - 12. micron band averages done by extrapolating .3-.999 calculations, like PNNL
       onemang=1.-ang
       if(abs(onemang).gt.1.E-3)then   ! if ang sufficiently different than one, no need to worry about singularity

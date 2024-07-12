@@ -34,7 +34,8 @@
 %{
   #include <stdio.h>
   #include <stdlib.h>
-  #include <malloc.h>
+  /* EMK NUWRF...malloc.h is non-standard. Replace with stdlib.h */
+  /*#include <malloc.h>*/
   #include <string.h>
   #include <unistd.h>
   #include "scan.h"

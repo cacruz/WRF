@@ -94,14 +94,15 @@ SUBROUTINE input_ext_chem_erod_file (grid)
      ALLOCATE( tmp(ids:ide-1,jds:jde-1) )
      ALLOCATE( erod(ids:ide-1,jds:jde-1,3) )
 
+! NUWRF EMK...Change "erod" to "erod_static" for better identification
 
      OPEN(19,FILE='wrf_dust_erod.txt',FORM='FORMATTED')
      READ(19,'(12E15.5)') tmp
-     grid%erod(ids:ide-1,jds:jde-1,1) = tmp
+     grid%erod_static(ids:ide-1,jds:jde-1,1) = tmp
      READ(19,'(12E15.5)') tmp
-     grid%erod(ids:ide-1,jds:jde-1,2) = tmp
+     grid%erod_static(ids:ide-1,jds:jde-1,2) = tmp
      READ(19,'(12E15.5)') tmp
-     grid%erod(ids:ide-1,jds:jde-1,3) = tmp
+     grid%erod_static(ids:ide-1,jds:jde-1,3) = tmp
      CLOSE(19)
 
 ! End of loop over file names

@@ -138,6 +138,9 @@ subroutine plumerise_driver (id,ktau,dtstep,                           &
                ebu(i,kts,j,p_ebu_oc)=ebu_in(i,1,j,p_ebu_in_oc)
                ebu(i,kts,j,p_ebu_so2)=ebu_in(i,1,j,p_ebu_in_so2)
                ebu(i,kts,j,p_ebu_dms)=ebu_in(i,1,j,p_ebu_in_dms)
+               ebu(i,kts,j,p_ebu_ch4)=ebu_in(i,1,j,p_ebu_in_ch4) !EMK NUWRF
+               ebu(i,kts,j,p_ebu_nh3)=ebu_in(i,1,j,p_ebu_in_nh3) !EMK NUWRF
+               ebu(i,kts,j,p_ebu_dm)=ebu_in(i,1,j,p_ebu_in_dm) ! EMK NUWRF
             enddo
          enddo
        elseif ( config_flags%biomass_burn_opt == BIOMASSB_MOZC .or. &

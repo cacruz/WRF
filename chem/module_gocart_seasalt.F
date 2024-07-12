@@ -64,8 +64,14 @@ CONTAINS
   do i=its,ite
 !
 ! don't do dust over water!!!
+! NUWRF EMK...Per Z. Tao
+! change geopotential height criteria to distinguish between sea and other water
 !
-     if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.1.e-3)then
+! increase geopotential height threshold to include more ocean coverage
+! in short term will make the threshold a namelist option to be adjusted regionally
+! in the long run, explore to use global salinity data as the mask -- Z. Tao (dec, 2015)
+!     if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.1.e-3)then
+     if(xland(i,j).gt.1.5.and.z_at_w(i,kts,j).lt.2.0)then
      ilwi(1,1)=0
      if(config_flags%chem_opt == 2 .or. config_flags%chem_opt == 11 ) then
         tc(:)=1.e-16*conver
@@ -258,12 +264,12 @@ SUBROUTINE source_ss(imx,jmx,lmx,nmx, dt1, tc, &
                  src = dfm*dxy(j)*w10m(i,j)**c0(2)
 !                 src = ch_ss(n,dt(1)%mn)*dfm*dxy(j)*w10m(i,j)**c0(2)
                  if(src < 0.0 ) src=0.
-                 tc(i,j,1,n) = tc(i,j,1,n) + src/airmas(i,j,1)
+                 tc(i,j,1,n) = tc(i,j,1,n) + .25*src/airmas(i,j,1) ! NUWRF .25
 !                if(ipr.eq.1)write(0,*)n,dfm,c0(2),dxy(j),w10m(i,j),src,airmas(i,j,1)
               ELSE
                  src = 0.0
               END IF
-              bems(i,j,n) = bems(i,j,n) + src
+              bems(i,j,n) = bems(i,j,n) + .25*src ! NUWRF .25
            END DO  ! i
         END DO ! j
      END DO ! ir

@@ -236,14 +236,32 @@ is_mozart:if( is_moz_chm ) then
             end if
             if(p_e_co2 >= param_first_scalar .and. p_co2 >= param_first_scalar) then
               chem(its:ite,k,j,p_co2) = chem(its:ite,k,j,p_co2) + emis_ant(its:ite,k,j,p_e_co2)*conv_rho(its:ite)
-            end if
-            if( config_flags%chem_opt == GOCARTRACM_KPP .or. config_flags%chem_opt == GOCARTRADM2 ) then
+           end if
+           if( config_flags%chem_opt == GOCARTRACM_KPP .or. config_flags%chem_opt == GOCARTRADM2 ) then
               chem(its:ite,k,j,p_p10) = chem(its:ite,k,j,p_p10) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_pm_10)
               chem(its:ite,k,j,p_p25) = chem(its:ite,k,j,p_p25) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_pm_25)
               chem(its:ite,k,j,p_oc1) = chem(its:ite,k,j,p_oc1) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_oc)
               chem(its:ite,k,j,p_bc1) = chem(its:ite,k,j,p_bc1) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_bc)
-            endif
+           endif
+!!
+!! aerosol species should not be added here, they are dealt with separately. 
+!! please refer to emissions_driver.F  by Z. Tao (April, 2021)
+!            if( config_flags%chem_opt == GOCARTRACM_KPP .or. config_flags%chem_opt == GOCARTRADM2 ) then
+!              chem(its:ite,k,j,p_p10) = chem(its:ite,k,j,p_p10) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_pm_10)
+!              chem(its:ite,k,j,p_p25) = chem(its:ite,k,j,p_p25) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_pm_25)
+!              chem(its:ite,k,j,p_oc1) = chem(its:ite,k,j,p_oc1) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_oc)
+!              chem(its:ite,k,j,p_bc1) = chem(its:ite,k,j,p_bc1) + conv_rho_aer(its:ite)*emis_ant(its:ite,k,j,p_e_bc)
+!            endif
           endif is_mozart
+ 
+! NUWRF RACM only
+! By Z. Tao for offline biogenic emissions input
+! Modified by CC for v4.3
+           if(p_api.gt.1)chem(its:ite,k,j,p_api)=chem(its:ite,k,j,p_api)		&
+                         +emis_ant(its:ite,k,j,p_e_api)*conv_rho
+           if(p_lim.gt.1)chem(its:ite,k,j,p_lim)=chem(its:ite,k,j,p_lim)		&
+                         +emis_ant(its:ite,k,j,p_e_lim)*conv_rho
+        
         END DO k_loop
       END DO                                                          
 

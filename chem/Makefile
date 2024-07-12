@@ -192,6 +192,7 @@ MODULES =                                 \
         module_cam_mam_mo_sethet.o         \
         module_phot_fastj.o               \
 	module_chem_cup.o      \
+	module_casaco2_fluxes.o      \
         module_isocom.o                   \
         module_isofwd.o                   \
         module_isorev.o
