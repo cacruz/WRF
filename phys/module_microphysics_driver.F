@@ -110,9 +110,6 @@ SUBROUTINE microphysics_driver(grid                                      &
                       ,phys_tot, physc, physe, physd, physs, physm, physf& ! for gsfcgce
                       ,acphys_tot, acphysc, acphyse, acphysd  & ! for gsfcgce
                       ,acphyss, acphysm, acphysf              & ! for gsfcgce
-                      ,comdbz, csi                                  & ! for gsfcgce
-                      ,rainncv_sepa, rainnc_sepa                         & 
-                      ,ri_sepa, it_sepa                                  & ! for MPI-safe CSI
                       ,re_cloud_gsfc, re_rain_gsfc, re_ice_gsfc          &
                       ,re_snow_gsfc, re_graupel_gsfc, re_hail_gsfc       & ! cloud effective radius
                       ,precr3d, preci3d, precs3d, precg3d, prech3d       &
@@ -852,7 +849,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
    INTEGER, DIMENSION( ims:ime, jms:jme ),                        &
          INTENT(INOUT),                                           &
          OPTIONAL   ::                                 it_sepa
-
 #if ( WRF_CHEM == 1)
 ! NUWRF JJS 20110525 vvvvv
 ! for inline Gocart coupling
@@ -948,8 +944,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
    LOGICAL :: channel
    LOGICAL :: nssl_progn = .false.
    REAL    :: z0, z1, z2, w1, w2
-
-   integer :: ipass ! EMK NUWRF for MPI-safe CSI
 
    integer, parameter :: ntot = 50
    real :: wmin, wmax
@@ -1059,14 +1053,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
             ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
             ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
             )
-
-       !EMK NUWRF
-       call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-            ,ids,ide,jds,jde,kds,kde &
-            ,ims,ime,jms,jme,kms,kme &
-            ,its,ite,jts,jte,kts,kte)
-       !EMK NUWRF
-
 
    ELSE
 #endif
@@ -1587,12 +1573,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,GRAUPELNCV=graupelncv                             &
                  ,SR=sr                                             &
                                                                     )
-             !EMK NUWRF
-             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                  ,ids,ide,jds,jde,kds,kde &
-                  ,ims,ime,jms,jme,kms,kme &
-                  ,its,ite,jts,jte,kts,kte)
-             !EMK NUWRF
 # endif
 
 !
@@ -1662,12 +1642,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,HAILNCV=hailncv                     &
                  ,SR=sr                               &
                                                       )
-             !EMK NUWRF
-             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                  ,ids,ide,jds,jde,kds,kde &
-                  ,ims,ime,jms,jme,kms,kme &
-                  ,its,ite,jts,jte,kts,kte)
-             !EMK NUWRF
 #endif
 
 !
@@ -1790,13 +1764,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 #endif
                  ,PRECR=precr,PRECI=preci,PRECS=precs,PRECG=precg   & ! jdf for wrf-chem
                                                                     )
-             !EMK NUWRF
-             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                  ,ids,ide,jds,jde,kds,kde &
-                  ,ims,ime,jms,jme,kms,kme &
-                  ,its,ite,jts,jte,kts,kte)
-             !EMK NUWRF
-
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling morrison two moment')
         ENDIF
@@ -2206,14 +2173,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
                                                                     )
-               !EMK NUWRF...This scheme always calculates reflectivity.
-               call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
-               ,diagflag=.true., do_radar_ref=1 &
-               ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
-               ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
-               ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
-               !EMK NUWRF
-
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling milbrandt2mom')
         ENDIF
@@ -2270,6 +2229,168 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 ! START NSSL 2MOM with ELECPHYSICS
 !
 #ifdef WRF_ELEC
+             IF ( elec_physics == 0 ) THEN
+                
+                CALL nssl_2mom_driver(                          &
+                   ITIMESTEP=itimestep,                &
+                   TH=th,                              &
+                   QV=qv_curr,                         &
+                   QC=qc_curr,                         &
+                   QR=qr_curr,                         &
+                   QI=qi_curr,                         &
+                   QS=qs_curr,                         &
+                   QH=qg_curr,                         &
+                   QHL=qh_curr,                        &
+                   VHW=qvolg_curr,                     &
+                   PII=pi_phy,                         &
+                   P=p,                                &
+                   W=w,                                &
+                   DZ=dz8w,                            &
+                   DTP=dt,                             &
+                   DN=rho,                             &
+                   RAINNC   = RAINNC,                  &
+                   RAINNCV  = RAINNCV,                 &
+                   SNOWNC   = SNOWNC,                  &
+                   SNOWNCV  = SNOWNCV,                 &
+                   HAILNC   = HAILNC,                  &
+                   HAILNCV  = HAILNCV,                 &
+                   GRPLNC   = GRAUPELNC,               &
+                   GRPLNCV  = GRAUPELNCV,              &
+                   SR=SR,                              &
+                   dbz      = refl_10cm,               &
+                   diagflag = diagflag,                &
+                   IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                   )
+             ELSEIF ( elec_physics > 0 .and. f_scw ) THEN
+            
+                CALL nssl_2mom_driver(                          &
+                   ITIMESTEP=itimestep,                &
+                   TH=th,                              &
+                   QV=qv_curr,                         &
+                   QC=qc_curr,                         &
+                   QR=qr_curr,                         &
+                   QI=qi_curr,                         &
+                   QS=qs_curr,                         &
+                   QH=qg_curr,                         &
+                   QHL=qh_curr,                        &
+                   CCW=qndrop_curr,                       &
+                   CRW=qnr_curr,                       &
+                   CCI=qni_curr,                       &
+                   CSW=qns_curr,                       &
+                   CHW=qng_curr,                       &
+                   CHL=qnh_curr,                       &
+                   SCR=scr,                            &
+                   SCW=scw,                            &
+                   SCI=sci,                            &
+                   SCS=scs,                            &
+                   SCH=sch,                            &
+                   SCHL=schl,                          &
+                   SCTOT=sctot,                        &
+                   NONINDUC = noninduc,                &
+                   rscghis_2d = rscghis_2d,            &
+                   INDUC = induc,                      &
+                   ELEC = elecz,                       &
+                   SCION = scion,                      &
+                   SCIONA = sciona,                    &
+                   VHW=qvolg_curr,                     &
+                   VHL=qvolh_curr,                     &
+                   PII=pi_phy,                         &
+                   P=p,                                &
+                   W=w,                                &
+                   DZ=dz8w,                            &
+                   dx=dx, dy=dy,                       &
+                   DTP=dt,                             &
+                   DN=rho,                             &
+                   RAINNC   = RAINNC,                  &
+                   RAINNCV  = RAINNCV,                 &
+                   SNOWNC   = SNOWNC,                  &
+                   SNOWNCV  = SNOWNCV,                 &
+                   HAILNC   = HAILNC,                  &
+                   HAILNCV  = HAILNCV,                 &
+                   GRPLNC   = GRAUPELNC,               &
+                   GRPLNCV  = GRAUPELNCV,              &
+                   SR=SR,                              &
+                   diagflag = diagflag,                &
+                   ipelectmp = ipelectmp,                &
+                   dbz      = refl_10cm,               &
+                   nssl_progn=nssl_progn,              &
+                   cu_used=cu_used,                    &
+                   qrcuten=qrcuten,                    & ! hm
+                   qscuten=qscuten,                    & ! hm
+                   qicuten=qicuten,                    & ! hm
+                   qccuten=qccuten,                    & ! hm
+                   re_cloud=re_cloud,                  &
+                   re_ice=re_ice,                      &
+                   re_snow=re_snow,                    &
+                   has_reqc=has_reqc,                  & ! ala G. Thompson
+                   has_reqi=has_reqi,                  & ! ala G. Thompson
+                   has_reqs=has_reqs,                  & ! ala G. Thompson
+#if ( WRF_CHEM == 1 )
+                   EVAPPROD=evapprod,RAINPROD=rainprod,&
+#endif
+                   IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                   )
+             ENDIF ! elec_physics
+#endif
+
+
+          ELSE
+             Call wrf_error_fatal( 'arguments not present for calling nssl_1mom')
+          ENDIF
+
+
+    CASE (NSSL_1MOMLFO)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl1mom')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND.  &
+             PRESENT (QR_CURR) .AND.  &
+             PRESENT (QI_CURR) .AND.  &
+             PRESENT (QS_CURR) .AND.  &
+             PRESENT (QG_CURR) .AND.  &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+             PRESENT ( W      )  ) THEN
+             
+
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     dbz      = refl_10cm,               &
+                     diagflag = diagflag,                &
+                     ke_diag = ke_diag,                &
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                                    )
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_1momlfo')
+        ENDIF
     CASE (NSSL_2MOM)
          CALL wrf_debug(100, 'microphysics_driver: calling nssl2mom')
          IF (PRESENT (QV_CURR) .AND.                           &
@@ -2362,8 +2483,101 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                                                        )
         ENDIF ! elec_physics
 
+                                                                    )
+
+         !EMK NUWRF...This scheme almost always calculates reflectivity.
+         call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+              ,diagflag=diagflag, do_radar_ref=1 &
+              ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+              ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+              ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+         !EMK NUWRF
+
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling nssl_2mom')
+        ENDIF
+
+    CASE (NSSL_2MOMG)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl2mom')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND. PRESENT (QNdrop_CURR)  .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QNR_CURR)  .AND. &
+             PRESENT (QI_CURR) .AND. PRESENT (QNI_CURR)  .AND. &
+             PRESENT (QS_CURR) .AND. PRESENT (QNS_CURR)  .AND. &
+             PRESENT (QG_CURR) .AND. PRESENT (QNG_CURR)  .AND. &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+             PRESENT ( W      )  .AND. &
+             PRESENT (QVOLG_CURR) .AND. F_QVOLG  ) THEN
+             
+
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+ !                    CCW=qnc_curr,                       &
+                     CCW=qndrop_curr,                    &
+                     CRW=qnr_curr,                       &
+                     CCI=qni_curr,                       &
+                     CSW=qns_curr,                       &
+                     CHW=qng_curr,                       &
+                     VHW=qvolg_curr,                     &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     HAILNC   = HAILNC,                  &
+                     HAILNCV  = HAILNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     dbz      = refl_10cm,               &
+#if ( WRF_CHEM == 1 )
+                    EVAPPROD=evapprod,RAINPROD=rainprod, &
+#endif
+                     nssl_progn=nssl_progn,              &
+                      diagflag = diagflag,               &
+                     cu_used=cu_used,                    &
+                     qrcuten=qrcuten,                    &  ! hm
+                     qscuten=qscuten,                    &  ! hm
+                     qicuten=qicuten,                    &  ! hm
+                     qccuten=qccuten,                    &  ! hm
+                     re_cloud=re_cloud,                  &
+                     re_ice=re_ice,                      &
+                     re_snow=re_snow,                    &
+                     has_reqc=has_reqc,                  & ! ala G. Thompson
+                     has_reqi=has_reqi,                  & ! ala G. Thompson
+                     has_reqs=has_reqs,                  & ! ala G. Thompson
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                                    )
+         !EMK NUWRF...This scheme almost always calculates reflectivity.
+         call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+              ,diagflag=diagflag, do_radar_ref=1 &
+              ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+              ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+              ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+         !EMK NUWRF
+
+
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_2momg')
         ENDIF
 
     CASE (NSSL_2MOMCCN)
@@ -2464,8 +2678,8 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
                ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
                !EMK NUWRF
-
          ENDIF ! elec_physics
+#endif
 
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling nssl_2momccn')
@@ -2888,14 +3102,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IHAIL=hail, ICE2=ice2                             &
                                                                     )
 
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
-
-
 ! HAIL = 1,  run gsfcgce with hail option
 !        0,  run gsfcgce with graupel option   <---- default
 !        note: no effect if ice2 = 1
@@ -2963,13 +3169,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 #endif
 !NUWRF JJS 20110525 ^^^^^
                                                                     )
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
-
                do j=jts,jte
                   do k=kts,kte
                      do i=its,ite
@@ -3026,13 +3225,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,QG=qg_curr                                        &
                  ,QNDROP=qndrop_curr                                &
                                                                     )
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
-
 
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling lin_et_al' )
@@ -3156,13 +3348,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
-
 
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wsm5' )
@@ -3216,13 +3401,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,EVAPPROD=evapprod,RAINPROD=rainprod               &
 #endif
                                                                     )
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
-
 
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wsm6' )
@@ -3342,13 +3520,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
-
 
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wdm5')
@@ -3399,12 +3570,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
-               !EMK NUWRF
-               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
-                    ,ids,ide,jds,jde,kds,kde &
-                    ,ims,ime,jms,jme,kms,kme &
-                    ,its,ite,jts,jte,kts,kte)
-               !EMK NUWRF
 
              ELSE
                CALL wrf_error_fatal ( 'arguments not present for calling wdm6')
@@ -3715,77 +3880,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
    ENDIF
 #endif
 
-   ! EMK NUWRF...MPI-safe Convective-stratiform diagnostic
-   ! TODO: Put in new subroutine.
-   if (mp_physics .ne. PASSIVEQV) then
-      
-#ifdef DM_PARALLEL
-#include "HALO_EM_PHYS_MP_0.inc"               
-#endif
-      call cal_sepa_part1(dt_in=dt,&
-           prrate=rainncv, &
-           ri=ri_sepa, &
-           it=it_sepa, &
-           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
-           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
-           ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte )
-#ifdef DM_PARALLEL
-#include "HALO_EM_PHYS_MP_1.inc"               
-#endif
-      ! EMK NUWRF: 2 passes
-      ! Pass 1: Get convection based on local rainfall
-      ! Pass 2: Get convection based on local rainfall and nearby convection
-      ! Call the halo routine between passes to ensure results from neighboring
-      ! tiles are available.
-      do ipass = 1,2
-         call cal_sepa_part2(ri=ri_sepa, &
-              it=it_sepa, &
-              ipass=ipass, &
-              IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
-              IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
-              ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte )
-#ifdef DM_PARALLEL
-#include "HALO_EM_PHYS_MP_2.inc"               
-#endif
-      end do
-
-      call cal_sepa_part3(W=w                                 &
-           ,QC=qc_curr                                        &
-           ,QI=qi_curr                                        &
-           ,QR=qr_curr                                        &
-           ,QS=qs_curr                                        &
-           ,QG=qg_curr                                        &
-           ,QH=qh_curr                                        &
-           ,TH=th                                             &
-           ,RHOBAR=rho                                        &
-           ,RI=ri_sepa                                        &
-           ,IT=it_sepa                                        &
-           ,CSI=csi                                           &
-           ,PII=pi_phy                                        &
-           ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde &
-           ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
-           ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
-           )
-
-#ifdef DM_PARALLEL
-#include "HALO_EM_PHYS_MP_3.inc"
-#endif
-
-      call var_sepa(RAINNCV=rainncv                           &
-           ,CSI=csi                                           &
-           ,RAINNCV_SEPA=rainncv_sepa                         &
-           ,RAINNC_SEPA=rainnc_sepa                           &
-           ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
-           ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
-           )  
-
-#ifdef DM_PARALLEL
-#include "HALO_EM_PHYS_MP_4.inc"               
-#endif
-   end if
-! EMK NUWRF END...MPI-safe CSI
-
-
 ! by ZCX
 ! IF ( PRESENT (LWP) ) THEN
 !   DO ij = 1 , num_tiles
@@ -3877,6 +3971,46 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
      end do
 
    end subroutine Remove_multi_perturb_mp_perturbations
+
+   ! EMK NUWRF...Calculate 2D composite reflectivity 
+   subroutine calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+        ,ids,ide,jds,jde,kds,kde &
+        ,ims,ime,jms,jme,kms,kme &
+        ,its,ite,jts,jte,kts,kte)
+
+      implicit none
+
+      ! Arguments     
+      real,optional,intent(inout) :: comdbz(ims:ime,jms:jme)
+      real,optional,intent(in) :: refl_10cm(ims:ime,kms:kme,jms:jme)
+      logical,optional,intent(in) :: diagflag
+      integer,optional,intent(in) :: do_radar_ref
+      integer,intent(in) :: ids,ide,jds,jde,kds,kde
+      integer,intent(in) :: ims,ime,jms,jme,kms,kme
+      integer,intent(in) :: its,ite,jts,jte,kts,kte
+
+      ! Local variables
+      integer :: i,j,k
+
+      if (present(comdbz) .and. present(refl_10cm) .and. &
+           present(diagflag) .and. present(do_radar_ref)) then
+
+         if (diagflag .and. do_radar_ref == 1) then
+            do j=jts,min(jte,jde-1)
+               do i=its,min(ite,ide-1)
+                  comdbz(i,j) =  max(refl_10cm(i,kts,j),-35.)
+                  do k=kts,kte
+                     if (refl_10cm(i,k,j) .gt. comdbz(i,j)) then
+                        comdbz(i,j) = refl_10cm(i,k,j)
+                     end if
+                  enddo !k
+               enddo !i
+            enddo !j
+         end if
+      end if
+
+   end subroutine calc_comdbz
+
 
    ! EMK NUWRF...Calculate 2D composite reflectivity 
    subroutine calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
