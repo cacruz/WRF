@@ -11,6 +11,12 @@ CHEM_FILES =	../chem/module_aerosols_sorgam.o \
 		../chem/module_aerosols_soa_vbs.o
 CHEM_FILES2 =	../chem/module_data_mosaic_asect.o
 
+ELEC_FILES = ../elec/module_commasmpi.o \
+             ../elec/module_mp_boxmgsetup.o \
+             ../elec/module_mp_screen.o \
+             ../elec/module_mp_discharge.o \
+             ../elec/include_microphysics_driver_elec.F
+
 # these files are needed to compile 'phys' in wrfplus mode
 MODS4 = ../wrftladj/module_mp_mkessler.o ../wrftladj/module_mp_nconvp.o \
 	../wrftladj/module_bl_surface_drag.o ../wrftladj/module_cu_du.o
@@ -41,8 +47,16 @@ DA_CONVERTOR_MODULES = $(DA_CONVERTOR_MOD_DIR) $(INCLUDE_MODULES)
 
 #### 3.d.   add macros to specify the modules for this core
 
+ifeq ($(WRF_LIS),"1")
+current_dir = $(shell pwd)
+LIS_MODULES = -I$(current_dir)/../LISF/lis/make
+endif
+
+INCLUDE_MODULES := $(INCLUDE_MODULES) -I../elec
+
 ALL_MODULES =                           \
                $(EM_MODULE_DIR)         \
+               $(LIS_MODULES)           \
                $(INCLUDE_MODULES)
 
 configcheck:
@@ -98,13 +112,30 @@ configcheck:
          exit 21 ; \
 	fi
 
-
+ifeq ($(WRF_LIS),"1")
+framework_only : configcheck
+	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" ext
+	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" toolsdir
+	/bin/rm -f main/libwrflib.a main/libwrflib.lib
+	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" explis
+	# CC: Delete object files from LIS library that conflict with WRF
+	$(AR) -d main/libwrflib.a noahmp36_wrf_routines.o wrf_debug.o 
+	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" framework
+	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" shared
+else
 framework_only : configcheck
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" ext
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" toolsdir
 	/bin/rm -f main/libwrflib.a main/libwrflib.lib
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" framework
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" shared
+endif
+# LIS as library to WRF
+ifeq ($(WRF_LIS),"1")
+explis :
+	@ echo '----------- WRF/LIS ----------------------'
+	$(MAKE) -C $(current_dir)/../LISF/lis/make -j 4 explis
+endif
 
 wrf : framework_only
 	$(MAKE) MODULE_DIRS="$(ALL_MODULES)" physics
@@ -125,6 +156,7 @@ wrf : framework_only
 	   echo "------------------------------------------------------------------------------" ; \
 	fi
 	if [ $(WRF_CHEM) -eq 1 ]    ; then $(MAKE) MODULE_DIRS="$(ALL_MODULES)" chemics ; fi
+	if [ $(WRF_ELEC) -eq 1 ]    ; then $(MAKE) MODULE_DIRS="$(ALL_MODULES)" elecphys ; fi
 	if [ $(WRF_EM_CORE) -eq 1 ]    ; then $(MAKE) MODULE_DIRS="$(ALL_MODULES)" em_core ; fi
 	if [ $(WRF_HYDRO) -eq 1 ]   ; then $(MAKE) MODULE_DIRS="$(ALL_MODULES)" wrf_hydro ; fi
 	( cd main ; $(MAKE) RLFLAGS="$(RLFLAGS)" MODULE_DIRS="$(ALL_MODULES)" SOLVER=em em_wrf )
@@ -524,6 +556,77 @@ em_scm_xy : wrf
 		echo " " ; \
 	fi
 
+# Needs LIS
+ifeq ($(WRF_LIS),"1")
+em_scm_lis_xy : wrf
+	@/bin/rm -f ideal.exe > /dev/null 2>&1
+	@/bin/rm -f wrf.exe   > /dev/null 2>&1
+	@ echo '--------------------------------------'
+	( cd main ; $(MAKE) MODULE_DIRS="$(ALL_MODULES)" SOLVER=em IDEAL_CASE=scm_lis_xy em_ideal )
+	( cd test/em_scm_lis_xy ; /bin/rm -f wrf.exe ; ln -s ../../main/wrf.exe . )
+	( cd test/em_scm_lis_xy ; /bin/rm -f ideal.exe ; ln -s ../../main/ideal.exe . )
+	( cd test/em_scm_lis_xy ; /bin/rm -f README.namelist ; ln -s ../../run/README.namelist . )
+	( cd run ; /bin/rm -f ideal.exe ; ln -s ../main/ideal.exe . )
+	( cd run ; if test -f namelist.input ; then \
+		/bin/cp -f namelist.input namelist.input.backup ; fi ; \
+		/bin/rm -f namelist.input ; cp ../test/em_scm_lis_xy/namelist.input . )
+	( cd run ; /bin/rm -f input_sounding ; ln -s ../test/em_scm_lis_xy/input_sounding . )
+	@echo " "
+	@echo "=========================================================================="
+	@echo "build started:   $(START_OF_COMPILE)"
+	@echo "build completed:" `date`
+	@if test -e main/wrf.exe -a -e main/ideal.exe ; then \
+		echo " " ; \
+		echo "--->                  Executables successfully built                  <---" ; \
+		echo " " ; \
+		ls -l main/*.exe ; \
+		echo " " ; \
+		echo "==========================================================================" ; \
+		echo " " ; \
+	else \
+		echo " " ; \
+		echo "---> Problems building executables, look for errors in the build log  <---" ; \
+		echo " " ; \
+		echo "==========================================================================" ; \
+		echo " " ; \
+	fi
+endif
+
+# ideal case EM CRM: Satoshi Endo (sendo@bnl.gov)
+em_crm : wrf
+	@/bin/rm -f ideal.exe > /dev/null 2>&1
+	@/bin/rm -f wrf.exe   > /dev/null 2>&1
+	@ echo '--------------------------------------'
+	( cd main ; $(MAKE) MODULE_DIRS="$(ALL_MODULES)" SOLVER=em IDEAL_CASE=crm em_ideal )
+	( cd test/em_crm ; /bin/rm -f wrf.exe ; ln -s ../../main/wrf.exe . )
+	( cd test/em_crm ; /bin/rm -f ideal.exe ; ln -s ../../main/ideal.exe . )
+	( cd test/em_crm ; /bin/rm -f README.namelist ; ln -s ../../run/README.namelist . )
+	( cd run ; /bin/rm -f ideal.exe ; ln -s ../main/ideal.exe . )
+	( cd run ; if test -f namelist.input ; then \
+		/bin/cp -f namelist.input namelist.input.backup ; fi ; \
+		/bin/rm -f namelist.input ; cp ../test/em_crm/namelist.input . )
+	( cd run ; /bin/rm -f input_sounding ; ln -s ../test/em_crm/input_sounding . )
+	@echo " "
+	@echo "=========================================================================="
+	@echo "build started:   $(START_OF_COMPILE)"
+	@echo "build completed:" `date`
+	@if test -e main/wrf.exe -a -e main/ideal.exe ; then \
+		echo " " ; \
+		echo "--->                  Executables successfully built                  <---" ; \
+		echo " " ; \
+		ls -l main/*.exe ; \
+		echo " " ; \
+		echo "==========================================================================" ; \
+		echo " " ; \
+	else \
+		echo " " ; \
+		echo "---> Problems building executables, look for errors in the build log  <---" ; \
+		echo " " ; \
+		echo "==========================================================================" ; \
+		echo " " ; \
+	fi
+
+
 convert_em : framework_only
 	if [ $(WRF_CONVERT) -eq 1 ] ; then \
             ( cd main ; $(MAKE) RLFLAGS="$(RLFLAGS)" MODULE_DIRS="$(ALL_MODULES)" convert_em ) ; \
@@ -901,7 +1004,6 @@ gocart_conv : wrf
 		/bin/cp -f namelist.input namelist.input.backup.`date +%Y-%m-%d_%H_%M_%S` ; fi ; \
 		/bin/rm -f namelist.input ; cp ../test/em_real/namelist.input . )
 
-
 io :
 	@ echo '--------------------------------------'
 	( cd tools ; $(MAKE) standard.exe )
@@ -927,6 +1029,7 @@ framework :
                FC="$(FC) $(FCBASEOPTS) $(PROMOTION) $(FCDEBUG) $(OMP)" RANLIB="$(RANLIB)" \
                CPP="$(CPP)" LDFLAGS="$(LDFLAGS)" TRADFLAG="$(TRADFLAG)" ESMF_IO_LIB_EXT="$(ESMF_IO_LIB_EXT)" \
                LIB_LOCAL="$(LIB_LOCAL)" \
+	       NETCDF4_DEP_LIB="$(NETCDF4_DEP_LIB)" \
                ESMF_MOD_DEPENDENCE="$(ESMF_MOD_DEPENDENCE)" AR="INTERNAL_BUILD_ERROR_SHOULD_NOT_NEED_AR" diffwrf; \
           cd ../io_netcdf ; \
           $(MAKE) NETCDFPATH="$(NETCDFPATH)" NETCDF4_DEP_LIB="$(NETCDF4_DEP_LIB)" \
@@ -945,6 +1048,7 @@ framework :
                FC="$(SFC) $(FCBASEOPTS) $(PROMOTION) $(FCDEBUG) $(OMP)" RANLIB="$(RANLIB)" \
                CPP="$(CPP)" LDFLAGS="$(LDFLAGS)" TRADFLAG="$(TRADFLAG)" ESMF_IO_LIB_EXT="$(ESMF_IO_LIB_EXT)" \
 	       LIB_LOCAL="$(LIB_LOCAL)" \
+	       NETCDF4_DEP_LIB="$(NETCDF4_DEP_LIB)" \
                ESMF_MOD_DEPENDENCE="$(ESMF_MOD_DEPENDENCE)" AR="INTERNAL_BUILD_ERROR_SHOULD_NOT_NEED_AR"; \
           cd ../io_pio ; \
           echo SKIPPING PIO BUILD $(MAKE) NETCDFPATH="$(PNETCDFPATH)" NETCDF4_DEP_LIB="$(NETCDF4_DEP_LIB)" \
@@ -1022,16 +1126,26 @@ chemics :
 #	( cd chem ; $(MAKE) )
 #	( cd chem ; $(MAKE) $(J) )
 
+elecphys :
+	@ echo '--------------------------------------'
+	( cd elec ; $(MAKE) )
+
 physics :
 	@ echo '--------------------------------------'
 	if [ $(WRF_CHEM) -eq 0 ] ; then \
-		( cd phys ; $(MAKE) submodules ; $(MAKE) CF2=" " ) ; \
-		if [ -n "$(WRF_CMAQ)" ] && [ $(WRF_CMAQ) -eq 1 ] ; then \
-			@ echo '----------- make cmaq ----------------' ; \
-			( rm -f main/libcmaqlib.a; cd cmaq ; $(MAKE) -f Makefile.twoway ) ; \
+		( cd phys ; $(MAKE) submodules ; $(MAKE) CF2="$(CHEM_FILES2)" ) ; \
+		if [ $(WRF_ELEC) -eq 1 ] ; then \
+		  ( cd phys ; $(MAKE) EF="$(ELEC_FILES)" ) ; \
+		else \
+		  ( cd phys ; $(MAKE) CF2=" " EF=" " ) ; \
 		fi \
 	else \
 		( cd phys ; $(MAKE) submodules ; $(MAKE) CF2="$(CHEM_FILES2)" ) ; \
+		if [ $(WRF_ELEC) -eq 1 ] ; then \
+		  ( cd phys ; $(MAKE) CF2="$(CHEM_FILES2)"  EF="$(ELEC_FILES)" ) ; \
+		else \
+		  ( cd phys ; $(MAKE) CF2="$(CHEM_FILES2)" EF=" ") ; \
+		fi \
 	fi
 
 physics_plus :
@@ -1074,6 +1188,7 @@ nc4_test:
 	else \
 	 ( cd tools ; /bin/rm -f nc4_test.{exe,nc,o} ; $(DM_CC) -o nc4_test.exe nc4_test.c -I$(NETCDF_C)/include $(NETCDF4_DEP_LIB) ; cd ..  ) ; \
 	fi
+	@cd tools ; /bin/rm -f nc4_test.{exe,nc,o} ; $(SCC) -o nc4_test.exe nc4_test.c -I$(NETCDF)/include -L$(NETCDF)/lib -lnetcdf $(NETCDF4_DEP_LIB) -lm ; cd ..
 
 # rule used by configure to test if Fortran 2003 IEEE signaling is available
 fortran_2003_ieee_test:
