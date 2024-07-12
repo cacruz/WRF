@@ -72,7 +72,7 @@ CONTAINS
       USE module_radiation_driver, ONLY: cal_cldfra3
       USE module_dm, ONLY : wrf_dm_max_real
       use module_madwrf, only : Init_madwrf_clouds, Init_madwrf_tracers
-
+      use ReconcileWithLis_mod ! NUWRF
       IMPLICIT NONE
 
       !  Input space and data.  No gridded meteorological data has been stored, though.
@@ -184,7 +184,10 @@ integer::oops1,oops2
       REAL:: temp_rho
 
       LOGICAL :: wif_upside_down = .FALSE.
-      
+
+#ifdef WRF_LIS
+      type(LisData) :: lis_Data ! NUWRF
+#endif      
       !  Test on consistency between namelist settings and the available data from geogrid.
 
       INTEGER :: geogrid_flag_error
@@ -206,6 +209,28 @@ integer::oops1,oops2
                                 ipsy, ipey, jpsy, jpey, kpsy, kpey )
       its = ips ; ite = ipe ; jts = jps ; jte = jpe ; kts = kps ; kte = kpe
 
+#ifdef WRF_LIS
+! NUWRF...Fetch LIS/LDT data and substitute into REAL arrays
+      if (model_config_rec%sf_surface_physics(grid%id) .eq. &
+           NUWRFLISSCHEME) then
+         IF ( flag_tavgsfc .EQ. 1 ) THEN
+            we_have_tavgsfc = .TRUE.
+         ELSE
+            we_have_tavgsfc = .FALSE.
+         END IF         
+         IF ( flag_tsk     .EQ. 1 ) THEN
+            we_have_tsk     = .TRUE.
+         ELSE
+            we_have_tsk     = .FALSE.
+         END IF
+         lis_Data = createLisData(grid,ims,ime,jms,jme,ids,ide,jds,jde)
+         call setRealData(lis_Data,grid,its,ite,jts,jte,ide,jde, &
+              we_have_tsk,we_have_tavgsfc, &
+              internal_time_loop,flag_sst,flag_pinterp,flag_ptheta, &
+              flag_icefrac,flag_icepct,config_flags)
+      end if
+#endif
+      
       CALL model_to_grid_config_rec ( grid%id , model_config_rec , config_flags )
 
       !  Check flags from geogrid and the various model settings for any inconsistency.
@@ -494,6 +519,9 @@ integer::oops1,oops2
 
       !  Replace traditional seaice field with optional seaice (AFWA source)
 
+      ! NUWRF...For LIS, this is done already. Skip.
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then   
       IF ( flag_icefrac .EQ. 1 ) THEN
          DO j=jts,MIN(jde-1,jte)
             DO i=its,MIN(ide-1,ite)
@@ -513,10 +541,16 @@ integer::oops1,oops2
             END DO
          END DO
       END IF
+      
+      end if ! NUWRF LIS exception
 
       !  Fix the snow (water equivalent depth, kg/m^2) and the snowh (physical snow
       !  depth, m) fields.
 
+! NUWRF...Preserve LIS snow data if available.
+      if (internal_time_loop .ne. 1 .or. &
+           model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       IF      ( ( flag_snow .EQ. 0 ) .AND. ( flag_snowh .EQ. 0 ) ) THEN
          DO j=jts,MIN(jde-1,jte)
             DO i=its,MIN(ide-1,ite)
@@ -545,6 +579,8 @@ integer::oops1,oops2
          END DO
 
       END IF
+
+      end if ! NUWRF LIS exception
 
       !  For backward compatibility, we might need to assign the map factors from
       !  what they were, to what they are.
@@ -586,6 +622,8 @@ integer::oops1,oops2
 
       !  Check to see what available surface temperatures we have.
 
+!NUWRF Note:  If we're using LIS, we've already updated the average surface 
+!temperature, so any changes to tsk here won't hurt anything.
       IF ( flag_tavgsfc .EQ. 1 ) THEN
          we_have_tavgsfc = .TRUE.
       ELSE
@@ -700,11 +738,19 @@ integer::oops1,oops2
          DO j = jts, MIN(jte,jde-1)
             DO i = its, MIN(ite,ide-1)
                IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
-               grid%tsk(i,j) = grid%tsk_gc(i,j)
-               grid%tmn(i,j) = grid%tmn_gc(i,j)
+               ! NUWRF...Don't change LIS skin or deep soil temperatures.
+               if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+                    NUWRFLISSCHEME .or. internal_time_loop .ne. 1) then
+                  grid%tsk(i,j) = grid%tsk_gc(i,j)
+                  grid%tmn(i,j) = grid%tmn_gc(i,j)
+               end if
                grid%xlat(i,j) = grid%xlat_gc(i,j)
                grid%xlong(i,j) = grid%xlong_gc(i,j)
-               grid%ht(i,j) = grid%ht_gc(i,j)
+               ! NUWRF...Don't change LIS elevation heights
+               if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+                    NUWRFLISSCHEME) then
+                  grid%ht(i,j) = grid%ht_gc(i,j)
+               end if
             END DO
          END DO
 
@@ -730,6 +776,10 @@ integer::oops1,oops2
             CALL wrf_error_fatal('            If using ERA5 data, possibly need to add more time invariant fields')
          END IF
 
+! NUWRF:  Preserve LIS terrain
+         if ( model_config_rec%sf_surface_physics(grid%id) .ne. &
+         NUWRFLISSCHEME ) then
+         
          IF ( ( config_flags%smooth_cg_topo ) .AND. &
               ( internal_time_loop .EQ. 1 ) .AND. &
               ( grid%id .EQ. 1 ) .AND. &
@@ -755,7 +805,9 @@ integer::oops1,oops2
             END DO
             
          END IF
-
+         
+         end if ! NUWRF LIS exception
+         
          !  Filter the input topography if this is a global domain.
 
          IF ( ( config_flags%polar ) .AND. ( grid%fft_filter_lat .GT. 90 ) ) THEN
@@ -1319,6 +1371,10 @@ integer::oops1,oops2
          !  Get the monthly values interpolated to the current date for the traditional monthly
          !  fields of green-ness fraction and background albedo.
 
+      ! NUWRF...Preserve LIS veg fraction and albedo.
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
+
          CALL monthly_interp_to_date ( grid%greenfrac , current_date , grid%vegfra , &
                                        ids , ide , jds , jde , kds , kde , &
                                        ims , ime , jms , jme , kms , kme , &
@@ -1328,6 +1384,8 @@ integer::oops1,oops2
                                        ids , ide , jds , jde , kds , kde , &
                                        ims , ime , jms , jme , kms , kme , &
                                        its , ite , jts , jte , kts , kte )
+
+      end if ! NUWRF LIS exception
 
          CALL monthly_interp_to_date ( grid%lai12m , current_date , grid%lai , &
                                        ids , ide , jds , jde , kds , kde , &
@@ -1343,6 +1401,10 @@ integer::oops1,oops2
                                        its , ite , jts , jte , kts , kte )
 #endif
 
+      ! NUWRF...Preserve LIS max/min greenness and albedo info.
+
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
          !  Get the min/max of each i,j for the monthly green-ness fraction.
 
          CALL monthly_min_max ( grid%greenfrac , grid%shdmin , grid%shdmax , &
@@ -1359,12 +1421,13 @@ integer::oops1,oops2
 
          DO j = jts, MIN(jte,jde-1)
            DO i = its, MIN(ite,ide-1)
-              IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
-              grid%vegfra(i,j) = grid%vegfra(i,j) * 100.
+              ! EMK NUWRF bug fix
               grid%shdmax(i,j) = grid%shdmax(i,j) * 100.
               grid%shdmin(i,j) = grid%shdmin(i,j) * 100.
               grid%shdavg(i,j) = grid%shdavg(i,j) * 100.
-              END DO
+              IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE 
+              grid%vegfra(i,j) = grid%vegfra(i,j) * 100.
+           END DO
          END DO
 
          !  The model expects the albedo fields as a fraction, not a percent.  Set the
@@ -1379,8 +1442,12 @@ integer::oops1,oops2
                   grid%albbck(i,j) = 0.08
                   grid%snoalb(i,j) = 0.08
                END IF
+               ! EMK NUWRF...Added "albedo" as separate REAL output for processing LIS. If we're here,
+               ! LIS isn't used, and we need to fill albedo with a reasonable first guess for WRF.
+               grid%albedo(i,j) = grid%albbck(i,j)
             END DO
          END DO
+      end if ! NUWRF LIS exception
 
          !  Two ways to get the surface pressure.  1) If we have the low-res input surface
          !  pressure and the low-res topography, then we can do a simple hydrostatic
@@ -2806,7 +2873,9 @@ integer::oops1,oops2
       CALL nl_get_iswater ( grid%id , grid%iswater )
       CALL nl_get_islake  ( grid%id , grid%islake )
 
-
+!NUWRF...SST already quality controlled after mixing in LIS data 
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       IF ( grid%islake < 0 ) THEN
          grid%lakeflag=0
          CALL wrf_debug ( 0 , 'Old data, no inland lake information')
@@ -2837,8 +2906,15 @@ integer::oops1,oops2
                DO i=its,MIN(ide-1,ite)
                   IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
                   IF ( ( grid%landusef(i,grid%islake,j) >= 0.5 ) .OR. ( grid%lu_index(i,j) == grid%islake ) )  THEN
-                     grid%sst(i,j) = grid%tavgsfc(i,j)
-                     grid%tsk(i,j) = grid%tavgsfc(i,j)
+                     ! EMK NUWRF...Logic change. Only use tavgsfc if we lack
+                     ! good SST.  That way we preserve, e.g., RSS SST for the
+                     ! Great Lakes.
+                     if (flag_sst .eq. 0 .or. &
+                          (grid%sst(i,j) .lt. 150 .or. &
+                           grid%sst(i,j) .gt. 400)) then
+                        grid%sst(i,j) = grid%tavgsfc(i,j)
+                        grid%tsk(i,j) = grid%tavgsfc(i,j)
+                     end if
                   END IF
                   IF ( ( grid%sst(i,j) .LT. 150 ) .OR. ( grid%sst(i,j) .GT. 400 ) ) THEN
                      grid%sst(i,j) = grid%t2(i,j)
@@ -2870,17 +2946,45 @@ integer::oops1,oops2
             END DO
          END IF
 
+!EMK NUWRF...Sanity check open ocean SST.
+         DO j=jts,MIN(jde-1,jte)
+            DO i=its,MIN(ide-1,ite)
+               IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE 
+               IF ( ( ( grid%landusef(i,grid%iswater,j) >= 0.5 ) .OR. ( grid%lu_index(i,j) == grid%iswater ) ) .AND. &
+                    ( ( grid%sst(i,j) .LT. 150 ) .OR. ( grid%sst(i,j) .GT. 400 ) ) ) THEN
+!EMK NUWRF...TAVGSFC is intended for inland lakes, not open ocean
+!                 IF ( we_have_tavgsfc ) THEN
+!                    grid%sst(i,j) = grid%tavgsfc(i,j)
+!                 END IF
+                  IF ( ( grid%sst(i,j) .LT. 150 ) .OR. ( grid%sst(i,j) .GT. 400 ) ) THEN
+                     grid%sst(i,j) = grid%tsk(i,j)
+                  END IF
+                  IF ( ( grid%sst(i,j) .LT. 150 ) .OR. ( grid%sst(i,j) .GT. 400 ) ) THEN
+                     grid%sst(i,j) = grid%t2(i,j)
+                  END IF
+               END IF
+            END DO
+         END DO
+
+!EMK NUWRF END
+
       END IF
+      end if ! NUWRF LIS exception
 
       !  Save the grid%tsk field for later use in the sea ice surface temperature
       !  for the Noah LSM scheme.
 
+
+!NUWRF...Don't mess with skin temperature from LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       DO j = jts, MIN(jte,jde-1)
          DO i = its, MIN(ite,ide-1)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
             grid%tsk_save(i,j) = grid%tsk(i,j)
          END DO
       END DO
+      end if ! NUWRF LIS exception
 
       !  Protect against bad grid%tsk values over water by supplying grid%sst (if it is
       !  available, and if the grid%sst is reasonable).
@@ -2898,6 +3002,9 @@ integer::oops1,oops2
       !  Take the data from the input file and store it in the variables that
       !  use the WRF naming and ordering conventions.
 
+!NUWRF...Don't modify LIS snow data
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME .or. internal_time_loop .ne. 1) then
       DO j = jts, MIN(jte,jde-1)
          DO i = its, MIN(ite,ide-1)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
@@ -2908,6 +3015,7 @@ integer::oops1,oops2
             END IF
          END DO
       END DO
+      end if ! NUWRF LIS exception
 
       !  Set flag integers for presence of snowh and soilw fields
 
@@ -2962,6 +3070,7 @@ integer::oops1,oops2
 
       !  We require input data for the various LSM schemes.
 
+! NUWRF...This will be skipped if using LIS.
       enough_data : SELECT CASE ( model_config_rec%sf_surface_physics(grid%id) )
 
          CASE ( LSMSCHEME, NOAHMPSCHEME )
@@ -2994,6 +3103,7 @@ integer::oops1,oops2
 
       END SELECT enough_data
 
+! NUWRF...This won't affect LIS values.
       interpolate_soil_tmw : SELECT CASE ( model_config_rec%sf_surface_physics(grid%id) )
 
          CASE ( SLABSCHEME,LSMSCHEME,NOAHMPSCHEME,RUCLSMSCHEME,PXLSMSCHEME,CLMSCHEME,SSIBSCHEME )
@@ -3020,6 +3130,10 @@ integer::oops1,oops2
       !  surface_input_source=2 => use data from grib file (dominant category as input)
       !  surface_input_source=3 => use dominant data from static file (dominant category as input)
 
+
+!NUWRF...Skip if using LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       IF ( any_valid_points ) THEN
       IF ( config_flags%surface_input_source .EQ. 1 ) THEN
 
@@ -3205,6 +3319,7 @@ integer::oops1,oops2
       END IF distributed_aerodynamics_if
 
       END IF
+      end if ! NUWRF
 
       !  Adjustments for the seaice field PRIOR to the grid%tslb computations.  This is
       !  is for the 5-layer scheme.
@@ -3216,6 +3331,10 @@ integer::oops1,oops2
       CALL nl_get_seaice_threshold ( grid%id , grid%seaice_threshold )
       CALL nl_get_isice ( grid%id , grid%isice )
       CALL nl_get_iswater ( grid%id , grid%iswater )
+
+! NUWRF...Skip if using LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       CALL adjust_for_seaice_pre ( grid%xice , grid%landmask , grid%tsk , grid%ivgtyp , grid%vegcat , grid%lu_index , &
                                    grid%xland , grid%landusef , grid%isltyp , grid%soilcat , grid%soilctop , &
                                    grid%soilcbot , grid%tmn , &
@@ -3228,8 +3347,13 @@ integer::oops1,oops2
                                    ims , ime , jms , jme , kms , kme , &
                                    its , ite , jts , jte , kts , kte )
 
-      !  Land use assignment.
+     end if ! NUWRF
 
+     !  Land use assignment.
+
+ ! NUWRF...Skip if using LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       DO j = jts, MIN(jde-1,jte)
          DO i = its, MIN(ide-1,ite)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
@@ -3243,10 +3367,13 @@ integer::oops1,oops2
             END IF
          END DO
       END DO
+      end if ! NUWRF
 
 
       !  Fix grid%tmn and grid%tsk.
 
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       fix_tsk_tmn : SELECT CASE ( model_config_rec%sf_surface_physics(grid%id) )
 
          CASE ( SLABSCHEME , LSMSCHEME , NOAHMPSCHEME , RUCLSMSCHEME, PXLSMSCHEME,CLMSCHEME, CTSMSCHEME, SSIBSCHEME )
@@ -3263,9 +3390,12 @@ integer::oops1,oops2
                END DO
             END DO
       END SELECT fix_tsk_tmn
+      end if ! NUWRF
 
       !  Is the grid%tsk reasonable?
 
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       IF ( internal_time_loop .NE. 1 ) THEN
          DO j = jts, MIN(jde-1,jte)
             DO i = its, MIN(ide-1,ite)
@@ -3295,9 +3425,12 @@ integer::oops1,oops2
             END DO
          END DO
       END IF
+      end if ! NUWRF
 
       !  Is the grid%tmn reasonable?
 
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       DO j = jts, MIN(jde-1,jte)
          DO i = its, MIN(ide-1,ite)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
@@ -3501,9 +3634,12 @@ integer::oops1,oops2
 
          END SELECT account_for_zero_soil_moisture
       END IF
-
+      end if ! NUWRF
+      
       !  Is the grid%tslb reasonable?
 
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       IF ( internal_time_loop .NE. 1 ) THEN
          DO j = jts, MIN(jde-1,jte)
             DO ns = 1 , model_config_rec%num_soil_layers
@@ -3578,6 +3714,15 @@ integer::oops1,oops2
             END DO
          END DO
       END IF
+      endif ! NUWRF
+      
+! Sanity check values if using LIS
+#ifdef WRF_LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .eq. &
+           NUWRFLISSCHEME) then
+         call checkTslb(grid,its,ite,jts,jte,ide,jde,model_config_rec%num_soil_layers)
+      end if ! NUWRF
+#endif
 
       !  Adjustments for the seaice field AFTER the grid%tslb computations.  This is
       !  is for the Noah LSM scheme.
@@ -3588,6 +3733,10 @@ integer::oops1,oops2
       CALL nl_get_seaice_threshold ( grid%id , grid%seaice_threshold )
       CALL nl_get_isice ( grid%id , grid%isice )
       CALL nl_get_iswater ( grid%id , grid%iswater )
+
+! NUWRF...Skip if using LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       CALL adjust_for_seaice_post ( grid%xice , grid%landmask , grid%tsk , grid%tsk_save , &
                                     grid%ivgtyp , grid%vegcat , grid%lu_index , &
                                     grid%xland , grid%landusef , grid%isltyp , grid%soilcat ,  &
@@ -3604,9 +3753,13 @@ integer::oops1,oops2
                                     ids , ide , jds , jde , kds , kde , &
                                     ims , ime , jms , jme , kms , kme , &
                                     its , ite , jts , jte , kts , kte )
-
+      end if ! NUWRF
+      
       !  Let us make sure (again) that the grid%landmask and the veg/soil categories match.
 
+! NUWRF...Skip if using LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
 oops1=0
 oops2=0
       DO j = jts, MIN(jde-1,jte)
@@ -3648,6 +3801,9 @@ endif
 if(oops2.gt.0) then
 print *,'points artificially set to water: ',oops2
 endif
+      endif ! NUWRF
+
+      ! NUWRF...This is probably fine since LIS doesn't provide SST.
 ! fill grid%sst array with grid%tsk if missing in real input (needed for time-varying grid%sst in wrf)
       DO j = jts, MIN(jde-1,jte)
          DO i = its, MIN(ide-1,ite)
@@ -3657,7 +3813,12 @@ endif
            ENDIF
          END DO
       END DO
-!tgs set snoalb to land value if the water point is covered with ice
+
+! tgs set snoalb to land value if the water point is covered with ice
+      
+! NUWRF...Skip if using LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       DO j = jts, MIN(jde-1,jte)
          DO i = its, MIN(ide-1,ite)
            IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
@@ -3666,6 +3827,7 @@ endif
            ENDIF
          END DO
       END DO
+      endif ! NUWRF
 
       !  From the full level data, we can get the half levels, reciprocals, and layer
       !  thicknesses.  These are all defined at half level locations, so one less level.
@@ -4393,6 +4555,16 @@ endif
          END IF
 
       END IF
+
+#ifdef WRF_LIS
+      ! NUWRF...Clear LIS values.
+      if (model_config_rec%sf_surface_physics(grid%id) .eq. &
+           NUWRFLISSCHEME) then
+         call compareHtWithLIS(lis_Data,grid,its,ite,jts,jte,ide,jde)
+         call destroyLisData(lis_Data)
+      end if
+#endif
+
       CALL cpu_time(t_end)
 
 !  Set flag to denote that we are saving original values of HT, MUB, and

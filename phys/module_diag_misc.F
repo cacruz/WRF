@@ -46,6 +46,13 @@ CONTAINS
                      ,history_interval                                &
                      ,itimestep                                       &
                      ,cu_used, shcu_used, acc_phy_tend                &
+! NUWRF SRD
+                     ,t,p,pb                                          &
+                     ,ltg1_max,ltg2_max                               &
+                     ,msft                                            &
+                     ,qs_curr,qi_curr                                 &
+                     ,ht                                              &
+! NUWRF SRD
                                                                       )
 !----------------------------------------------------------------------
 
@@ -217,6 +224,42 @@ CONTAINS
 
    INTEGER :: idump
 
+! NUWRF SRD...Lightning threat diagnostics
+! We keep this here rather than in lightning_driver because these
+! are diagnostic only, use variables already calculated in this subroutine,
+! and do not affect any physics or chemistry.
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ), INTENT(IN) ::   &
+                                                              t  &
+                                       ,qs_curr,qi_curr          &
+                                                          ,p,pb
+   REAL, DIMENSION( ims:ime, jms:jme ), INTENT(IN) ::            &
+                                                            ht   &
+                                                          ,msft
+   REAL, DIMENSION( ims:ime , jms:jme ), INTENT(INOUT) ::        &
+                                ltg1_max,ltg2_max
+   INTEGER, DIMENSION( ips:ipe, jps:jpe ) ::      &
+                                                      ltg1_calc
+   INTEGER, DIMENSION( ips:ipe, jps:jpe ) ::      &
+                                                      totice_colint
+   REAL :: fraction
+   REAL :: tval2,tval1
+   REAL :: ltg1
+   REAL :: dbz,dbzr,dbzs,dbzg
+   REAL, PARAMETER :: dbzmin=-20.
+
+! Constants used in ltg threat calculations
+
+   REAL, PARAMETER    :: coef1=0.042*1000.*1.22
+   REAL, PARAMETER    :: coef2=0.20*1.22
+! NUWRF BEGIN
+! McCAUL/J.Case (3/8/2012) -- Change clim1 to reduce false alarms in threat1.
+!   REAL, PARAMETER    :: clim1=0.01*1.22
+   REAL, PARAMETER    :: clim1=1.50
+! NUWRF END
+   REAL, PARAMETER    :: clim2=0.40*1.22
+   REAL, PARAMETER    :: capa=0.28589641e0
+
+! NUWRF SRD END
 !-----------------------------------------------------------------
 ! Compute physics tendency accumulations in a given time window
 

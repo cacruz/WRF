@@ -29,3 +29,6 @@ include registry.trad_fields
 include registry.solar_fields
 include registry.diags
 include registry.CMAQ
+# NUWRF: DOE CRM 
+include registry.crm
+

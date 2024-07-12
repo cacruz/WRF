@@ -6,10 +6,13 @@ MODULE module_microphysics_driver
   real, private, parameter :: NI_MIN = 1.E-6
 CONTAINS
 
-SUBROUTINE microphysics_driver(                                          &
-                       th, rho, pi_phy, p                                &
+SUBROUTINE microphysics_driver(grid                                      &
+                      ,th, rho, pi_phy, p                                &
                       ,ht, dz8w, p8w, dt,dx,dy                           &
                       ,mp_physics, spec_zone                             &
+#ifdef WRF_ELEC
+                      ,elec_physics                                      &
+#endif
                       ,specified, channel_switch                         &
                       ,warm_rain                                         &
                       ,t8w                                               &
@@ -81,7 +84,25 @@ SUBROUTINE microphysics_driver(                                          &
                       ,f_effr,f_ice_effr,f_tot_effr                      &
                       ,f_qic_effr,f_qip_effr,f_qid_effr                  &                 
                       ,cu_used                                           &
-                      ,qrcuten, qscuten, qicuten, qccuten                &
+!----------------------------------------Tsai----------------------------------
+                      ,vi_curr,vs_curr,vg_curr,fi_curr,fs_curr,ai_curr   &
+                      ,as_curr,ag_curr,ah_curr,i3m_curr,qdcn_curr        &
+                      ,qtcn_curr,qccn_curr,qrcn_curr,qnin_curr,IDEPNU    &
+!----------------------------------------Tsai-----------------------------------
+#ifdef WRF_ELEC
+                      ,noninduc,  rscghis_2d                             &
+                      ,induc,pot,elecmag                                 &
+                      ,elecx,f_elecx,elecy,elecz                         &
+                      ,light,lightdens,lightdis                          &
+                      ,history_interval,curr_secs                        &
+                      ,scr,scw,sci,scs,sch,schl,sciona,sctot             &
+                      ,f_scr,f_scw,f_sci,f_scs,f_sch,f_schl,f_sciona     &
+                      ,ipelectmp                                         & ! Explicit lightning namelist flags
+                      ,iscreen,lightradtmp,ibrkdtmp,ecrittmp,disfrac,idischarge   & ! Explicit lightning namelist flags
+                      ,nudge_lightning                                   & ! lightnign Qv nudging flag
+                      ,gridlight                                         &
+#endif
+                      ,qrcuten, qscuten, qicuten, qccuten, mu             &
                       ,qt_curr,f_qt                                      &
                       ,mp_restart_state,tbpvs_state,tbpvs0_state         & ! for etampnew or fer_mp_hires
                       ,hail,ice2                                         & ! for mp_gsfcgce
@@ -89,7 +110,9 @@ SUBROUTINE microphysics_driver(                                          &
                       ,phys_tot, physc, physe, physd, physs, physm, physf& ! for gsfcgce
                       ,acphys_tot, acphysc, acphyse, acphysd  & ! for gsfcgce
                       ,acphyss, acphysm, acphysf              & ! for gsfcgce
-
+                      ,comdbz, csi                                  & ! for gsfcgce
+                      ,rainncv_sepa, rainnc_sepa                         & 
+                      ,ri_sepa, it_sepa                                  & ! for MPI-safe CSI
                       ,re_cloud_gsfc, re_rain_gsfc, re_ice_gsfc          &
                       ,re_snow_gsfc, re_graupel_gsfc, re_hail_gsfc       & ! cloud effective radius
                       ,precr3d, preci3d, precs3d, precg3d, prech3d       &
@@ -146,6 +169,21 @@ SUBROUTINE microphysics_driver(                                          &
                       ,TH_OLD                                            &
                       ,QV_OLD                                            &
                       ,xlat,xlong,ivgtyp                                 &
+! ********************************************************************** 
+! crm
+                      ,tke_mp,diffk                                     & ! KVW
+                      ! CC: Remove PBL; it's already declared in "if (EM_CORE"
+                      ,EFFCS                                            & ! KVW 
+                      ,crm_morr_act_opt, crm_mp_nc           &
+                      ,sedfqc, sedfqr                        & 
+                      ,qvdt_pr, qvdt_cond, qcdt_pr, qcdt_sed, qrdt_sed  &
+                      ,rm_aer1, sig_aer1, na_aer1_grd, hygro_aer1       &
+                      ,rm_aer2, sig_aer2, na_aer2_grd, hygro_aer2       &
+                      ,rm_aer3, sig_aer3, na_aer3_grd, hygro_aer3       &
+                      ,rm_aer4, sig_aer4, na_aer4_grd, hygro_aer4       &
+                      ,smaxact, rminact                                 &
+! crm end
+! ********************************************************************** 
                       ,qrimef_curr,f_qrimef                              &
                       ,aercu_opt                                         &
 # if( EM_CORE==1 )
@@ -162,13 +200,12 @@ SUBROUTINE microphysics_driver(                                          &
                       ,pert_thom_qv,pert_thom_qc,pert_thom_qi            &
                       ,pert_thom_qs,pert_thom_ni                         &
                                                                          )
-
 ! Framework
    USE module_state_description, ONLY :                                  &
                      KESSLERSCHEME, LINSCHEME, SBU_YLINSCHEME, WSM3SCHEME, WSM5SCHEME    &
                     ,WSM6SCHEME, ETAMPNEW, FER_MP_HIRES, THOMPSON, THOMPSONAERO, THOMPSONGH, FAST_KHAIN_LYNN_SHPUND, MORR_TWO_MOMENT     &
                     ,GSFCGCESCHEME, WDM5SCHEME, WDM6SCHEME, NSSL_2MOM, MADWRF_MP  &
-                    ,FER_MP_HIRES_ADVECT & 
+                    ,FER_MP_HIRES_ADVECT &
                     ,WSM7SCHEME, WDM7SCHEME &
                     ,NUWRF4ICESCHEME &
                     ,MILBRANDT2MOM , CAMMGMPSCHEME,FULL_KHAIN_LYNN, P3_1CATEGORY, P3_1CATEGORY_NC, P3_2CATEGORY, P3_1CAT_3MOM &
@@ -193,6 +230,13 @@ SUBROUTINE microphysics_driver(                                          &
   USE module_dm, ONLY : &
                  local_communicator, mytask,  wrf_dm_min_real, wrf_dm_max_real
 #endif
+#ifdef WRF_ELEC
+! BOXMG Solver
+  USE module_mp_boxmgsetup
+  USE module_mp_discharge
+  USE module_mp_screen
+  USE module_mp_nudge_light
+#endif
 
 ! Model Layer
    USE module_model_constants
@@ -203,6 +247,14 @@ SUBROUTINE microphysics_driver(                                          &
    USE module_state_description, only: num_chem               ! mchen 
    USE modal_aero_data, only:  ntot_amode_cam_mam => ntot_amode ! For CAMMGMP scheme Prognostic aerosols
 #endif
+
+!EMK NUWRF...For MPI safe CSI diagnostic
+#ifdef DM_PARALLEL
+   use module_comm_dm, only: halo_em_phys_mp_0_sub,halo_em_phys_mp_1_sub, &
+        halo_em_phys_mp_2_sub,halo_em_phys_mp_3_sub,halo_em_phys_mp_4_sub
+   use module_dm, only: ntasks_x,ntasks_y,local_communicator,mytask,ntasks
+#endif
+!EMK NUWRF
 
 ! *** add new modules of schemes here
 
@@ -229,6 +281,8 @@ SUBROUTINE microphysics_driver(                                          &
    USE module_mp_gsfcgce_4ice_nuwrf, only: gsfcgce_4ice_nuwrf
    USE module_mp_morr_two_moment
    USE microphy_p3
+   USE module_mp_morr_faster
+   USE module_mp_p3
    USE module_mp_jensen_ishmael
 # if (EM_CORE == 1)
    USE module_mp_morr_two_moment_aero
@@ -238,6 +292,7 @@ SUBROUTINE microphysics_driver(                                          &
    USE module_mp_wdm6
    USE module_mp_wdm7
    USE module_mp_milbrandt2mom
+   USE module_mp_ntu
 # if (EM_CORE == 1)
    USE module_mp_cammgmp_driver, ONLY: CAMMGMP ! CAM5's microphysics driver
 # endif
@@ -251,6 +306,11 @@ SUBROUTINE microphysics_driver(                                          &
    USE module_utility, ONLY: WRFU_Clock, WRFU_Alarm
    USE module_domain, ONLY : HISTORY_ALARM, Is_alarm_tstep
    USE module_irrigation
+   use module_domain, only : domain ! EMK NUWRF...for MPI-safe CSI
+
+   ! EMK NUWRF...MPI-safe CSI
+   use module_diag_csi, only: cal_sepa_part1, cal_sepa_part2, &
+        cal_sepa_part3, var_sepa
 
    USE module_fire_emis
 
@@ -416,11 +476,44 @@ SUBROUTINE microphysics_driver(                                          &
 !-- diagflag      Logical to tell us when to produce diagnostics for history or restart
 !
 !======================================================================
+!======================================================================
+! Explicit Lightning (Mansell et al. 2005, Fierro et al. 2013, MWR):
+!
+!--induc        total inductive/polarization charging rates in C/m3*s (Ziegler et al. 1991,MWR)
+!--noninduc     total non inductive charging rates in C/m3*s
+!--rscghis_2d   maximum non inductive charging rate in the column in C/m3*s.
+!--elec         electric field vector (V/m)
+!--elecmag      electric field magnitude (V/m)
+!--elecx        X-component of the ambient electric field (V/m).
+!--elecy        Y-component of the ambient electric field (V/m).
+!--elecz        vertical, Z-component of the ambient electric field (V/m).
+!--pot          electric potential (V)
+!--sctot        total net space charge in C/kg
+!--scx           total net space charge on hydrometeor species x
+!--light         2D flash origin densities per output time
+!--lightdens     2D flash extent densities per output time
+!--lightdis      2D total number of discharge points per output time 
+!
+! Lightning assimilation/nudging (Fierro et al. 2012, MWR):
+!
+!  activate by setting the flag LIGHT_ASSIM_FLAG to .true. - 
+!  nudging is called by the subroutine "nudge_light" in module_mp_nudge_light.F (which
+!  contains nudging parameters)
+!  set model time intervals for nudging in solve.em.F
+!--gridlight     gridded lightning data for nudging   
+!
+!======================================================================
+
+   type(domain), intent(inout) :: grid ! EMK NUWRF for MPI-safe CSI
+
   INTEGER,parameter :: iunit=6
   INTEGER :: mpi_error_code=1
 
    TYPE(grid_config_rec_type),  INTENT(IN   ) , OPTIONAL   :: config_flags
    INTEGER,    INTENT(IN   )    :: mp_physics
+#ifdef WRF_ELEC    
+   INTEGER,    INTENT(IN   )    :: elec_physics
+#endif
    LOGICAL,    INTENT(IN   )    :: specified
    INTEGER, OPTIONAL, INTENT(IN   )    :: chem_opt, progn
    INTEGER, OPTIONAL, INTENT(IN   )    :: hail, ice2 !, ccntype
@@ -580,19 +673,39 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 
    REAL, INTENT(INOUT),  DIMENSION(ims:ime, kms:kme, jms:jme ) ::     &
                                      F_ICE_PHY,F_RAIN_PHY,F_RIMEF_PHY
-!!$#if ( WRF_CHEM == 1 )
-!  REAL, INTENT(OUT), DIMENSION(ims:ime, kms:kme, jms:jme ) ::     &
    REAL, OPTIONAL, INTENT(OUT), DIMENSION(ims:ime, kms:kme, jms:jme ) ::     &
-!!$#else
-!!$  REAL, DIMENSION(ims:ime, kms:kme, jms:jme ) ::     &
-!!$#endif
          qlsink, & ! cloud water sink (/s)
          precr, & ! rain precipitation rate at all levels (kg/m2/s)
          preci, & ! ice precipitation rate at all levels (kg/m2/s)
          precs, & ! snow precipitation rate at all levels (kg/m2/s)
          precg    ! graupel precipitation rate at all levels (kg/m2/s)
 
-!
+! ******************************************************************** 
+! crm. KVW vars. (not used. they can be replaced w/ effr_cuur etc) 
+!   INTEGER,      INTENT(IN   )    ::  PBL ! CC: already declared as OPTIONAL below
+   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                  &
+         OPTIONAL,                                                &
+         INTENT(INOUT ) ::                                        &
+                  tke_mp,diffk, EFFCS         ! KVW
+! for morr2mom
+   INTEGER, INTENT(IN) :: crm_morr_act_opt
+   REAL, INTENT(IN)    :: crm_mp_nc !, crm_morr_hygro
+
+   REAL, INTENT(OUT), DIMENSION(ims:ime, kms:kme, jms:jme ) ::  &
+                       sedfqc, sedfqr, &                                 
+                       qvdt_pr ,qvdt_cond ,qcdt_pr ,qcdt_sed, qrdt_sed, & 
+                       smaxact, rminact 
+   ! aerosol info
+   REAL, INTENT(IN)  :: rm_aer1, sig_aer1, hygro_aer1
+   REAL, INTENT(IN)  :: rm_aer2, sig_aer2, hygro_aer2
+   REAL, INTENT(IN)  :: rm_aer3, sig_aer3, hygro_aer3
+   REAL, INTENT(IN)  :: rm_aer4, sig_aer4, hygro_aer4
+   REAL, INTENT(IN), DIMENSION( kms:kme ) :: na_aer1_grd
+   REAL, INTENT(IN), DIMENSION( kms:kme ) :: na_aer2_grd
+   REAL, INTENT(IN), DIMENSION( kms:kme ) :: na_aer3_grd
+   REAL, INTENT(IN), DIMENSION( kms:kme ) :: na_aer4_grd
+! crm end
+! ******************************************************************** 
 
    REAL , DIMENSION( ims:ime , jms:jme ) , INTENT(IN)   :: XLAND
    REAL , DIMENSION( ims:ime , jms:jme ) , INTENT(IN), OPTIONAL   :: SNOWH
@@ -620,6 +733,30 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                                                                          vmi3d_3,di3d_3,rhopo3d_3,  & ! for Jensen ISHMAEL
                                                                          phii3d_3,       & ! for Jensen ISHMAEL
                                                                          itype,itype_2,itype_3             ! for Jensen ISHMAEL
+
+!---------------------------------Tsai---------------------------------------------
+   INTEGER, OPTIONAL, INTENT(IN) :: IDEPNU
+   REAL, DIMENSION(ims:ime,kms:kme,jms:jme), OPTIONAL, INTENT(INOUT) ::    &
+         vi_curr,vs_curr,vg_curr,fi_curr,fs_curr,ai_curr,as_curr,ag_curr,  &
+         ah_curr,i3m_curr,qdcn_curr,qtcn_curr,qccn_curr,qrcn_curr,qnin_curr
+!---------------------------------Tsai---------------------------------------------
+
+! Explicit lightning
+#ifdef WRF_ELEC
+   REAL, OPTIONAL, DIMENSION( ims:ime , kms:kme, jms:jme ) , INTENT(INOUT) :: pot
+   REAL, OPTIONAL, DIMENSION( ims:ime , kms:kme, jms:jme ) , INTENT(INOUT)   :: elecmag,induc,elecx,elecy,elecz
+   REAL, OPTIONAL, DIMENSION( ims:ime , jms:jme )          , INTENT(INOUT)   :: light,lightdens
+   INTEGER, OPTIONAL, DIMENSION( ims:ime , jms:jme )       , INTENT(INOUT)   :: lightdis
+   REAL,   DIMENSION( ims:ime , kms:kme, jms:jme,1:4) :: elec ! local array for the driver-only emag is used for I/O-ALWAYS USED IN 1D so NOT OPTIONAL !.
+   REAL, OPTIONAL, DIMENSION( ims:ime , jms:jme )          , INTENT(INOUT) ::  rscghis_2d
+   REAL, OPTIONAL, DIMENSION( ims:ime , kms:kme, jms:jme ) , INTENT(INOUT)   :: noninduc
+
+   REAL,   DIMENSION( ims:ime , kms:kme, jms:jme,1:2) :: scion ! local array for the driver- 1=-, 2=+
+!   lightning nudging/assimilation
+   REAL, DIMENSION( ims:ime, jms:jme ) ::      gridlight
+! End Explicit lightning
+#endif
+
    LOGICAL,  OPTIONAL,   INTENT(IN   )    :: channel_switch
    REAL, OPTIONAL,  INTENT(INOUT   ) :: naer  ! aerosol number concentration (/kg)
    REAL, DIMENSION( ims:ime, jms:jme ), INTENT(INOUT) , OPTIONAL :: qnwfa2d, qnifa2d, qnbca2d, &
@@ -648,6 +785,9 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,kext_ft_qic,kext_ft_qip,kext_ft_qid &
                  ,kext_ft_qs,kext_ft_qg                           &
                  ,qnwfa_curr,qnifa_curr,qnbca_curr                & ! Added by G. Thompson
+#ifdef WRF_ELEC
+                 ,scw,scr,sci,scs,sch,schl,sctot,sciona  & ! Explicit Lightning
+#endif
                  ,qvolg_curr,qvolh_curr, qrimef_curr
 
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                  &
@@ -660,6 +800,9 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                  &
          INTENT(INOUT) :: qv_b4mp, qc_b4mp, qi_b4mp, qs_b4mp
 #endif
+   REAL, DIMENSION( ims:ime, jms:jme ),                           &
+         OPTIONAL,                                                &
+         INTENT(IN) :: mu
 ! YLIN
 ! Added RI_CURR similar to microphysics fields above
    REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                  &
@@ -685,7 +828,31 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                                                           ,HAILNC &
                                                          ,HAILNCV &
                                           ,hail_maxk1, hail_max2d
-                                                          
+
+!NUWRF JJS 20101021 vvvvv
+   REAL, DIMENSION( ims:ime , jms:jme ),                          &
+         INTENT(INOUT),                                           &
+         OPTIONAL   ::                                            &
+                                                           comdbz
+!NUWRF JJS 20101021 ^^^^^
+
+!NUWRF
+   REAL, DIMENSION( ims:ime , jms:jme ),                       &
+         INTENT(INOUT),                                           &
+         OPTIONAL   ::                                       csi
+
+   REAL, DIMENSION( ims:ime, 4, jms:jme ),                       &
+         INTENT(INOUT),                                           &
+         OPTIONAL   ::                                 rainncv_sepa, &
+                                                       rainnc_sepa
+! EMK NUWRF for MPI-safe CSI
+   REAL, DIMENSION( ims:ime, jms:jme ),                           &
+         INTENT(INOUT),                                           &
+         OPTIONAL   ::                                 ri_sepa
+   INTEGER, DIMENSION( ims:ime, jms:jme ),                        &
+         INTENT(INOUT),                                           &
+         OPTIONAL   ::                                 it_sepa
+
 #if ( WRF_CHEM == 1)
 ! NUWRF JJS 20110525 vvvvv
 ! for inline Gocart coupling
@@ -717,6 +884,11 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                        ,f_qic_effr,f_qip_effr,f_qid_effr &
                       ,f_qic,f_qip,f_qid &
                       ,f_qnic,f_qnip,f_qnid                                  &
+#ifdef WRF_ELEC
+! Explicit lightning
+                       ,f_elecx                                 & !lightning
+                       ,f_scw,f_scr,f_sci,f_scs,f_sch,f_schl,f_sciona & ! lightning
+#endif
                        ,f_qzi,f_qzs,f_qzg,f_qzh,f_qvolg,f_qvolh              &
                        ,f_qrimef                                             &
                        ,f_qir,f_qib                                          & ! for P3
@@ -726,6 +898,11 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                        ,f_qi3,f_qni3,f_qvoli3,f_qaoli3                       & ! for Jensen ISHMAEL
                        ,f_qnwfa, f_qnifa, f_qnbca                         ! Added by G. Thompson
 
+#ifdef WRF_ELEC
+   real,    OPTIONAL :: lightradtmp,ecrittmp,disfrac,curr_secs
+   integer, OPTIONAL :: iscreen,idischarge,ibrkdtmp
+   integer, optional :: ipelectmp,nudge_lightning,history_interval
+#endif
 
    LOGICAL, OPTIONAL, INTENT(IN) :: diagflag
    INTEGER, OPTIONAL, INTENT(IN) :: ke_diag ! tells reflectivity calculation whether to do full depth or only k=1
@@ -772,6 +949,8 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
    LOGICAL :: nssl_progn = .false.
    REAL    :: z0, z1, z2, w1, w2
 
+   integer :: ipass ! EMK NUWRF for MPI-safe CSI
+
    integer, parameter :: ntot = 50
    real :: wmin, wmax
    integer :: ierr
@@ -789,6 +968,26 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 ! To accommodate shared physics
    character*256 :: errmsg
    integer :: errflg
+
+#ifdef WRF_ELEC
+   integer l,iter,lgtstp,loccur,nxdg,nydg,nzdg
+   logical :: irelax = .false.
+   integer :: maxiter = 60
+   integer, save :: iboxmgsetup = 0, isetup = 1
+   REAL, DIMENSION(ims:ime, kms:kme, jms:jme ) ::  ezfair,height2
+   REAL, DIMENSION(kms:kme) ::  potfair
+   double precision :: etot
+   double precision :: dt1,dt4,timeboxmg
+   real, parameter :: jc = -2.0e-12  ! fair weather current density J (Amp m**-2) (Helsdon & Farley 1987; Chiu (1978) has -2.7e-12, quoting Gish (1944))
+   real, parameter :: eperao = 8.8592e-12 ! permittivity of air
+!   fair weather elec field params
+
+   double precision, parameter :: ezfairo = -80.00d0
+   double precision, parameter :: efa1 = 4.5d-3, efa2 = 3.8d-4, efa3 = 1.0d-4
+   double precision, parameter :: efb1 = 0.50, efb2 = 0.65, efb3 = 0.10
+   integer :: ng =3
+#endif
+! End explicit lightning
 
 !---------------------------------------------------------------------
 !  check for microphysics type.  We need a clean way to
@@ -860,6 +1059,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
             ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
             ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
             )
+
+       !EMK NUWRF
+       call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+            ,ids,ide,jds,jde,kds,kde &
+            ,ims,ime,jms,jme,kms,kme &
+            ,its,ite,jts,jte,kts,kte)
+       !EMK NUWRF
+
 
    ELSE
 #endif
@@ -1108,6 +1315,13 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte)
 
+              !EMK NUWRF
+              call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                 ,ids,ide,jds,jde,kds,kde &
+                 ,ims,ime,jms,jme,kms,kme &
+                 ,its,ite,jts,jte,kts,kte)
+              !EMK NUWRF 
+
               if (pert_thom .and. multi_perturb == 1) then
                 call Remove_multi_perturb_mp_perturbations (perts_qvapor, perts_qcloud, perts_qice, &
                   perts_qsnow, perts_ni, pert_thom_qv, pert_thom_qc, pert_thom_qi, pert_thom_qs, &
@@ -1202,6 +1416,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte)
+
+             !EMK NUWRF
+             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                  ,ids,ide,jds,jde,kds,kde &
+                  ,ims,ime,jms,jme,kms,kme &
+                  ,its,ite,jts,jte,kts,kte)
+             !EMK NUWRF
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling thompson_et_al' )
              ENDIF
@@ -1288,6 +1510,13 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                 deallocate (qni_tmp)
               end if
 
+             !EMK NUWRF
+             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                  ,ids,ide,jds,jde,kds,kde &
+                  ,ims,ime,jms,jme,kms,kme &
+                  ,its,ite,jts,jte,kts,kte)
+             !EMK NUWRF
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling thompson_et_al' )
              ENDIF
@@ -1358,6 +1587,12 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,GRAUPELNCV=graupelncv                             &
                  ,SR=sr                                             &
                                                                     )
+             !EMK NUWRF
+             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                  ,ids,ide,jds,jde,kds,kde &
+                  ,ims,ime,jms,jme,kms,kme &
+                  ,its,ite,jts,jte,kts,kte)
+             !EMK NUWRF
 # endif
 
 !
@@ -1427,6 +1662,12 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,HAILNCV=hailncv                     &
                  ,SR=sr                               &
                                                       )
+             !EMK NUWRF
+             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                  ,ids,ide,jds,jde,kds,kde &
+                  ,ims,ime,jms,jme,kms,kme &
+                  ,its,ite,jts,jte,kts,kte)
+             !EMK NUWRF
 #endif
 
 !
@@ -1549,9 +1790,94 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 #endif
                  ,PRECR=precr,PRECI=preci,PRECS=precs,PRECG=precg   & ! jdf for wrf-chem
                                                                     )
+             !EMK NUWRF
+             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                  ,ids,ide,jds,jde,kds,kde &
+                  ,ims,ime,jms,jme,kms,kme &
+                  ,its,ite,jts,jte,kts,kte)
+             !EMK NUWRF
+
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling morrison two moment')
         ENDIF
+
+!********************************************************************** 
+! crm. for qnc prediction 
+    CASE (MORR_FASTER)
+         CALL wrf_debug(100, 'microphysics_driver: calling FASTER morrison two moment')
+         IF (PRESENT (QV_CURR) .AND. PRESENT (QC_CURR) .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QI_CURR) .AND. &
+         PRESENT (QS_CURR) .AND. PRESENT (QG_CURR) .AND. &
+         PRESENT (QR_CURR) .AND. PRESENT (QI_CURR) .AND. &
+         PRESENT (QNS_CURR) .AND. PRESENT (QNI_CURR).AND. &
+         PRESENT (QNR_CURR) .AND. PRESENT (QNG_CURR).AND. PRESENT (QNC_CURR).AND. & ! KVW
+         PRESENT (MU) .AND. PRESENT (QSCUTEN).AND. &
+         PRESENT (QRCUTEN) .AND. PRESENT (QICUTEN).AND. &
+         PRESENT (RAINNC ) .AND. PRESENT (RAINNCV) .AND. &
+         PRESENT (Z      ) .AND.PRESENT ( W      )  ) THEN
+         CALL mp_morr_faster(                            &
+                     ITIMESTEP=itimestep,                &  !*
+                     TH=th,                              &  !*
+                     QV=qv_curr,                         &  !*
+                     QC=qc_curr,                         &  !*
+                     QR=qr_curr,                         &  !*
+                     QI=qi_curr,                         &  !*
+                     QS=qs_curr,                         &  !*
+                     QG=qg_curr,                         &  !*
+                     NI=qni_curr,                        &  !*
+                     NS=qns_curr,                        &  !* ! VVT
+                     NR=qnr_curr,                        &  !* ! VVT
+                     NG=qng_curr,                        &  !* ! VVT
+                     NC=qnc_curr,                        &  ! KVW
+                     TKE=tke_mp,                         &  ! KVW
+                     KZH=diffk,                          &  ! KVW
+                     RHO=rho,                            &  !*
+                     PII=pi_phy,                         &  !*
+                     P=p,                                &  !*
+                     DT_IN=dt,                           &  !*
+                     DZ=dz8w,                            &  !* !hm
+                     HT=ht,                              &  !*
+                     W=w                                 &  !*
+                    ,RAINNC=RAINNC                       &  !*
+                    ,RAINNCV=RAINNCV                     &  !*
+                    ,SR=SR                               &  !* !hm
+                    ,qrcuten=qrcuten                     &  ! hm
+                    ,qscuten=qscuten                     &  ! hm
+                    ,qicuten=qicuten                     &  ! hm
+                    ,mu=mu                               &  ! hm
+                 ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde &
+                 ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
+                 ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
+                 ,EFFCS=EFFCS, PBL=PBL, Zet=refl_10cm    &  ! KVW
+
+! for crm
+                 ,crm_morr_act_opt=crm_morr_act_opt    &
+                 ,crm_mp_nc=crm_mp_nc                  &
+!                 ,crm_morr_hygro=crm_morr_hygro        &
+                 ,SEDFQC=sedfqc   ,SEDFQR=sedfqr       &
+                 ,QVDT_PR=qvdt_pr ,QVDT_COND=qvdt_cond & 
+                 ,QCDT_PR=qcdt_pr ,QCDT_SED=qcdt_sed   &
+                 ,QRDT_SED=qrdt_sed                    &
+                 ,rm_aer1=rm_aer1, sig_aer1=sig_aer1   &
+                 ,rm_aer2=rm_aer2, sig_aer2=sig_aer2   &
+                 ,rm_aer3=rm_aer3, sig_aer3=sig_aer3   &
+                 ,rm_aer4=rm_aer4, sig_aer4=sig_aer4   &
+                 ,na_aer1_grd=na_aer1_grd              &
+                 ,na_aer2_grd=na_aer2_grd              &
+                 ,na_aer3_grd=na_aer3_grd              &
+                 ,na_aer4_grd=na_aer4_grd              &
+                 ,hygro_aer1=hygro_aer1                &
+                 ,hygro_aer2=hygro_aer2                &
+                 ,hygro_aer3=hygro_aer3                &
+                 ,hygro_aer4=hygro_aer4                &
+                 ,smaxact=smaxact, rminact=rminact     &
+                                                          )
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling FASTER morrison two moment')
+        ENDIF
+
+! crm end
+! ********************************************************************** 
 
 #if (EM_CORE==1)
     CASE (P3_1CATEGORY)
@@ -1880,6 +2206,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
                                                                     )
+               !EMK NUWRF...This scheme always calculates reflectivity.
+               call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+               ,diagflag=.true., do_radar_ref=1 &
+               ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+               ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+               ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+               !EMK NUWRF
+
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling milbrandt2mom')
         ENDIF
@@ -1933,22 +2267,356 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 !            Call wrf_error_fatal( 'arguments not present for calling milbrandt3mom')
 !         ENDIF
 
-
-
+! START NSSL 2MOM with ELECPHYSICS
+!
+#ifdef WRF_ELEC
     CASE (NSSL_2MOM)
-#if (WRFPLUS != 1) & !defined( VAR4D )
-         ! For all 1,2,3-moment options
          CALL wrf_debug(100, 'microphysics_driver: calling nssl2mom')
          IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND. PRESENT (QNdrop_CURR)  .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QNR_CURR)  .AND. &
+             PRESENT (QI_CURR) .AND. PRESENT (QNI_CURR)  .AND. &
+             PRESENT (QS_CURR) .AND. PRESENT (QNS_CURR)  .AND. &
+             PRESENT (QG_CURR) .AND. PRESENT (QNG_CURR)  .AND. &
+             PRESENT (QH_CURR) .AND. PRESENT (QNH_CURR)  .AND. &
              PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
 #if (EM_CORE==1)
              PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
              PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
              PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
 #endif
-             PRESENT ( W      ) ) THEN
+             PRESENT ( W      )  .AND. &
+             PRESENT (QVOLG_CURR) .AND. F_QVOLG  .AND.         &
+             PRESENT (QVOLH_CURR) .AND. F_QVOLH ) THEN
+             
+        IF ( elec_physics > 0 .and. f_scw ) THEN
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+                     QHL=qh_curr,                        &
+!                     cn=qnn_curr,                        &
+                     CCW=qndrop_curr,                       &
+                     CRW=qnr_curr,                       &
+                     CCI=qni_curr,                       &
+                     CSW=qns_curr,                       &
+                     CHW=qng_curr,                       &
+                     CHL=qnh_curr,                       &
+                     SCR=scr,                            &
+                     SCW=scw,                            &
+                     SCI=sci,                            &
+                     SCS=scs,                            &
+                     SCH=sch,                            &
+                     SCHL=schl,                          &
+                     SCTOT=sctot,                        &
+                     NONINDUC = noninduc,                &
+                     rscghis_2d = rscghis_2d,            &
+                     INDUC = induc,                      & 
+                     ELEC = elecz,                       & 
+                     SCION = scion,                      & 
+                     SCIONA = sciona,                    & 
+                     VHW=qvolg_curr,                     &
+                     VHL=qvolh_curr,                     &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     dx=dx, dy=dy,                       &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     HAILNC   = HAILNC,                  &
+                     HAILNCV  = HAILNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     diagflag = diagflag,                &
+                     ipelectmp = ipelectmp,                &
+                     dbz      = refl_10cm,               &
+                     nssl_progn=nssl_progn,              &
+                     cu_used=cu_used,                    &
+                     qrcuten=qrcuten,                    &  ! hm
+                     qscuten=qscuten,                    &  ! hm
+                     qicuten=qicuten,                    &  ! hm
+                     qccuten=qccuten,                    &  ! hm
+                     re_cloud=re_cloud,                  &
+                     re_ice=re_ice,                      &
+                     re_snow=re_snow,                    &
+                     has_reqc=has_reqc,                  & ! ala G. Thompson
+                     has_reqi=has_reqi,                  & ! ala G. Thompson
+                     has_reqs=has_reqs,                  & ! ala G. Thompson
+#if ( WRF_CHEM == 1 )
+                     EVAPPROD=evapprod,RAINPROD=rainprod,&
+#endif
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                       )
+        ENDIF ! elec_physics
+
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_2mom')
+        ENDIF
+
+    CASE (NSSL_2MOMCCN)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl_2momccn')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND. PRESENT (QNDROP_CURR)  .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QNR_CURR)  .AND. &
+             PRESENT (QI_CURR) .AND. PRESENT (QNI_CURR)  .AND. &
+             PRESENT (QS_CURR) .AND. PRESENT (QNS_CURR)  .AND. &
+             PRESENT (QG_CURR) .AND. PRESENT (QNG_CURR)  .AND. &
+             PRESENT (QH_CURR) .AND. PRESENT (QNH_CURR)  .AND. &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+             PRESENT ( W      )  .AND. &
+             PRESENT (QVOLG_CURR) .AND. F_QVOLG  .AND.         &
+             PRESENT (QVOLH_CURR) .AND. F_QVOLH  .AND.         &
+             PRESENT( QNN_CURR )                          ) THEN
+             
+         IF ( elec_physics > 0 .and. f_scw) THEN
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+                     QHL=qh_curr,                        &
+                     cn=qnn_curr,                        &
+                     CCW=qndrop_curr,                       &
+                     CRW=qnr_curr,                       &
+                     CCI=qni_curr,                       &
+                     CSW=qns_curr,                       &
+                     CHW=qng_curr,                       &
+                     CHL=qnh_curr,                       &
+                     SCR=scr,                            &
+                     SCW=scw,                            &
+                     SCI=sci,                            &
+                     SCS=scs,                            &
+                     SCH=sch,                            &
+                     SCHL=schl,                          &
+                     SCTOT=sctot,                        &
+                     NONINDUC = noninduc,                &
+                     rscghis_2d = rscghis_2d,            &
+                     INDUC = induc,                      &
+                     ELEC = elecz,                       &
+                     SCION = scion,                      &
+                     SCIONA = sciona,                    &
+                     VHW=qvolg_curr,                     &
+                     VHL=qvolh_curr,                     &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     dx=dx, dy=dy,                       &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     HAILNC   = HAILNC,                  &
+                     HAILNCV  = HAILNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     diagflag = diagflag,                &
+                     ipelectmp = ipelectmp,                &
+                     dbz      = refl_10cm,               &
+                     nssl_progn=nssl_progn,              &
+                     cu_used=cu_used,                    &
+                     qrcuten=qrcuten,                    &  ! hm
+                     qscuten=qscuten,                    &  ! hm
+                     qicuten=qicuten,                    &  ! hm
+                     qccuten=qccuten,                    &  ! hm
+                     re_cloud=re_cloud,                  &
+                     re_ice=re_ice,                      &
+                     re_snow=re_snow,                    &
+                     has_reqc=has_reqc,                  & ! ala G. Thompson
+                     has_reqi=has_reqi,                  & ! ala G. Thompson
+                     has_reqs=has_reqs,                  & ! ala G. Thompson
+#if ( WRF_CHEM == 1 )
+                     EVAPPROD=evapprod,RAINPROD=rainprod,&
+#endif
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                       )
+               !EMK NUWRF
+               call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+               ,diagflag=.true., do_radar_ref=1 &
+               ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+               ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+               ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+               !EMK NUWRF
+
+         ENDIF ! elec_physics
+
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_2momccn')
+        ENDIF
+!
+! END NSSL 2MOM with ELECPHYSICS
+!
+! START NSSL 2MOM CASES
+!
+#else
+    CASE (NSSL_1MOM)
+
+       CALL wrf_debug(100, 'microphysics_driver: calling nssl1mom')
+       IF (PRESENT (QV_CURR) .AND.                           &
+          PRESENT (QC_CURR) .AND.  &
+          PRESENT (QR_CURR) .AND.  &
+          PRESENT (QI_CURR) .AND.  &
+          PRESENT (QS_CURR) .AND.  &
+          PRESENT (QG_CURR) .AND.  &
+          PRESENT (QH_CURR) .AND.  &
+          PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+          PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+          PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
+          PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+          PRESENT ( W      )  .AND. &
+          PRESENT (QVOLG_CURR) ) THEN
+
+                
+          CALL nssl_2mom_driver(                          &
+                   ITIMESTEP=itimestep,                &
+                   TH=th,                              &
+                   QV=qv_curr,                         &
+                   QC=qc_curr,                         &
+                   QR=qr_curr,                         &
+                   QI=qi_curr,                         &
+                   QS=qs_curr,                         &
+                   QH=qg_curr,                         &
+                   QHL=qh_curr,                        &
+                   VHW=qvolg_curr,                     &
+                   PII=pi_phy,                         &
+                   P=p,                                &
+                   W=w,                                &
+                   DZ=dz8w,                            &
+                   DTP=dt,                             &
+                   DN=rho,                             &
+                   RAINNC   = RAINNC,                  &
+                   RAINNCV  = RAINNCV,                 &
+                   SNOWNC   = SNOWNC,                  &
+                   SNOWNCV  = SNOWNCV,                 &
+                   HAILNC   = HAILNC,                  &
+                   HAILNCV  = HAILNCV,                 &
+                   GRPLNC   = GRAUPELNC,               &
+                   GRPLNCV  = GRAUPELNCV,              &
+                   SR=SR,                              &
+                   dbz      = refl_10cm,               &
+                   diagflag = diagflag,                &
+                   IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                   )
+
+             !EMK NUWRF...This scheme almost always calculates reflectivity.
+             call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+                ,diagflag=diagflag, do_radar_ref=1 &
+                ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+                ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+                ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+             !EMK NUWRF
+
+          ELSE
+             Call wrf_error_fatal( 'arguments not present for calling nssl_1mom')
+          ENDIF
+
+    CASE (NSSL_1MOMLFO)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl1mom')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND.  &
+             PRESENT (QR_CURR) .AND.  &
+             PRESENT (QI_CURR) .AND.  &
+             PRESENT (QS_CURR) .AND.  &
+             PRESENT (QG_CURR) .AND.  &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+             PRESENT ( W      )  ) THEN
              
 
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     dbz      = refl_10cm,               &
+                     diagflag = diagflag,                &
+                     ke_diag = ke_diag,                &
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                                    )
+             !EMK NUWRF...This scheme almost always calculates reflectivity.
+             call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+                ,diagflag=diagflag, do_radar_ref=1 &
+                ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+                ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+                ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+             !EMK NUWRF
+
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_1momlfo')
+        ENDIF
+
+    CASE (NSSL_2MOM)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl2mom')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND. PRESENT (QNdrop_CURR)  .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QNR_CURR)  .AND. &
+             PRESENT (QI_CURR) .AND. PRESENT (QNI_CURR)  .AND. &
+             PRESENT (QS_CURR) .AND. PRESENT (QNS_CURR)  .AND. &
+             PRESENT (QG_CURR) .AND. PRESENT (QNG_CURR)  .AND. &
+             PRESENT (QH_CURR) .AND. PRESENT (QNH_CURR)  .AND. &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+             PRESENT ( W      )  .AND. &
+             PRESENT (QVOLG_CURR) .AND. F_QVOLG  .AND.         &
+             PRESENT (QVOLH_CURR) .AND. F_QVOLH ) THEN
+             
          CALL nssl_2mom_driver(                          &
                      ITIMESTEP=itimestep,                &
                      TH=th,                              &
@@ -1966,12 +2634,8 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      CSW=qns_curr,                       &
                      CHW=qng_curr,                       &
                      CHL=qnh_curr,                       &
-                     VHW=qvolg_curr, f_vhw=F_QVOLG,      &
-                     VHL=qvolh_curr, f_vhl=F_QVOLH,      &
-                     ZRW=qzr_curr,  f_zrw = f_qzr,       &
-                     ZHW=qzg_curr,  f_zhw = f_qzg,       &
-                     ZHL=qzh_curr,  f_zhl = f_qzh,       &
-                     cn=qnn_curr,  f_cn=f_qnn,           &
+                     VHW=qvolg_curr,                     &
+                     VHL=qvolh_curr,                     &
                      PII=pi_phy,                         &
                      P=p,                                &
                      W=w,                                &
@@ -2006,18 +2670,190 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      has_reqc=has_reqc,                  & ! ala G. Thompson
                      has_reqi=has_reqi,                  & ! ala G. Thompson
                      has_reqs=has_reqs,                  & ! ala G. Thompson
-                     hail_maxk1=hail_maxk1,              &
-                     hail_max2d=hail_max2d,              &
-                     nwp_diagnostics=config_flags%nwp_diagnostics, &
                   IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
                                                                     )
+             !EMK NUWRF...This scheme almost always calculates reflectivity.
+             call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+                ,diagflag=diagflag, do_radar_ref=1 &
+                ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+                ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+                ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+             !EMK NUWRF
 
         ELSE
            Call wrf_error_fatal( 'arguments not present for calling nssl_2mom')
         ENDIF
+
+    CASE (NSSL_2MOMG)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl2mom')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND. PRESENT (QNdrop_CURR)  .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QNR_CURR)  .AND. &
+             PRESENT (QI_CURR) .AND. PRESENT (QNI_CURR)  .AND. &
+             PRESENT (QS_CURR) .AND. PRESENT (QNS_CURR)  .AND. &
+             PRESENT (QG_CURR) .AND. PRESENT (QNG_CURR)  .AND. &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
 #endif
+             PRESENT ( W      )  .AND. &
+             PRESENT (QVOLG_CURR) .AND. F_QVOLG  ) THEN
+             
+
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+ !                    CCW=qnc_curr,                       &
+                     CCW=qndrop_curr,                    &
+                     CRW=qnr_curr,                       &
+                     CCI=qni_curr,                       &
+                     CSW=qns_curr,                       &
+                     CHW=qng_curr,                       &
+                     VHW=qvolg_curr,                     &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     HAILNC   = HAILNC,                  &
+                     HAILNCV  = HAILNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     dbz      = refl_10cm,               &
+#if ( WRF_CHEM == 1 )
+                    WETSCAV_ON = config_flags%wetscav_onoff == 1, &
+                    EVAPPROD=evapprod,RAINPROD=rainprod, &
+#endif
+                     nssl_progn=nssl_progn,              &
+                      diagflag = diagflag,               &
+                     cu_used=cu_used,                    &
+                     qrcuten=qrcuten,                    &  ! hm
+                     qscuten=qscuten,                    &  ! hm
+                     qicuten=qicuten,                    &  ! hm
+                     qccuten=qccuten,                    &  ! hm
+                     re_cloud=re_cloud,                  &
+                     re_ice=re_ice,                      &
+                     re_snow=re_snow,                    &
+                     has_reqc=has_reqc,                  & ! ala G. Thompson
+                     has_reqi=has_reqi,                  & ! ala G. Thompson
+                     has_reqs=has_reqs,                  & ! ala G. Thompson
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                                    )
+             !EMK NUWRF...This scheme almost always calculates reflectivity.
+             call calc_comdbz(comdbz=comdbz, refl_10cm=refl_10cm &
+                ,diagflag=diagflag, do_radar_ref=1 &
+                ,ids=ids, ide=ide, jds=jds, jde=jde, kds=kds, kde=kde &
+                ,ims=ims, ime=ime, jms=jms, jme=jme, kms=kms, kme=kme &
+                ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
+             !EMK NUWRF
+
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_2momg')
+        ENDIF
+
+    CASE (NSSL_2MOMCCN)
+         CALL wrf_debug(100, 'microphysics_driver: calling nssl_2momccn')
+         IF (PRESENT (QV_CURR) .AND.                           &
+             PRESENT (QC_CURR) .AND. PRESENT (QNDROP_CURR)  .AND. &
+             PRESENT (QR_CURR) .AND. PRESENT (QNR_CURR)  .AND. &
+             PRESENT (QI_CURR) .AND. PRESENT (QNI_CURR)  .AND. &
+             PRESENT (QS_CURR) .AND. PRESENT (QNS_CURR)  .AND. &
+             PRESENT (QG_CURR) .AND. PRESENT (QNG_CURR)  .AND. &
+             PRESENT (QH_CURR) .AND. PRESENT (QNH_CURR)  .AND. &
+             PRESENT (RAINNC ) .AND. PRESENT (RAINNCV)   .AND. &
+#if (EM_CORE==1)
+             PRESENT (SNOWNC ) .AND. PRESENT (SNOWNCV)   .AND. &
+             PRESENT (HAILNC ) .AND. PRESENT (HAILNCV)   .AND. &
+             PRESENT (GRAUPELNC).AND.PRESENT (GRAUPELNCV).AND. &
+#endif
+             PRESENT ( W      )  .AND. &
+             PRESENT (QVOLG_CURR) .AND. F_QVOLG  .AND.         &
+             PRESENT (QVOLH_CURR) .AND. F_QVOLH  .AND.         &
+             PRESENT( QNN_CURR )                          ) THEN
+             
+
+         CALL nssl_2mom_driver(                          &
+                     ITIMESTEP=itimestep,                &
+                     TH=th,                              &
+                     QV=qv_curr,                         &
+                     QC=qc_curr,                         &
+                     QR=qr_curr,                         &
+                     QI=qi_curr,                         &
+                     QS=qs_curr,                         &
+                     QH=qg_curr,                         &
+                     QHL=qh_curr,                        &
+!                     CCW=qnc_curr,                       &
+                     CCW=qndrop_curr,                    &
+                     CRW=qnr_curr,                       &
+                     CCI=qni_curr,                       &
+                     CSW=qns_curr,                       &
+                     CHW=qng_curr,                       &
+                     CHL=qnh_curr,                       &
+                     VHW=qvolg_curr,                     &
+                     VHL=qvolh_curr,                     &
+                     cn=qnn_curr,                        &
+                     PII=pi_phy,                         &
+                     P=p,                                &
+                     W=w,                                &
+                     DZ=dz8w,                            &
+                     DTP=dt,                             &
+                     DN=rho,                             &
+                     RAINNC   = RAINNC,                  &
+                     RAINNCV  = RAINNCV,                 &
+                     SNOWNC   = SNOWNC,                  &
+                     SNOWNCV  = SNOWNCV,                 &
+                     HAILNC   = HAILNC,                  &
+                     HAILNCV  = HAILNCV,                 &
+                     GRPLNC   = GRAUPELNC,               &
+                     GRPLNCV  = GRAUPELNCV,              &
+                     SR=SR,                              &
+                     dbz      = refl_10cm,               &
+#if ( WRF_CHEM == 1 )
+                     WETSCAV_ON = config_flags%wetscav_onoff == 1, &
+                     EVAPPROD=evapprod,RAINPROD=rainprod,&
+#endif
+                     nssl_progn=nssl_progn,              &
+                     diagflag = diagflag,                &
+                     ke_diag = ke_diag,                &
+                     cu_used=cu_used,                    &
+                     qrcuten=qrcuten,                    &  ! hm
+                     qscuten=qscuten,                    &  ! hm
+                     qicuten=qicuten,                    &  ! hm
+                     qccuten=qccuten,                    &  ! hm
+                     re_cloud=re_cloud,                  &
+                     re_ice=re_ice,                      &
+                     re_snow=re_snow,                    &
+                     has_reqc=has_reqc,                  & ! ala G. Thompson
+                     has_reqi=has_reqi,                  & ! ala G. Thompson
+                     has_reqs=has_reqs,                  & ! ala G. Thompson
+                  IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+                  IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+                  ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
+                                                                    )
+        ELSE
+           Call wrf_error_fatal( 'arguments not present for calling nssl_2momccn')
+        ENDIF
+#endif
+!
+! END NSSL 2MOM CASES
 !
         CASE (GSFCGCESCHEME)
              CALL wrf_debug ( 100 , 'microphysics_driver: calling GSFCGCE' )
@@ -2051,6 +2887,15 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,QG=qg_curr                                        &
                  ,IHAIL=hail, ICE2=ice2                             &
                                                                     )
+
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
+
+
 ! HAIL = 1,  run gsfcgce with hail option
 !        0,  run gsfcgce with graupel option   <---- default
 !        note: no effect if ice2 = 1
@@ -2118,6 +2963,12 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 #endif
 !NUWRF JJS 20110525 ^^^^^
                                                                     )
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
 
                do j=jts,jte
                   do k=kts,kte
@@ -2175,6 +3026,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,QG=qg_curr                                        &
                  ,QNDROP=qndrop_curr                                &
                                                                     )
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
+
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling lin_et_al' )
              ENDIF
@@ -2297,6 +3156,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
+
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wsm5' )
              ENDIF
@@ -2349,6 +3216,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,EVAPPROD=evapprod,RAINPROD=rainprod               &
 #endif
                                                                     )
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
+
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wsm6' )
              ENDIF
@@ -2416,6 +3291,12 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
+              !EMK NUWRF
+              call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                   ,ids,ide,jds,jde,kds,kde &
+                   ,ims,ime,jms,jme,kms,kme &
+                   ,its,ite,jts,jte,kts,kte)
+              !EMK NUWRF
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wsm7' )
              ENDIF
@@ -2461,6 +3342,14 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
+
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wdm5')
              ENDIF
@@ -2510,6 +3399,13 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
+               !EMK NUWRF
+               call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                    ,ids,ide,jds,jde,kds,kde &
+                    ,ims,ime,jms,jme,kms,kme &
+                    ,its,ite,jts,jte,kts,kte)
+               !EMK NUWRF
+
              ELSE
                CALL wrf_error_fatal ( 'arguments not present for calling wdm6')
              ENDIF
@@ -2562,6 +3458,13 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                  ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
                  ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
                                                                     )
+              !EMK NUWRF
+              call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                   ,ids,ide,jds,jde,kds,kde &
+                   ,ims,ime,jms,jme,kms,kme &
+                   ,its,ite,jts,jte,kts,kte)
+              !EMK NUWRF
+
              ELSE
                CALL wrf_error_fatal ( 'arguments not present for calling wdm7')
              ENDIF
@@ -2720,6 +3623,32 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                 CALL wrf_error_fatal ( 'arguments not present for calling CAMMGMP SCHEME' )
              ENDIF
 
+!------------------------------------------Tsai--------------------------------------------
+        CASE (NTU)
+             CALL wrf_debug(100, 'microphysics_driver: calling ntu')
+             IF ( PRESENT( QV_CURR ) .AND. PRESENT ( QC_CURR ) .AND.  &
+                  PRESENT( QR_CURR ) .AND. PRESENT ( QI_CURR ) .AND.  &
+                  PRESENT( QS_CURR ) .AND. PRESENT ( QG_CURR ) .AND.  &
+                  PRESENT( RAINNC )  .AND. PRESENT ( RAINNCV )) THEN   ! ....
+             CALL mp_ntu(ITIMESTEP=itimestep,TH=th,P=p,DZ=dz8w,W=w,   &
+                  PII=pi_phy,DT_MP=dt,SR=sr,QV=qv_curr,QC=qc_curr,    &
+                  QR=qr_curr,QI=qi_curr,QS=qs_curr,QG=qg_curr,        &
+                  QH=qh_curr,NC=qnc_curr,NR=qnr_curr,NI=qni_curr,     &
+                  NS=qns_curr,NG=qng_curr,NH=qnh_curr,VI=vi_curr,     &
+                  VS=vs_curr,VG=vg_curr,FI=fi_curr,FS=fs_curr,        &
+                  AI=ai_curr,AS=as_curr,AG=ag_curr,AH=ah_curr,        &
+                  I3M=i3m_curr,QDCN=qdcn_curr,QTCN=qtcn_curr,         &
+                  QCCN=qccn_curr,QRCN=qrcn_curr,QNIN=qnin_curr,       &
+                  IDEPNU=IDEPNU,RAINNC=rainnc,RAINNCV=rainncv,        &
+                  SNOWNC=snownc,SNOWNCV=snowncv,GRAPNC=graupelnc,     &
+                  GRAPNCV=graupelncv,HAILNC=hailnc,HAILNCV=hailncv,   &
+                  IDS=ids,IDE=ide,JDS=jds,JDE=jde,KDS=kds,KDE=kde,    &
+                  IMS=ims,IME=ime,JMS=jms,JME=jme,KMS=kms,KME=kme,    &
+                  ITS=its,ITE=ite,JTS=jts,JTE=jte,KTS=kts,KTE=kte)
+             ELSE
+                CALL wrf_error_fatal ( 'arguments not present for calling ntu' )
+             ENDIF
+
 !    Added by Zhuxiao,  lscond (simplified Large-scale condensation scheme by Jimy )
 #if ( WRFPLUS == 1 )
         CASE (LSCONDSCHEME)
@@ -2757,12 +3686,105 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
 
       END SELECT micro_select
 
+#ifdef WRF_ELEC
+#include "../elec/include_microphysics_driver_elec.F"
+
+! LIGHTNING NUDGING - 
+
+      IF (nudge_lightning.eq.1) THEN
+
+      if (maxval(gridlight(its:ite,jts:jte)).gt.0) then
+        write(0,*) 'TILE MAXVAL GRIDLIGHT',maxval(gridlight(its:ite,jts:jte))
+      endif
+
+
+     CALL nudge_light(ite-its+1,jte-jts+1,kte-kts+1,qg_curr(its:ite,kts:kte,jts:jte),   &
+                   & qv_curr(its:ite,kts:kte,jts:jte),gridlight(its:ite,jts:jte),  &
+                   & t8w(its:ite,kts:kte,jts:jte),p8w(its:ite,kts:kte,jts:jte),  &
+                   & dz8w(its:ite,kts:kte,jts:jte),dx,dy,dt)
+
+      ENDIF
+#endif
+! END LIGHTNING NUDGING
+
+
    ENDDO
    !$OMP END PARALLEL DO
 
 #ifdef XEON_OPTIMIZED_WSM5
    ENDIF
 #endif
+
+   ! EMK NUWRF...MPI-safe Convective-stratiform diagnostic
+   ! TODO: Put in new subroutine.
+   if (mp_physics .ne. PASSIVEQV) then
+      
+#ifdef DM_PARALLEL
+#include "HALO_EM_PHYS_MP_0.inc"               
+#endif
+      call cal_sepa_part1(dt_in=dt,&
+           prrate=rainncv, &
+           ri=ri_sepa, &
+           it=it_sepa, &
+           IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+           IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+           ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte )
+#ifdef DM_PARALLEL
+#include "HALO_EM_PHYS_MP_1.inc"               
+#endif
+      ! EMK NUWRF: 2 passes
+      ! Pass 1: Get convection based on local rainfall
+      ! Pass 2: Get convection based on local rainfall and nearby convection
+      ! Call the halo routine between passes to ensure results from neighboring
+      ! tiles are available.
+      do ipass = 1,2
+         call cal_sepa_part2(ri=ri_sepa, &
+              it=it_sepa, &
+              ipass=ipass, &
+              IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
+              IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
+              ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte )
+#ifdef DM_PARALLEL
+#include "HALO_EM_PHYS_MP_2.inc"               
+#endif
+      end do
+
+      call cal_sepa_part3(W=w                                 &
+           ,QC=qc_curr                                        &
+           ,QI=qi_curr                                        &
+           ,QR=qr_curr                                        &
+           ,QS=qs_curr                                        &
+           ,QG=qg_curr                                        &
+           ,QH=qh_curr                                        &
+           ,TH=th                                             &
+           ,RHOBAR=rho                                        &
+           ,RI=ri_sepa                                        &
+           ,IT=it_sepa                                        &
+           ,CSI=csi                                           &
+           ,PII=pi_phy                                        &
+           ,IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde &
+           ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
+           ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
+           )
+
+#ifdef DM_PARALLEL
+#include "HALO_EM_PHYS_MP_3.inc"
+#endif
+
+      call var_sepa(RAINNCV=rainncv                           &
+           ,CSI=csi                                           &
+           ,RAINNCV_SEPA=rainncv_sepa                         &
+           ,RAINNC_SEPA=rainnc_sepa                           &
+           ,IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme &
+           ,ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte &
+           )  
+
+#ifdef DM_PARALLEL
+#include "HALO_EM_PHYS_MP_4.inc"               
+#endif
+   end if
+! EMK NUWRF END...MPI-safe CSI
+
 
 ! by ZCX
 ! IF ( PRESENT (LWP) ) THEN
@@ -2855,5 +3877,44 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
      end do
 
    end subroutine Remove_multi_perturb_mp_perturbations
+
+   ! EMK NUWRF...Calculate 2D composite reflectivity 
+   subroutine calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+        ,ids,ide,jds,jde,kds,kde &
+        ,ims,ime,jms,jme,kms,kme &
+        ,its,ite,jts,jte,kts,kte)
+
+      implicit none
+
+      ! Arguments     
+      real,optional,intent(inout) :: comdbz(ims:ime,jms:jme)
+      real,optional,intent(in) :: refl_10cm(ims:ime,kms:kme,jms:jme)
+      logical,optional,intent(in) :: diagflag
+      integer,optional,intent(in) :: do_radar_ref
+      integer,intent(in) :: ids,ide,jds,jde,kds,kde
+      integer,intent(in) :: ims,ime,jms,jme,kms,kme
+      integer,intent(in) :: its,ite,jts,jte,kts,kte
+
+      ! Local variables
+      integer :: i,j,k
+
+      if (present(comdbz) .and. present(refl_10cm) .and. &
+           present(diagflag) .and. present(do_radar_ref)) then
+
+         if (diagflag .and. do_radar_ref == 1) then
+            do j=jts,min(jte,jde-1)
+               do i=its,min(ite,ide-1)
+                  comdbz(i,j) =  max(refl_10cm(i,kts,j),-35.)
+                  do k=kts,kte
+                     if (refl_10cm(i,k,j) .gt. comdbz(i,j)) then
+                        comdbz(i,j) = refl_10cm(i,k,j)
+                     end if
+                  enddo !k
+               enddo !i
+            enddo !j
+         end if
+      end if
+
+   end subroutine calc_comdbz
 
 END MODULE module_microphysics_driver
