@@ -1232,8 +1232,6 @@ endif
               grid%lhveg, grid%lhtran, & !end of CLM variables
                       grid%TSK_SAVE,                        & !Optional fractional seaice
                       grid%itimestep, grid%fdob,            &
-                      moist(:,:,:,P_QV),grid%phb,grid%ph_2,grid%alt,grid%p,  & ! Tsai
-                      grid%pb,config_flags%BACKIN,config_flags%CCNTY,        & ! Tsai
                       t00, p00, a,                      & ! for obs_nudge base state
                       grid%TYR, grid%TYRA, grid%TDLY, grid%TLAG, grid%NYEAR, grid%NDAY,grid%tmn_update, &
                       grid%achfx, grid%aclhf, grid%acgrdflx                 &

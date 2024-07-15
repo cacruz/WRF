@@ -149,16 +149,16 @@
 	end if
 !   following line turns aqueous radical chem off unconditionally
 	iradical_onoff = 0
-    if ( config_flags%mozart_ph_diag .eq. 1 ) then
+	if ( config_flags%mozart_ph_diag .eq. 1 ) then
 !   Initialize pH of CW ph_cw to a FillValue value
-        do jt = jts, jte
-          do kt = kts, kte
-            do it = its, ite
-              ph_cw(it,kt,jt) = -9999.
-            end do
-          end do
-        end do
-     end if
+	   do jt = jts, jte
+	      do kt = kts, kte
+		 do it = its, ite
+		    ph_cw(it,kt,jt) = -9999.
+		 end do
+	      end do
+	   end do
+        end if
 	do 3920 jt = jts, jte
 	do 3910 it = its, ite
 
@@ -215,10 +215,20 @@
 		num_moist, num_chem, moist, chem,             &
 		t_phy, p_phy, rho_phy                         )
 
+<<<<<<< HEAD
 	gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:)
         if ( config_flags%mozart_ph_diag .eq. 1 ) then 
         ph_cw(it,kt,jt)        = ph_aq_box
         end if
+||||||| parent of df58a2a71 (These are Ekman 11.1 updates before v4.4 merge)
+	gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:) 
+
+
+=======
+	gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:) 
+        ph_cw(it,kt,jt)        = ph_aq_box
+
+>>>>>>> df58a2a71 (These are Ekman 11.1 updates before v4.4 merge)
 3800	continue
 
 3910	continue

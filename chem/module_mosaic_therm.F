@@ -165,6 +165,11 @@
           ph_aer4(k) = mc(1,4)
           end if
 
+          ph_aer1(k) = mc(1,1)
+          ph_aer2(k) = mc(1,2)
+          ph_aer3(k) = mc(1,3)
+          ph_aer4(k) = mc(1,4)
+
 100     continue	! k levels
 
 200   continue		! subareas

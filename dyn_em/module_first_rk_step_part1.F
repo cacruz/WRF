@@ -1005,7 +1005,6 @@ BENCH_START(surf_driver_tim)
 ! Noah-MP tile drainage
      &        , QTDRAIN=grid%QTDRAIN  , TD_FRACTION=grid%TD_FRACTION                 &
 ! Optional hydro variables in NOAHMP
-     &        ,smcwtdxy=grid%smcwtdxy ,rechxy=grid%rechxy ,deeprechxy=grid%deeprechxy &
      &        ,fdepthxy=grid%fdepthxy, areaxy=grid%areaxy, rivercondxy=grid%rivercondxy  &
      &        ,riverbedxy=grid%riverbedxy, eqzwt=grid%eqzwt, pexpxy=grid%pexpxy &
      &        ,qrfxy=grid%qrfxy, qspringxy=grid%qspringxy, qslatxy=grid%qslatxy, qrfsxy=grid%qrfsxy, qlatxy=grid%qlatxy &

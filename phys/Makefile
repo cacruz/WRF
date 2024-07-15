@@ -10,6 +10,7 @@ MODULES = \
 	module_bep_bem_helper.o \
 	complex_number_module.o \
 	module_diag_csi.o \
+	module_bep_bem_helper.o \
 	module_cam_shr_kind_mod.o \
 	module_cam_support.o \
 	module_cam_shr_const_mod.o \

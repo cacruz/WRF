@@ -128,6 +128,11 @@ CONTAINS
 #endif
   
   USE module_casaco2_fluxes
+      
+#if( WRF_USE_CLM == 1)
+  USE shr_megan_mod, only : shr_megan_mechcomps_n, shr_megan_mechcomps
+#endif
+  
   IMPLICIT NONE
 
    TYPE(grid_config_rec_type),  INTENT(IN   )    :: config_flags
@@ -435,6 +440,7 @@ real, save :: freq_industry(24)    = &
 #if( WRF_USE_CLM == 1)
       REAL :: convert2(its:ite,jts:jte)
 #endif
+
       CHARACTER (LEN=80) :: message
       LOGICAL :: do_bioemiss, do_plumerisefire,do_ex_volcanoe
 
@@ -839,8 +845,8 @@ real, save :: freq_industry(24)    = &
       dust_select:  SELECT CASE(config_flags%dust_opt)
       CASE (DUSTGOCART)
         CALL wrf_debug(15,'Gocart dust emissions')
-        call gocart_dust_driver(ktau,dtstep,config_flags,julday,alt,t_phy,moist,u_phy,  &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod,dustin,           &
+        call gocart_dust_driver(dtstep,config_flags,alt,t_phy,u_phy,  &
+         v_phy,chem,rho_phy,dz8w,smois,u10,v10,erod_tmp,dustin,           &
          ivgtyp,isltyp,vegfra,xland,xlat,xlong,gsw,dx,g,emis_dust,        &
 #ifdef WRF_LIS      
          lisPorosity, & ! NU-WRF
@@ -851,6 +857,7 @@ real, save :: freq_industry(24)    = &
          its,ite, jts,jte, kts,kte                                         )
       CASE (DUSTGOCARTAFWA)
         CALL wrf_debug(15,'AFWA modified Gocart dust emissions')
+
         call gocart_dust_afwa_driver(ktau,dtstep,config_flags,julday,alt,t_phy,moist,u_phy,  &
          v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod_tmp,erod_dri,dustin,snowh,zs,   &
          ivgtyp,isltyp,vegfra,lai_vegmask,xland,xlat,xlong,gsw,dx,g,emis_dust,      &
@@ -1668,116 +1675,22 @@ real, save :: freq_industry(24)    = &
 
        end if ! emiss_inpt_opt /= 3
 
+!! move aerosol emissions addition to aer_addemiss_select for these chem_opt by Z. Tao (April 2021)
 !
-! simple fix for now for emiss_opt=3
-!
-       do j=jts,jte  
-          do i=its,ite  
-             do k=kts,min(config_flags%kemit,kte-ksub)
-                conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
-! EMK NUWRF...Updates by Z. Tao
-!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-!                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
-                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-                     +0.8*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
-                     +0.2*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-!                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
-                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
-                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
-                     +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i) &
-                     + emis_ant(i,k,j,p_e_no3j)+emis_ant(i,k,j,p_e_no3i))  &
-                     *alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   &
-                     +(emis_ant(i,k,j,p_e_so4i)+emis_ant(i,k,j,p_e_so4j))*alt(i,k,j)*dtstep/dz8w(i,k,j)*mwdry/mw_so4_aer*1.e-3
-             end do
-          end do
-       end do
-
     CASE (GOCART_SIMPLE)
 !
-! simple fix for now
+!  only add gas phase species here - SO2 only for the case  by Z. Tao (April 2021)
+!   aerosol species added in aer_addemiss_select block
 !
-!
-       if(config_flags%emiss_opt <=  5  ) then
-       do j=jts,jte  
-          do i=its,ite  
-             do k=kts,min(config_flags%kemit,kte-ksub)
-                conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
-! EMK NUWRF...Updates from Z. Tao
-                chem(i,k,j,p_so2)  = chem(i,k,j,p_so2)                   &
-                     +emis_ant(i,k,j,p_e_so2)*conv
-!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-!                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
-                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-                     +0.8*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
-                     +0.2*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-!                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-!                    +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*7.*alt(i,k,j)*dtstep/dz8w(i,k,j)
-! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
-                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
-                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
-                     +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i) &
-                     +emis_ant(i,k,j,p_e_no3j)+emis_ant(i,k,j,p_e_no3i))   &
-                     *alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   &
-                     +(emis_ant(i,k,j,p_e_so4i)+emis_ant(i,k,j,p_e_so4j))  &
-                     *alt(i,k,j)*dtstep/dz8w(i,k,j)*mwdry/mw_so4_aer*1.e-3
-             end do
-          end do
-       end do
-       endif
-!
-! next for global gocart emissions
-!
-       if(config_flags%emiss_opt == 6  ) then
        do j=jts,jte  
           do i=its,ite  
              do k=kts,min(config_flags%kemit,kte-ksub)
                 conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
                 chem(i,k,j,p_so2)  = chem(i,k,j,p_so2)                   &
                      +emis_ant(i,k,j,p_e_so2)*conv
-!EMK NUWRF...Updates from Z. Tao
-!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-!                     +(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
-                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
-                     +0.8*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
-                     +0.2*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-!                     +(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
-                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
-                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
-                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
-
-                chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
-                     +(emis_ant(i,k,j,p_e_pm_25))   &
-                     *alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_p10)  = chem(i,k,j,p_p10)                     &
-                     +(emis_ant(i,k,j,p_e_pm_10))   &
-                     *alt(i,k,j)*dtstep/dz8w(i,k,j)
-                chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   &
-                     +emis_ant(i,k,j,p_e_sulf)*conv
              end do
           end do
        end do
-       endif
-! do this here for now, quick and dirty
 
     CASE DEFAULT
        call wrf_debug(15,'emissions_driver NOT CALLING gas add_... routines')
@@ -1876,35 +1789,77 @@ real, save :: freq_industry(24)    = &
 ! NUWRF modified by Z. Tao on Mar 2011.
 ! add aerosol emissions from global inventory
 !
-    CASE (GOCARTRACM_KPP,GOCARTRADM2)
+    CASE (GOCARTRACM_KPP,GOCARTRADM2,GOCART_SIMPLE)
+! Can only select emiss_opt = 3, 5, or 6 by Z. Tao (April, 2021)
+
+       if(config_flags%emiss_opt ==  3  ) then
+       do j=jts,jte  
+          do i=its,ite  
+             do k=kts,min(config_flags%kemit,kte-ksub)
+                conv_rho_aer = alt(i,k,j)*dtstep/dz8w(i,k,j)
+
+! EMK NUWRF...Updates by Z. Tao
+!                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
+!                     +(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
+! units for bc, oc, p25 are ug/kg-dryair
+
+                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     &
+                     +0.8*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*conv_rho_aer
+                chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                     &
+                     +0.2*(emis_ant(i,k,j,p_e_eci)+emis_ant(i,k,j,p_e_ecj))*conv_rho_aer
+!                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
+!                     +(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
+                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     &
+                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*conv_rho_aer
+                chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                     &
+                     +0.5*(emis_ant(i,k,j,p_e_orgj)+emis_ant(i,k,j,p_e_orgi))*conv_rho_aer
+                chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     &
+                     +(emis_ant(i,k,j,p_e_pm25j)+emis_ant(i,k,j,p_e_pm25i) &
+                     + emis_ant(i,k,j,p_e_no3j)+emis_ant(i,k,j,p_e_no3i))*conv_rho_aer
+! unit for sulf is ppmv
+                chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   &
+                     +(emis_ant(i,k,j,p_e_so4i)+emis_ant(i,k,j,p_e_so4j))*dtstep/dz8w(i,k,j)*mwdry/mw_so4_aer*1.e-3
+             end do
+          end do
+       end do
+       endif
+!
+! next for global gocart emissions
+!
+       if(config_flags%emiss_opt == 5 .or. config_flags%emiss_opt == 6) then
        do j=jts,jte
           do i=its,ite
              do k=kts,min(config_flags%kemit,kte-ksub)
                 conv = 4.828e-4/rho_phy(i,k,j)*dtstep/(dz8w(i,k,j)*60.)
+                conv_rho_aer = alt(i,k,j)*dtstep/dz8w(i,k,j)
+
 ! EMK NUWRF...Updates from Z. Tao
 !                chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                     	&
 !                     +(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
 ! 80% BC emissions goes to BC1 and 20% goes to BC2      Tao, 12/2015
                 chem(i,k,j,p_bc1)  = chem(i,k,j,p_bc1)                         &
-                     +0.8*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.8*(emis_ant(i,k,j,p_e_bc))*conv_rho_aer
                 chem(i,k,j,p_bc2)  = chem(i,k,j,p_bc2)                         &
-                     +0.2*(emis_ant(i,k,j,p_e_bc))*alt(i,k,j)*dtstep/dz8w(i,k,j)        
+                     +0.2*(emis_ant(i,k,j,p_e_bc))*conv_rho_aer
 !                chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                     	&
 !                     +(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
 ! 50% OC emissions goes to OC1 and 50% goes to OC2      Tao, 12/2015
                 chem(i,k,j,p_oc1)  = chem(i,k,j,p_oc1)                         &
-                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.5*(emis_ant(i,k,j,p_e_oc))*conv_rho_aer
                 chem(i,k,j,p_oc2)  = chem(i,k,j,p_oc2)                         &
-                     +0.5*(emis_ant(i,k,j,p_e_oc))*alt(i,k,j)*dtstep/dz8w(i,k,j)
+                     +0.5*(emis_ant(i,k,j,p_e_oc))*conv_rho_aer
                 chem(i,k,j,p_p25)  = chem(i,k,j,p_p25)                     	&
-                     +(emis_ant(i,k,j,p_e_pm_25))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
+                     +(emis_ant(i,k,j,p_e_pm_25))*conv_rho_aer
                 chem(i,k,j,p_p10)  = chem(i,k,j,p_p10)                     	&
-                     +(emis_ant(i,k,j,p_e_pm_10))*alt(i,k,j)*dtstep/dz8w(i,k,j)	
+                     +(emis_ant(i,k,j,p_e_pm_10))*conv_rho_aer
                 chem(i,k,j,p_sulf)  = chem(i,k,j,p_sulf)                   	&
                      +emis_ant(i,k,j,p_e_sulf)*conv				
              end do
           end do
        end do
+       end if
 
     CASE ( CBMZ_CAM_MAM3_NOAQ, CBMZ_CAM_MAM3_AQ, CBMZ_CAM_MAM7_NOAQ, CBMZ_CAM_MAM7_AQ )
        call wrf_debug(15,'emissions_driver calling cam_mam_addemiss')

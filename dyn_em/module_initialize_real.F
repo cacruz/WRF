@@ -73,6 +73,10 @@ CONTAINS
       USE module_dm, ONLY : wrf_dm_max_real
       use module_madwrf, only : Init_madwrf_clouds, Init_madwrf_tracers
       use ReconcileWithLis_mod ! NUWRF
+      USE module_radiation_driver, ONLY: cal_cldfra3
+      USE module_dm, ONLY : wrf_dm_max_real
+      use module_madwrf, only : Init_madwrf_clouds, Init_madwrf_tracers
+
       IMPLICIT NONE
 
       !  Input space and data.  No gridded meteorological data has been stored, though.
@@ -126,6 +130,13 @@ CONTAINS
 
       INTEGER :: auto_levels_opt
       REAL :: max_dz, dzbot, dzstretch_s, dzstretch_u, z1
+
+      INTEGER:: i_end, j_end
+      REAL, ALLOCATABLE, DIMENSION(:):: temp_P, temp_T, temp_R, temp_Dz
+      REAL, ALLOCATABLE, DIMENSION(:):: temp_Qv, temp_Qc, temp_Qi, temp_Qs
+      REAL, ALLOCATABLE, DIMENSION(:):: temp_CF, temp_Nc, temp_Ni
+      REAL:: max_relh, temp_xland, gridkm
+      LOGICAL :: debug_flag = .FALSE.
 
       INTEGER:: i_end, j_end
       REAL, ALLOCATABLE, DIMENSION(:):: temp_P, temp_T, temp_R, temp_Dz
@@ -1387,6 +1398,8 @@ integer::oops1,oops2
 
       end if ! NUWRF LIS exception
 
+      ! NUWRF FIXME...Add time varying LAI from LIS. When done, below code
+      ! will be skipped when LIS is used.
          CALL monthly_interp_to_date ( grid%lai12m , current_date , grid%lai , &
                                        ids , ide , jds , jde , kds , kde , &
                                        ims , ime , jms , jme , kms , kme , &
@@ -1421,12 +1434,14 @@ integer::oops1,oops2
 
          DO j = jts, MIN(jte,jde-1)
            DO i = its, MIN(ite,ide-1)
-              ! EMK NUWRF bug fix
+              ! EMK NUWRF BUGFIX
               grid%shdmax(i,j) = grid%shdmax(i,j) * 100.
               grid%shdmin(i,j) = grid%shdmin(i,j) * 100.
               grid%shdavg(i,j) = grid%shdavg(i,j) * 100.
               IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE 
               grid%vegfra(i,j) = grid%vegfra(i,j) * 100.
+!              grid%shdmax(i,j) = grid%shdmax(i,j) * 100.
+!              grid%shdmin(i,j) = grid%shdmin(i,j) * 100.
            END DO
          END DO
 
@@ -1914,6 +1929,7 @@ integer::oops1,oops2
          END IF
 
          IF ( .NOT. config_flags%interp_theta ) THEN
+            ! NUWRF: passing kte-1 to calculate theta on staggered levels only.
             CALL t_to_theta ( grid%t_2 , grid%p , p00 , &
                               ids , ide , jds , jde , kds , kde , &
                               ims , ime , jms , jme , kms , kme , &
@@ -2899,6 +2915,7 @@ integer::oops1,oops2
             END DO
       ELSE
          grid%lakeflag=1
+
          IF ( we_have_tavgsfc ) THEN
 
             CALL wrf_debug ( 0 , 'Using inland lakes with average surface temperature')
@@ -2974,21 +2991,19 @@ integer::oops1,oops2
       !  Save the grid%tsk field for later use in the sea ice surface temperature
       !  for the Noah LSM scheme.
 
-
-!NUWRF...Don't mess with skin temperature from LIS
-      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
-           NUWRFLISSCHEME) then
       DO j = jts, MIN(jte,jde-1)
          DO i = its, MIN(ite,ide-1)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
             grid%tsk_save(i,j) = grid%tsk(i,j)
          END DO
       END DO
-      end if ! NUWRF LIS exception
 
       !  Protect against bad grid%tsk values over water by supplying grid%sst (if it is
       !  available, and if the grid%sst is reasonable).
 
+!NUWRF...Don't mess with skin temperature from LIS
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       DO j = jts, MIN(jde-1,jte)
          DO i = its, MIN(ide-1,ite)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
@@ -2998,6 +3013,7 @@ integer::oops1,oops2
             ENDIF
          END DO
       END DO
+      end if ! NUWRF LIS exception
 
       !  Take the data from the input file and store it in the variables that
       !  use the WRF naming and ordering conventions.
@@ -3371,7 +3387,7 @@ integer::oops1,oops2
 
 
       !  Fix grid%tmn and grid%tsk.
-
+ ! NUWRF...Skip if using LIS
       if (model_config_rec%sf_surface_physics(grid%id) .ne. &
            NUWRFLISSCHEME) then
       fix_tsk_tmn : SELECT CASE ( model_config_rec%sf_surface_physics(grid%id) )
@@ -3425,12 +3441,9 @@ integer::oops1,oops2
             END DO
          END DO
       END IF
-      end if ! NUWRF
 
       !  Is the grid%tmn reasonable?
 
-      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
-           NUWRFLISSCHEME) then
       DO j = jts, MIN(jde-1,jte)
          DO i = its, MIN(ide-1,ite)
             IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
@@ -3454,6 +3467,7 @@ integer::oops1,oops2
             END IF
          END DO
       END DO
+      endif ! NUWRF
    
 
       !  Minimum soil values, residual, from RUC LSM scheme.  For input from Noah or EC, and using
@@ -3461,6 +3475,8 @@ integer::oops1,oops2
       !  input RUC data and using the Noah LSM scheme, this value must be added to the soil
       !  moisture input.
 
+      if (model_config_rec%sf_surface_physics(grid%id) .ne. &
+           NUWRFLISSCHEME) then
       lqmi(1:num_soil_top_cat) = &
       (/0.045, 0.057, 0.065, 0.067, 0.034, 0.078, 0.10,     &
         0.089, 0.095, 0.10,  0.070, 0.068, 0.078, 0.0,      &
@@ -4825,6 +4841,124 @@ endif
                end select select_aer_init_opt_2d
 
       ENDIF if_thompsonaero_2d
+
+!+---+-----------------------------------------------------------------+
+!..We can consider that in circumstance of a 'cold start' we can make
+!.. an attempt to insert some initial clouds to get a better starting
+!.. radiation representation due to clouds using the icloud3 cloud fraction
+!.. scheme.
+!+---+-----------------------------------------------------------------+
+
+      if (config_flags%insert_init_cloud .AND.                          &
+                    (P_QC .gt. PARAM_FIRST_SCALAR .AND.                 &
+                     P_QI .gt. PARAM_FIRST_SCALAR)) then
+
+         ALLOCATE(temp_P(kts:kte-1))
+         ALLOCATE(temp_Dz(kts:kte-1))
+         ALLOCATE(temp_T(kts:kte-1))
+         ALLOCATE(temp_R(kts:kte-1))
+         ALLOCATE(temp_Qv(kts:kte-1))
+         ALLOCATE(temp_Qc(kts:kte-1))
+         ALLOCATE(temp_Nc(kts:kte-1))
+         ALLOCATE(temp_Qi(kts:kte-1))
+         ALLOCATE(temp_Ni(kts:kte-1))
+         ALLOCATE(temp_Qs(kts:kte-1))
+         ALLOCATE(temp_CF(kts:kte-1))
+
+         i_end = MIN(ite,ide-1)
+         j_end = MIN(jte,jde-1)
+         max_relh = 1.5
+#if ( defined( DM_PARALLEL ) && ( ! defined( STUBMPI ) ) )
+         max_relh = wrf_dm_max_real ( MAXVAL(grid%u_1(its:i_end,:,jts:j_end)) ) 
+#else
+         max_relh = MAXVAL ( grid%u_1(its:i_end,:,jts:j_end) )
+#endif
+         max_relh = max_relh*0.01
+
+         gridkm = SQRT(config_flags%dx*config_flags%dy)*0.001
+
+         !..As it occurs up above, temporarily utilizing the v_1 variable,
+         !.. to hold temperature, which it does when time_loop=0.
+
+         IF ( internal_time_loop .GT. 1 ) THEN
+            grid%v_1 = grid%t_2+t0
+            CALL theta_to_t ( grid%v_1 , grid%p_hyd  , p00 , &
+                              ids , ide , jds , jde , kds , kde , &
+                              ims , ime , jms , jme , kms , kme , &
+                              its , ite , jts , jte , kts , kte )
+         ENDIF
+
+         do j = jts, j_end
+         do i = its, i_end
+            IF ( skip_middle_points_t ( ids , ide , jds , jde , i , j , em_width , hold_ups ) ) CYCLE
+            debug_flag = .false.
+!           if (i.eq.9 .and. j.eq.9) debug_flag = .true.
+
+            temp_xland = grid%xland(i,j)
+            if (grid%lakemask(i,j) .eq. 1) temp_xland = 1
+            do k = kts, kte-1
+               temp_Dz(k) = (grid%ph_2(i,k+1,j)+grid%phb(i,k+1,j) - (grid%ph_2(i,k,j)+grid%phb(i,k,j)))/g
+               temp_P(k) = grid%p_hyd(i,k,j)
+               temp_T(k) = grid%v_1(i,k,j)         ! Around line num 1800 v_1 used to hold temperature.
+               temp_R(k) = 1./grid%alt(i,k,j)
+               temp_Qv(k) = moist(i,k,j,P_QV)
+               temp_Qc(k) = MAX(0., moist(i,k,j,P_QC))
+               temp_Qi(k) = MAX(0., moist(i,k,j,P_QI))
+               if (P_QS .gt. 1) then
+                  temp_Qs(k) = MAX(0., moist(i,k,j,P_QS))
+               else
+                  temp_Qs(k) = 0.
+               endif
+               if (P_QNI .gt. 1) then
+                  temp_Ni(k) = MAX(0., scalar(i,k,j,P_QNI))
+               else
+                  temp_Ni(k) = 0.
+               endif
+               if (P_QNC .gt. 1) then
+                  temp_Nc(k) = MAX(0., scalar(i,k,j,P_QNC))
+               else
+                  temp_Nc(k) = 0.
+               endif
+               temp_CF(k) = 0.
+            enddo
+
+            call cal_cldfra3(temp_CF,temp_Qv,temp_Qc,temp_Qi,temp_Qs,   &
+     &                temp_Dz, temp_P, temp_T, temp_xland, gridkm,      &
+     &                config_flags%insert_init_cloud, max_relh,         &
+     &                kts, kte-1, debug_flag)
+
+            do k = kts, kte-1
+               grid%cldfra(i,k,j) = temp_CF(k)
+            enddo
+
+            if (debug_flag) then
+            do k = kts, kte-1
+              write(*,*) ' DEBUG_column: ', temp_P(k), temp_T(k), temp_Qv(k), temp_Qc(k), temp_Qi(k), moist(i,k,j,P_QC), moist(i,k,j,P_QI)
+            enddo
+            endif
+
+            do k = kts, kte-1
+               moist(i,k,j,P_QV) = MAX(temp_Qv(k), moist(i,k,j,P_QV)) 
+               moist(i,k,j,P_QC) = temp_Qc(k)
+               moist(i,k,j,P_QI) = temp_Qi(k)
+            enddo
+
+         enddo
+         enddo
+
+         DEALLOCATE(temp_P)
+         DEALLOCATE(temp_Dz)
+         DEALLOCATE(temp_T)
+         DEALLOCATE(temp_R)
+         DEALLOCATE(temp_Qv)
+         DEALLOCATE(temp_Qc)
+         DEALLOCATE(temp_Nc)
+         DEALLOCATE(temp_Qi)
+         DEALLOCATE(temp_Ni)
+         DEALLOCATE(temp_Qs)
+         DEALLOCATE(temp_CF)
+
+      endif
 
 !+---+-----------------------------------------------------------------+
 !..We can consider that in circumstance of a 'cold start' we can make

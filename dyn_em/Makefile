@@ -23,13 +23,14 @@ MODULES =                 		\
         module_avgflx_em.o              \
 	  module_sfs_nba.o		\
         module_convtrans_prep.o         \
-	module_sfs_driver.o		\
-	module_stoch.o			\
-	module_after_all_rk_steps.o	\
         module_force_crm.o              \
 	ReconcileWithLis_mod.o          \
 	NetcdfUtils_mod.o               \
-	$(CASE_MODULE)
+	  module_sfs_driver.o		\
+	  module_stoch.o			\
+	  module_after_all_rk_steps.o	\
+	  $(CASE_MODULE)
+
 # possible CASE_MODULE settings
 #	module_initialize_b_wave.o      \
 #	module_initialize_grav2d_x.o    \

@@ -234,7 +234,6 @@ CONTAINS
 #if ( EM_CORE == 1 )
                          fdob,                                   & !Optional obs fdda
 #endif
-                         QV,phb,ph,alt,p,pb,BACKIN,CCNTY,        & ! Tsai
                          t00, p00, tlp,                          & !for obs-nudging
                          TYR,TYRA,TDLY,TLAG,NYEAR,NDAY,tmn_update,   &
                          ACHFX,ACLHF,ACGRDFLX,                   &
@@ -3243,6 +3242,7 @@ CHARACTER(LEN=8) :: name
 
 ! IRRIGATION
   INTEGER,OPTIONAL,INTENT(OUT), DIMENSION( ims:ime,jms:jme):: irr_rand_field  
+
   INTEGER,OPTIONAL :: irr_ph,irr_freq  
 
 ! To accommodate shared physics
@@ -3610,9 +3610,10 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
 
           IF ((SF_URBAN_PHYSICS.eq.1).OR.(SF_URBAN_PHYSICS.EQ.2).OR.(SF_URBAN_PHYSICS.EQ.3)) THEN
              IF ( PRESENT( FRC_URB2D ) .AND. PRESENT( UTYPE_URB2D )) THEN
-                CALL urban_param_init(DZR,DZB,DZG,num_soil_layers,                   & !urban
-                                sf_urban_physics,config_flags%use_wudapt_lcz,        &
-                                config_flags%slucm_distributed_drag)
+                CALL urban_param_init(DZR,DZB,DZG,num_soil_layers,             & !urban
+                                sf_urban_physics,config_flags%use_wudapt_lcz,  &
+                                config_flags%slucm_distributed_drag) 
+                
                 CALL urban_var_init(ISURBAN,TSK,TSLB,TMN,IVGTYP,               & !urban
                               ims,ime,jms,jme,kms,kme,num_soil_layers,         & !urban
                               LCZ_1_TABLE,LCZ_2_TABLE,LCZ_3_TABLE,LCZ_4_TABLE, & !urban
@@ -3877,7 +3878,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
       CASE (YSUSCHEME)
            if(isfc .ne. 1)CALL wrf_error_fatal &
             ( 'module_physics_init: Use sf_sfclay_physics= 1 or 91 for this pbl option' )
-      CASE (SHINHONGSCHEME)
+     CASE (SHINHONGSCHEME)
            if(isfc .ne. 1)CALL wrf_error_fatal &
             ( 'module_physics_init: Use sf_sfclay_physics= 1 or 91 for this pbl option' )
            IF ((SF_URBAN_PHYSICS.eq.2).OR.(SF_URBAN_PHYSICS.EQ.3)) CALL wrf_error_fatal &
@@ -4545,8 +4546,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
 #if ( EM_CORE == 1 )
                       PHB,PH,P,PB,QV,XLAND,CCNTY,QDCN,QTCN,QCCN,  & ! for ntu3m
                       QRCN,QNIN,                                  & ! for ntu3m
-#endif
-                      QV,phb,ph,alt,p,pb,XLAND,BACKIN,CCNTY,      & ! Tsai
+#endif                  
                       mp_restart_state,tbpvs_state,tbpvs0_state,   & ! eta mp
                       allowed_to_read, start_of_simulation,       &
 !CAMMGMP specific variables
@@ -4587,6 +4587,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
 #endif
    USE module_mp_nssl_2mom
    USE module_mp_ntu                       ! Tsai
+   USE module_mp_nssl_2mom, only: nssl_2mom_init
 #if (EM_CORE==1)
    USE module_mp_cammgmp_driver, ONLY:CAMMGMP_INIT !CAM5's microphysics
    USE module_mp_morr_two_moment_aero              !TWG2017
@@ -4617,12 +4618,6 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
    REAL, OPTIONAL, DIMENSION(ims:ime,jms:jme), INTENT(IN) :: XLAND                     ! for ntu3m
    REAL, OPTIONAL, INTENT(IN), DIMENSION(ims:ime,kms:kme,jms:jme) :: PHB,PH,P,PB,QV    ! for ntu3m
    REAL, INTENT(INOUT), DIMENSION(ims:ime,kms:kme,jms:jme) :: QDCN,QTCN,QCCN,QRCN,QNIN ! for ntu3m
-!----------------------  Tsai  ------------------------------------------------
-   INTEGER, OPTIONAL, INTENT(IN) :: CCNTY
-   REAL, OPTIONAL, INTENT(IN) :: BACKIN
-   REAL, DIMENSION(ims:ime,jms:jme), INTENT(INOUT) :: XLAND
-   REAL, INTENT(IN), DIMENSION(ims:ime,kms:kme,jms:jme) :: QV,phb,ph,alt,p,pb
-!----------------------  Tsai  -------------------------------------------------
    REAL , DIMENSION(:) ,INTENT(INOUT)  :: mp_restart_state,tbpvs_state,tbpvs0_state
    LOGICAL , INTENT(IN)  :: allowed_to_read
    REAL, INTENT(INOUT) :: ccn_conc ! RAS
@@ -4806,9 +4801,13 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
                         config_flags%hail_opt, allowed_to_read )
      CASE (WDM7SCHEME)
           CALL wdm7init(rhoair0,rhowater,rhosnow,cliq,cpv,ccn_conc, allowed_to_read )
-     CASE (NTU)                                                                         ! Tsai
-          CALL ntu_init(phb,ph,alt,p,pb,QV,scalar,num_sc,XLAND,BACKIN,CCNTY,restart, &
-               ids,ide,jds,jde,kds,kde,ims,ime,jms,jme,kms,kme,its,ite,jts,jte,kts,kte) ! Tsai
+#if (EM_CORE==1)
+     CASE (NTU)
+          CALL ntu_init(PHB,PH,P,PB,inv_dens,QV,QDCN,QTCN,QCCN,QRCN,   &
+                        QNIN,XLAND,CCNTY,restart,ids,ide,jds,jde,kds,  &
+                        kde,ims,ime,jms,jme,kms,kme,its,ite,jts,jte,   &
+                        kts,kte)
+#endif
 #if (EM_CORE==1)
      CASE (NTU)
           CALL ntu_init(PHB,PH,P,PB,inv_dens,QV,QDCN,QTCN,QCCN,QRCN,   &

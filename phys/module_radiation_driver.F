@@ -4115,12 +4115,12 @@ CONTAINS
 !.. RH over ocean required as compared to over land.
 
       DO k = kts,kte
-
+                  
          delz = MAX(100., dz(k))
          RH_00L = 0.77 + MIN(0.22,SQRT(1./(50.0+gridkm*gridkm*delz*0.01)))
          RH_00O = 0.85 + MIN(0.14,SQRT(1./(50.0+gridkm*gridkm*delz*0.01)))
          RHUM = rh(k)
-
+       
          if (qc(k).gt.1.E-6 .or. qi(k).ge.1.E-7                         &
      &                    .or. (qs(k).gt.1.E-6 .and. t(k).lt.273.)) then
             CLDFRA(K) = 1.0
@@ -4351,9 +4351,9 @@ CONTAINS
       ENDDO
 
 
-      k_cldb = k_m12C + 3
+      k_cldb = k_m12C + 5
       in_cloud = .false.
-      k = k_m12C + 2
+      k = k_m12C + 4
       DO WHILE (.not. in_cloud .AND. k.gt.kbot)
          k_cldt = 0
          if (cfr1d(k).ge.0.01) then
@@ -4411,7 +4411,7 @@ CONTAINS
 !     print*, ' max_iwc = ', max_iwc, ' over DZ=',tdz
 
       do k = k1, k2
-         max_iwc = MAX(1.E-6, max_iwc - (qi(k)+qs(k)))
+         max_iwc = MAX(1.E-5, max_iwc - (qi(k)+qs(k)))
       enddo
       max_iwc = MIN(1.E-4, max_iwc)
 
@@ -4423,7 +4423,7 @@ CONTAINS
             this_dz = this_dz + dz(k)
          endif
          this_iwc = max_iwc*this_dz/tdz
-         iwc = MAX(1.E-6, this_iwc*(1.-entr))
+         iwc = MAX(5.E-6, this_iwc*(1.-entr))
          if (cfr(k).gt.0.0.and.cfr(k).lt.1.0.and.T(k).ge.203.16) then
             qi(k) = qi(k) + cfr(k)*cfr(k)*iwc
          endif
@@ -4453,7 +4453,7 @@ CONTAINS
 !     print*, ' max_lwc = ', max_lwc, ' over DZ=',tdz
 
       do k = k1, k2
-         max_lwc = MAX(1.E-6, max_lwc - qc(k))
+         max_lwc = MAX(1.E-5, max_lwc - qc(k))
       enddo
       max_lwc = MIN(1.E-4, max_lwc)
 

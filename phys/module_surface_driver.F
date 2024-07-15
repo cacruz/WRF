@@ -1464,6 +1464,15 @@ CONTAINS
    REAL, DIMENSION( ims:ime , jms:jme ) :: q2mbxy_nw
    REAL, DIMENSION( ims:ime , jms:jme ) :: q2mvxy_nw
 #endif      
+  real,  intent(inout),optional :: t_veg24(ims:ime,1:maxpatch,jms:jme)      ! voce accum variables
+  real,  intent(inout),optional :: t_veg240(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: fsun24(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: fsun240(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: fsd24(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: fsd240(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: fsi24(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: fsi240(ims:ime,1:maxpatch,jms:jme)
+  real,  intent(inout),optional :: laip(ims:ime,1:maxpatch,jms:jme)
 
 !------------------------------------------------------------------
    CHARACTER*256 :: message
@@ -3312,9 +3321,10 @@ CONTAINS
                  ENDIF
                    TH2(I,J) = T2(I,J)*(1.E5/PSFC(I,J))**RCP
               ELSEIF (IVGTYP(I,J) == ISURBAN                   .or. &
-	              IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL   .or. & !urban
-                      IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL  .or. & !urban
-	              IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL .or. & !urban
+                      ! CC: the following are not available in v4.3
+	              !IVGTYP(I,J) == LOW_DENSITY_RESIDENTIAL   .or. & !urban
+                      !IVGTYP(I,J) == HIGH_DENSITY_RESIDENTIAL  .or. & !urban
+	              !IVGTYP(I,J) == HIGH_INTENSITY_INDUSTRIAL .or. & !urban
 	              (IVGTYP(I,J) == ISICE .AND. XICE(I,J) .LT. XICE_THRESHOLD)) THEN
                    Q2(I,J)  = Q2MBXY_nw(I,J)
                    T2(I,J)  = T2MBXY_nw(I,J)

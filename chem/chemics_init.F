@@ -173,7 +173,6 @@ call wrf_message("**************************************************************
 
     numgas = get_last_gas(config_flags%chem_opt)
     numgas_out = numgas
-
    chem_select: SELECT CASE(config_flags%chem_opt)
      CASE (GOCART_SIMPLE)
        CALL wrf_debug(15,'calling only gocart aerosols driver from chem_driver')

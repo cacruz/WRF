@@ -457,8 +457,7 @@
 	call aerchemistry( it, jt, kclm_calcbgn, kclm_calcend,   &
                            dtchem, idiagaa_dum, vbs_nbin,        &
                            ph_aer01(it,kms:kme,jt), ph_aer02(it,kms:kme,jt), &
-                           ph_aer03(it,kms:kme,jt), ph_aer04(it,kms:kme,jt), &
-                           kms,kme,config_flags%mozart_ph_diag  )
+                           ph_aer03(it,kms:kme,jt), ph_aer04(it,kms:kme,jt), kms,kme  )
 
 !  note units for aerosol is now ug/m3
 

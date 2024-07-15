@@ -48,6 +48,8 @@ MODULE module_optional_input
 
    integer :: flag_cldmask, flag_cldbasez, flag_cldtopz, flag_brtemp
 
+   integer :: flag_cldmask, flag_cldbasez, flag_cldtopz, flag_brtemp
+
    INTEGER                  :: num_soil_levels_input
    INTEGER                  :: num_st_levels_input , num_sm_levels_input , num_sw_levels_input
    INTEGER                  :: num_st_levels_alloc , num_sm_levels_alloc , num_sw_levels_alloc

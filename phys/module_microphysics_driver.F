@@ -84,11 +84,6 @@ SUBROUTINE microphysics_driver(grid                                      &
                       ,f_effr,f_ice_effr,f_tot_effr                      &
                       ,f_qic_effr,f_qip_effr,f_qid_effr                  &                 
                       ,cu_used                                           &
-!----------------------------------------Tsai----------------------------------
-                      ,vi_curr,vs_curr,vg_curr,fi_curr,fs_curr,ai_curr   &
-                      ,as_curr,ag_curr,ah_curr,i3m_curr,qdcn_curr        &
-                      ,qtcn_curr,qccn_curr,qrcn_curr,qnin_curr,IDEPNU    &
-!----------------------------------------Tsai-----------------------------------
 #ifdef WRF_ELEC
                       ,noninduc,  rscghis_2d                             &
                       ,induc,pot,elecmag                                 &
@@ -201,7 +196,6 @@ SUBROUTINE microphysics_driver(grid                                      &
                       ,pert_thom_qs,pert_thom_ni                         &
                                                                          )
 ! Framework
-   use module_state_description, only: PASSIVEQV ! EMK NUWRF
    USE module_state_description, ONLY :                                  &
                      KESSLERSCHEME, LINSCHEME, SBU_YLINSCHEME, WSM3SCHEME, WSM5SCHEME    &
                     ,WSM6SCHEME, ETAMPNEW, FER_MP_HIRES, THOMPSON, THOMPSONAERO, THOMPSONGH, FAST_KHAIN_LYNN_SHPUND, MORR_TWO_MOMENT     &
@@ -215,6 +209,7 @@ SUBROUTINE microphysics_driver(grid                                      &
 #if ( WRFPLUS == 1 )
    USE module_state_description, ONLY : LSCONDSCHEME, MKESSLERSCHEME
 #endif
+
 #if ( WRF_CHEM == 1 )
 ! NUWRF
    USE module_state_description, ONLY :                                 &
@@ -293,7 +288,6 @@ SUBROUTINE microphysics_driver(grid                                      &
    USE module_mp_wdm6
    USE module_mp_wdm7
    USE module_mp_milbrandt2mom
-   USE module_mp_ntu
 # if (EM_CORE == 1)
    USE module_mp_cammgmp_driver, ONLY: CAMMGMP ! CAM5's microphysics driver
 # endif
@@ -734,13 +728,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                                                                          vmi3d_3,di3d_3,rhopo3d_3,  & ! for Jensen ISHMAEL
                                                                          phii3d_3,       & ! for Jensen ISHMAEL
                                                                          itype,itype_2,itype_3             ! for Jensen ISHMAEL
-
-!---------------------------------Tsai---------------------------------------------
-   INTEGER, OPTIONAL, INTENT(IN) :: IDEPNU
-   REAL, DIMENSION(ims:ime,kms:kme,jms:jme), OPTIONAL, INTENT(INOUT) ::    &
-         vi_curr,vs_curr,vg_curr,fi_curr,fs_curr,ai_curr,as_curr,ag_curr,  &
-         ah_curr,i3m_curr,qdcn_curr,qtcn_curr,qccn_curr,qrcn_curr,qnin_curr
-!---------------------------------Tsai---------------------------------------------
 
 ! Explicit lightning
 #ifdef WRF_ELEC
@@ -2827,6 +2814,7 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      SR=SR,                              &
                      dbz      = refl_10cm,               &
 #if ( WRF_CHEM == 1 )
+                    WETSCAV_ON = config_flags%wetscav_onoff == 1, &
                     EVAPPROD=evapprod,RAINPROD=rainprod, &
 #endif
                      nssl_progn=nssl_progn,              &
@@ -3714,32 +3702,6 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                      )
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling CAMMGMP SCHEME' )
-             ENDIF
-
-!------------------------------------------Tsai--------------------------------------------
-        CASE (NTU)
-             CALL wrf_debug(100, 'microphysics_driver: calling ntu')
-             IF ( PRESENT( QV_CURR ) .AND. PRESENT ( QC_CURR ) .AND.  &
-                  PRESENT( QR_CURR ) .AND. PRESENT ( QI_CURR ) .AND.  &
-                  PRESENT( QS_CURR ) .AND. PRESENT ( QG_CURR ) .AND.  &
-                  PRESENT( RAINNC )  .AND. PRESENT ( RAINNCV )) THEN   ! ....
-             CALL mp_ntu(ITIMESTEP=itimestep,TH=th,P=p,DZ=dz8w,W=w,   &
-                  PII=pi_phy,DT_MP=dt,SR=sr,QV=qv_curr,QC=qc_curr,    &
-                  QR=qr_curr,QI=qi_curr,QS=qs_curr,QG=qg_curr,        &
-                  QH=qh_curr,NC=qnc_curr,NR=qnr_curr,NI=qni_curr,     &
-                  NS=qns_curr,NG=qng_curr,NH=qnh_curr,VI=vi_curr,     &
-                  VS=vs_curr,VG=vg_curr,FI=fi_curr,FS=fs_curr,        &
-                  AI=ai_curr,AS=as_curr,AG=ag_curr,AH=ah_curr,        &
-                  I3M=i3m_curr,QDCN=qdcn_curr,QTCN=qtcn_curr,         &
-                  QCCN=qccn_curr,QRCN=qrcn_curr,QNIN=qnin_curr,       &
-                  IDEPNU=IDEPNU,RAINNC=rainnc,RAINNCV=rainncv,        &
-                  SNOWNC=snownc,SNOWNCV=snowncv,GRAPNC=graupelnc,     &
-                  GRAPNCV=graupelncv,HAILNC=hailnc,HAILNCV=hailncv,   &
-                  IDS=ids,IDE=ide,JDS=jds,JDE=jde,KDS=kds,KDE=kde,    &
-                  IMS=ims,IME=ime,JMS=jms,JME=jme,KMS=kms,KME=kme,    &
-                  ITS=its,ITE=ite,JTS=jts,JTE=jte,KTS=kts,KTE=kte)
-             ELSE
-                CALL wrf_error_fatal ( 'arguments not present for calling ntu' )
              ENDIF
 
 !    Added by Zhuxiao,  lscond (simplified Large-scale condensation scheme by Jimy )

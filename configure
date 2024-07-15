@@ -744,7 +744,6 @@ EOF
     rm ${foo} ${foo}.F 2> /dev/null
   fi
 
-cat > ${foo}.c <<EOF
  int main(int argc, char ** argv)
  {
      return (0);

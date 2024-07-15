@@ -90,7 +90,6 @@ MODULE module_driver_constants
    INTEGER , PARAMETER :: num_ob_indexes  =   30
 #endif
 
-
    !  The maximum number of bogus storms
 
    INTEGER , PARAMETER :: max_bogus =  5

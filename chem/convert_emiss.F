@@ -117,7 +117,7 @@ PROGRAM convert_emissions
    REAL, ALLOCATABLE :: pdsl(:,:)
 #endif
 
-   CHARACTER (LEN=80)     :: message
+   CHARACTER (LEN=480)     :: message
 
    CHARACTER(LEN=24) :: previous_date , this_date , next_date
    CHARACTER(LEN=19) :: start_date_char , end_date_char , current_date_char , next_date_char
@@ -166,7 +166,7 @@ PROGRAM convert_emissions
               'KET','ALD','HCHO','ETH','ORA2','CO','NR','SESQ','MBO',       &
               'NOAG_GROW','NOAG_NONGROW','NONONAG','ISOP'/
 
-! EMK...For NU-WRF
+! EMK...For NUWRF
    logical :: new_gocart_bg_files
    integer :: extra_gfedv3_vars
 
@@ -225,7 +225,7 @@ PROGRAM convert_emissions
    CALL nl_get_debug_level ( 1, debug_level )
    CALL set_wrf_debug_level ( debug_level )
    
-! EMK...For NU-WRF
+! EMK...For NUWRF
    call nl_get_new_gocart_bg_files(1, new_gocart_bg_files)
    if (new_gocart_bg_files) then
       iklev = 72
@@ -389,7 +389,7 @@ PROGRAM convert_emissions
      ALLOCATE( tmp3(ids:ide,jds:jde,3) )
      ALLOCATE( interpolate(ids:ide,kds:kde,jds:jde) )
      ALLOCATE( gocart_lev(iklev))
-! NU-WRF
+! NUWRF
      if (new_gocart_bg_files) then
         allocate(gocart_ps(ids:ide,jds:jde,iklev))
      end if
@@ -491,7 +491,7 @@ PROGRAM convert_emissions
        read(19)tmp_no3(ids:ide,jds:jde,1:iklev)
 #endif
 
-! NU-WRF
+! NUWRF
        if (new_gocart_bg_files) then
 #ifdef DM_PARALLEL
        IF (wrf_dm_on_monitor()) THEN
@@ -546,7 +546,7 @@ PROGRAM convert_emissions
 ! interpolate 3d fields to WRF in vertical
 !
 
-! NU-WRF
+! NUWRF
       if (.not. new_gocart_bg_files) then
          do k=1,iklev
             p_g(k) = log10( gocart_lev(k) * 1023.) 
@@ -564,7 +564,7 @@ PROGRAM convert_emissions
 #if (EM_CORE == 1) 
      do j=jps,jpe
      do i=ips,ipe
-        ! NU-WRF
+        ! NUWRF
         if (new_gocart_bg_files) then
            do k=1,iklev
               p_g(k) = log10( gocart_ps(i,j,k)) 
@@ -585,24 +585,24 @@ PROGRAM convert_emissions
 
          fac= (tmp_no3(i  ,j  ,ktop)-tmp_no3(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
          grid%backg_no3(i, kw, j) = tmp_no3(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
-         ! NU-WRF
+         ! NUWRF
          if(grid%backg_no3(i, kw, j) <= 0.) grid%backg_no3(i, kw, j)=tmp_no3(i,j,kbot)
 
 ! OH
          fac= (tmp_oh(i  ,j  ,ktop)-tmp_oh(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
          grid%backg_oh(i, kw, j) = tmp_oh(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
-         ! NU-WRF
+         ! NUWRF
          if(grid%backg_oh(i, kw, j) <= 0.) grid%backg_oh(i, kw, j)=tmp_oh(i,j,kbot)
 
 ! H2O2
          fac= (tmp_h2o2(i  ,j  ,ktop)-tmp_h2o2(i  ,j  ,kbot) )/(p_g(ktop) - p_g(kbot))
          grid%backg_h2o2(i, kw, j) = tmp_h2o2(i  ,j  ,kbot)+fac*(log10(.01*grid%pb(i,kw,j))-p_g(kbot))
-         ! NU-WRF
+         ! NUWRF
          if(grid%backg_h2o2(i, kw, j) <= 0.) grid%backg_h2o2(i, kw, j)=tmp_h2o2(i,j,kbot)
 
         enddo  ! kw loop
 
-        ! NU-WRF
+        ! NUWRF
         if(i.eq.30 .and. j.eq.30) then
          write(message, FMT='(A,6i4)') 'pres go and wrf',i, j, ktop, kbot
          call wrf_message( TRIM( message ) )
@@ -647,7 +647,7 @@ PROGRAM convert_emissions
      do j=jps,jpe
      do i=ips,ipe
 
-      ! NU-WRF
+      ! NUWRF
       if (new_gocart_bg_files) then
          do k=1,iklev
             p_g(k) = log10( gocart_ps(i,j,k)) 
@@ -664,19 +664,19 @@ PROGRAM convert_emissions
 
        fac= (tmp_no3(i  ,j  ,ktop)-tmp_no3(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
        grid%backg_no3(i, kw, j) = tmp_no3(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
-       ! NU-WRF
+       ! NUWRF
        if( grid%backg_no3(i,kw,j) <= 0) grid%backg_no3(i,kw,j)=tmp_no3(i,j,kbot)
 
 ! OH
        fac= (tmp_oh(i  ,j  ,ktop)-tmp_oh(i  ,j  ,kbot))/ (p_g(ktop) - p_g(kbot))
        grid%backg_oh(i, kw, j) = tmp_oh(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
-       ! NU-WRF
+       ! NUWRF
        if(grid%backg_oh(i,kw,j) <= 0.) grid%backg_oh(i,kw,j)=tmp_oh(i,j,kbot)
 
 ! H2O2
        fac= (tmp_h2o2(i  ,j  ,ktop)-tmp_h2o2(i  ,j  ,kbot) )/(p_g(ktop) - p_g(kbot))
        grid%backg_h2o2(i, kw, j) = tmp_h2o2(i  ,j  ,kbot)+fac*(log10(.01*plvl(i,kw,j))-p_g(kbot))
-       ! NU-WRF
+       ! NUWRF
        if(grid%backg_h2o2(i,kw,j) <= 0.) grid%backg_h2o2(i,kw,j)=tmp_h2o2(i,j,kbot)
 
       enddo  ! kw loop
@@ -2075,7 +2075,7 @@ PROGRAM convert_emissions
 #else
          read(91)dumc0(ids:ide-1,kds:grid%kemit,jds:jde-1)
 #endif
-         grid%emis_ant(ips:ipe  ,kps:grid%kemit,jps:jpe  ,p_e_ch4)=dumc0(ips:ipe  ,kps:grid%kemit,jps:jpe  )
+!         grid%emis_ant(ips:ipe  ,kps:grid%kemit,jps:jpe  ,p_e_ch4)=dumc0(ips:ipe  ,kps:grid%kemit,jps:jpe  )
      ENDIF
 #ifdef DM_PARALLEL
      IF (wrf_dm_on_monitor()) THEN
@@ -2625,7 +2625,7 @@ PROGRAM convert_emissions
 #else
          read(91)dumc0(ids:ide-1,kds:grid%kemit,jds:jde-1)
 #endif
-         grid%emis_ant(ips:ipe  ,kps:grid%kemit,jps:jpe  ,p_e_ch4)=dumc0(ips:ipe  ,kps:grid%kemit,jps:jpe  )
+!         grid%emis_ant(ips:ipe  ,kps:grid%kemit,jps:jpe  ,p_e_ch4)=dumc0(ips:ipe  ,kps:grid%kemit,jps:jpe  )
      ENDIF
 #ifdef DM_PARALLEL
      IF (wrf_dm_on_monitor()) THEN
@@ -3125,7 +3125,7 @@ PROGRAM convert_emissions
     DEALLOCATE ( dumc0 )
     DEALLOCATE ( dumc1 )
 
-! NU-WRF
+! NUWRF
     deallocate(p_g)
     deallocate(p_wrf)
 

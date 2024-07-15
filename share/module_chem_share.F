@@ -76,6 +76,9 @@ CONTAINS
 
      case (CO2_TRACER,GHG_TRACER) ! No gas chemistry or deposition for GHGs
         get_last_gas = 0
+! NUWRF
+     case (CASACO2_TRACER) 
+         get_last_gas = p_casaco2
      case ( CBMZ_CAM_MAM3_NOAQ, CBMZ_CAM_MAM3_AQ, CBMZ_CAM_MAM7_NOAQ, CBMZ_CAM_MAM7_AQ )
         get_last_gas = p_soag
      case default

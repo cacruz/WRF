@@ -2960,22 +2960,6 @@ BENCH_END(tracer_adv_tim)
 
 ! bound the aerosol fields (greater than 0) when using first guess aerosol
 ! as fields may be highly heterogeneous compared to climatology
-! NUWRF CC: Is the following block valid in v 4.6?                                  
-           IF ( config_flags%specified ) THEN
-!---------------------------------- Tsai-------------------------------------------------
-              IF (is.EQ.P_QDCN.OR.is.EQ.P_QTCN) THEN
-                 CALL flow_dep_bdy_qccn(scalar(ims,kms,jms,is),grid%ru_m,grid%rv_m,  &
-                                        config_flags,grid%spec_zone,ids,ide,jds,jde, &
-                                        kds,kde,ims,ime,jms,jme,kms,kme,ips,ipe,jps, &
-                                        jpe,kps,kpe,grid%i_start(ij),grid%i_end(ij), &
-                                        grid%j_start(ij),grid%j_end(ij),k_start,k_end)
-              ELSEIF (is.EQ.P_QNIN) THEN
-                 CALL flow_dep_bdy_nin(scalar(ims,kms,jms,is),grid%ru_m,grid%rv_m,   &
-                                       config_flags,grid%spec_zone,ids,ide,jds,jde,  &
-                                       kds,kde,ims,ime,jms,jme,kms,kme,ips,ipe,jps,  &
-                                       jpe,kps,kpe,grid%i_start(ij),grid%i_end(ij),  &
-                                       grid%j_start(ij),grid%j_end(ij),k_start,k_end)
-!----------------------------------Tsai-----------------------------------------------
 
            IF ( ( ( is .EQ. P_QNWFA ) .OR. ( is .EQ. P_QNIFA ) .OR. ( is .EQ. P_QNBCA ) ) .AND. &
                          ( config_flags%aer_init_opt .EQ. 2 ) ) THEN
@@ -2998,6 +2982,7 @@ BENCH_END(tracer_adv_tim)
                                        grid%j_start(ij),grid%j_end(ij), &
                                        k_start,k_end)
               ELSEIF (is.EQ.P_QNN) THEN                                    ! for ntu3m
+
                CALL flow_dep_bdy_qnn  ( scalar(ims,kms,jms,is),     &
                                   grid%ru_m, grid%rv_m, config_flags,   &
                                   grid%spec_zone,                  &
@@ -3973,7 +3958,7 @@ BENCH_START(micro_driver_tim)
        &        , QZR_CURR=scalar(ims,kms,jms,P_QZR), F_QZR=F_QZR          & ! for milbrandt3mom
        &        , QZI_CURR=scalar(ims,kms,jms,P_QZI), F_QZI=F_QZI          & ! for 3-moment P3
 !       &        , QZS_CURR=scalar(ims,kms,jms,P_QZS), F_QZS=F_QZS          & ! "
-       &        , QZG_CURR=scalar(ims,kms,jms,P_QZG), F_QZG=F_QZG          & ! "
+        &        , QZG_CURR=scalar(ims,kms,jms,P_QZG), F_QZG=F_QZG          & ! "
        &        , QZH_CURR=scalar(ims,kms,jms,P_QZH), F_QZH=F_QZH          & ! "
       &        , QVOLG_CURR=scalar(ims,kms,jms,P_QVOLG), F_QVOLG=F_QVOLG    & ! for nssl_2mom
       &        , QVOLH_CURR=scalar(ims,kms,jms,P_QVOLH), F_QVOLH=F_QVOLH    & ! for nssl_2mom
@@ -3992,17 +3977,6 @@ BENCH_START(micro_driver_tim)
       &        , AG_CURR=scalar(ims,kms,jms,P_AG), F_AG=F_AG              & ! for ntu3m
       &        , AH_CURR=scalar(ims,kms,jms,P_AH), F_AH=F_AH              & ! for ntu3m
       &        , I3M_CURR=scalar(ims,kms,jms,P_I3M), F_I3M=F_I3m          & ! for ntu3m
-!NUWRF CC: Is the following valid in v4.6.0?
-!----------------------------------Tsai------------------------------------------------------------
-      &        , VI_CURR=scalar(ims,kms,jms,P_VI), VS_CURR=scalar(ims,kms,jms,P_VS) &
-      &        , VG_CURR=scalar(ims,kms,jms,P_VG), FI_CURR=scalar(ims,kms,jms,P_FI) &
-      &        , FS_CURR=scalar(ims,kms,jms,P_FS), AI_CURR=scalar(ims,kms,jms,P_AI) &
-      &        , AS_CURR=scalar(ims,kms,jms,P_AS), AG_CURR=scalar(ims,kms,jms,P_AG) &
-      &        , AH_CURR=scalar(ims,kms,jms,P_AH), I3M_CURR=scalar(ims,kms,jms,P_I3M) &
-      &        , QDCN_CURR=scalar(ims,kms,jms,P_QDCN), QTCN_CURR=scalar(ims,kms,jms,P_QTCN) &
-      &        , QCCN_CURR=scalar(ims,kms,jms,P_QCCN), QRCN_CURR=scalar(ims,kms,jms,P_QRCN) &
-      &        , QNIN_CURR=scalar(ims,kms,jms,P_QNIN), IDEPNU=config_flags%IDEPNU &
-!----------------------------------Tsai-------------------------------------------------------------
       &        , cu_used=config_flags%cu_used                             &
 !--------------EXPLICIT LIGHTNING (Fierro et al. 2013, MWR)-----------------
 #ifdef WRF_ELEC
@@ -4931,7 +4905,7 @@ BENCH_END(bc_2d_tim)
 
   CALL after_all_rk_steps ( grid, config_flags,                  &
                             moist, chem, tracer, scalar,         &
-                            th_phy, pi_phy, p_phy,               &
+                            th_phy, pi_phy, p_phy,               &   
                             p8w, t8w, dz8w,                      &
                             REAL(curr_secs,8), curr_secs2,       &
                             diag_flag,                           &

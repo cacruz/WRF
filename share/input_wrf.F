@@ -746,6 +746,10 @@
                 write(wrf_err_message,'("We will proceed assuming LIS ran with Noah scheme")')
                 call wrf_message(wrf_err_message)                
 ! EMK NUWRF END
+#if ( NMM_CORE != 1 )
+                ELSE IF ( ( config_flags%sf_surface_physics == CTSMSCHEME ) ) then
+                   ! All is well.  CTSM doesn't care about the wrfinput file.
+#endif
                 ELSE
                    call wrf_message("----------------- ERROR -------------------")
                    WRITE(wrf_err_message,'("namelist    : sf_surface_physics = ",I10)') config_flags%sf_surface_physics

@@ -66,7 +66,7 @@ module_uoc_dustwd.o: module_data_uoc_wd.o
 
 module_gocart_seasalt.o: module_data_gocart_seas.o
 
-module_gocart_chem.o: module_data_gocartchem.o module_phot_mad.o
+module_gocart_chem.o: module_data_gocartchem.o module_phot_mad.o module_gocart_nitrate.o
 
 module_gocart_so2so4.o:
 
@@ -240,6 +240,8 @@ module_mosaic_sect_intr.o: module_mosaic_coag1d.o module_mosaic_coag3d.o module_
 module_mosaic_aerdynam_intr.o: module_mosaic_sect_intr.o module_mosaic_aerchem_intr.o
 
 module_mosaic_addemiss.o: module_data_mosaic_asect.o module_data_sorgam.o module_gocart_dust.o
+
+module_dep_simple.o: module_data_sorgam.o module_aerosols_soa_vbs.o
 
 module_mozcart_wetscav.o: ../share/module_HLaw.o module_chem_utilities.o
 
