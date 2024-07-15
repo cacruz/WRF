@@ -3302,6 +3302,13 @@ REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),                        &
                   ,its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte)
                !EMK NUWRF
 
+             !EMK NUWRF
+             call calc_comdbz(comdbz,refl_10cm,diagflag,do_radar_ref &
+                  ,ids,ide,jds,jde,kds,kde &
+                  ,ims,ime,jms,jme,kms,kme &
+                  ,its,ite,jts,jte,kts,kte)
+             !EMK NUWRF
+
              ELSE
                 CALL wrf_error_fatal ( 'arguments not present for calling wsm6' )
              ENDIF

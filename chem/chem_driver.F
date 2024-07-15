@@ -368,6 +368,7 @@
   else
      tmpTimeInterval = domain_get_current_time(grid) - last_chem_time(grid%id)
      dtstepc = real(real_time_r8(tmpTimeInterval),4)
+     if(ktau .le. (grid%chemdt*60./grid%dt)) dtstepc = dtstepc + grid%dt   !NUWRF - make sure dtstepc = chemdt (ZTao, May2022)
   end if
      
   ! initializing diagnostics and macros
@@ -391,7 +392,7 @@
   
   do_chemstep = .false.
   IF ( ktau==1 ) then
-     do_chemstep = .true.
+     do_chemstep = .false.  ! NUWRF (ZTao, May 2022)
      grid%ktauc = 1
   ELSE IF ( adapt_step_flag ) THEN
      IF ( (grid%chemdt<=0) .or. &
@@ -899,6 +900,8 @@
               grid%bareness_dyn_climo,                                                     &
 !NUWRF EMK...New dynamic bareness for dynamic (non-climo) EROD
               grid%bareness_dyn, grid%topodep,                                             &
+!NUWRF dkim6, output w10m_out
+              grid%w10m_out,                                                               &
               grid%julyr,                                                                  &
               ids,ide, jds,jde, kds,kde,                                                   &
               ims,ime, jms,jme, kms,kme,                                                   &
@@ -939,8 +942,11 @@
            config_flags%chem_opt /= GHG_TRACER ) then
 ! NUWRF: Only use optical driver for radiation scheme other than Goddard's
 ! per Toshi Matsui
-         if (config_flags%ra_lw_physics .ne. GODDARDLWSCHEME .and. &
-             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME) then
+! Need to turn on optical_drive to calculate some 3D properties including AOD
+!   - this will take up a lot of resources but will not affect GODDARD LW/SW 
+!     calculation per conversation with Toshi   (TZN)
+!         if (config_flags%ra_lw_physics .ne. GODDARDLWSCHEME .and. &
+!             config_flags%ra_sw_physics .ne. GODDARDSWSCHEME) then
          call wrf_debug(15,'calling optical driver')
          call optical_driver (grid%id,curr_secs,grid%dt,config_flags,haveaer,         &
               chem,dz8w,rri,rh,                                                       &
@@ -965,7 +971,7 @@
               ids,ide, jds,jde, kds,kde,                                              &
               ims,ime, jms,jme, kms,kme,                                              &
               its,ite, jts,jte, kts,kte)
-      endif ! EMK NUWRF
+!      endif ! EMK NUWRF
       endif
 
 !
@@ -1168,7 +1174,7 @@
            .and. config_flags%cu_physics/=kfcupscheme                 &
            .and. config_flags%cu_physics/=gfscheme ) then                !BSINGH - For WRFCuP scheme
         call wrf_debug(15,'calling conv transport for chemical species')
-        if(config_flags%chem_opt >0 )then
+       if(config_flags%chem_opt >0 )then
         ! save old concentrations for convective tendencies
         DO nv=PARAM_FIRST_SCALAR,num_chem_ct
            chem_old(its:ite,kts:kte,jts:jte,nv) = chem(its:ite,kts:kte,jts:jte,chem_ct_indices(nv))
@@ -1199,8 +1205,8 @@
                                                             (chem(its:ite,kts:kte,jts:jte,chem_ct_indices(nv)) - &
                                                          chem_old(its:ite,kts:kte,jts:jte,nv))
         ENDDO
-        endif
-        if (config_flags%tracer_opt > 0)then
+       endif
+       if (config_flags%tracer_opt > 0)then
         call wrf_debug(15,'calling conv transport for tracers')
         call grelldrvct(grid%DT,ktau,grid%DX,                    &
              rho,grid%RAINCV_B,tracer,                               &
@@ -1217,9 +1223,7 @@
              ids,ide, jds,jde, kds,kde,                                               &
              ims,ime, jms,jme, kms,kme,                                               &
              its,ite,jts,jte,kts,k_end)
-
-
-          end if
+       end if
      end if
 !
 !
@@ -1274,6 +1278,8 @@
               grid%ph_ch3coc2h5,grid%ph_hcocho,grid%ph_ch3cocho,grid%ph_hcochest,     &
               grid%ph_ch3o2h,grid%ph_ch3coo2h,grid%ph_ch3ono2,grid%ph_hcochob,        &
               grid%ph_n2o5,grid%ph_o2,grid%backg_oh,grid%backg_h2o2,grid%backg_no3,   &
+              grid%backg_ch4,                                                         &   !NUWRF: for CO chemistry in simple GOCART by ZTao (Dec. 2021)
+              grid%backg_hno3,rh,                                                     &   !NUWRF: for nitrate in GOCART aerosols by ZTao (Dec. 2021)
               grid%addt,grid%addx,grid%addc,grid%etep,                                &
               grid%oltp,grid%olip,grid%cslp,grid%limp,grid%hc5p,grid%hc8p,grid%tolp,  &
               grid%xylp,grid%apip,grid%isop,grid%hc3p,grid%ethp,grid%o3p,grid%tco3,   &
@@ -1641,8 +1647,12 @@ if ( cam_mam_aerosols ) &
 #endif
        endif
 
-
-	if (config_flags%wetscav_onoff > 0) then
+! Should wetscav be done at main (dt) time step? Right now only do it for
+!  simple_gocart, gocartradm2, and gocartracm_kpp mechnisms (ZTao, NU-WRF, 09/2023)
+        if (config_flags%wetscav_onoff > 0         .and.        &
+            config_flags%chem_opt /= GOCART_SIMPLE .and.        &   !by ZTao
+            config_flags%chem_opt /= GOCARTRADM2   .and.        &
+            config_flags%chem_opt /= GOCARTRACM_KPP ) then
         call wetscav_driver (grid%id,ktau,grid%dt,grid%ktauc,config_flags,dtstepc,    &
               rri,t_phy,moist,p8w,t8w,                                                &
               grid%dx, grid%dy,                                                       &
@@ -1652,6 +1662,8 @@ if ( cam_mam_aerosols ) &
               grid%hno3_col_mdel,                                                     &                
               grid%qlsink,grid%precr,grid%preci,grid%precs,grid%precg,                &
               grid%wdflx,                                                             &
+              grid%raincv,grid%rainncv,                                               &  !NUWRF - add raincv and rainncv for GOCART wetscav (ZTao)
+              grid%precr3d,grid%preci3d,grid%precs3d,grid%precg3d,                    &  !NUWRF - add by ZTao for GCE 4ice MP
               gas_aqfrac, numgas_mam,dz8w,                                            &
               grid%h2oaj,grid%h2oai,grid%nu3,grid%ac3,grid%cor3,                      &
               grid%asulf,grid%ahno3,grid%anh3,grid%cvaro1,grid%cvaro2,                &
@@ -1720,6 +1732,48 @@ end if !Chemistry time step check
                 its,ite, jts,jte, kts,kte                                )
          endif
 !
+! Do wetscav at every main (dt) time step for simple_gocart, gocartradm2,
+!   and gocartracm_kpp mechnisms (ZTao, NU-WRF, 09/2023)
+! Note: change grid%ktauc to ktau and dtstepc to grid%dt
+!
+        if (config_flags%wetscav_onoff > 0         .and.        &
+            (config_flags%chem_opt == GOCART_SIMPLE .or.        &   !by ZTao
+             config_flags%chem_opt == GOCARTRADM2   .or.        &
+             config_flags%chem_opt == GOCARTRACM_KPP )) then
+        call wetscav_driver (grid%id,ktau,grid%dt,ktau,config_flags,grid%dt,          &
+              rri,t_phy,moist,p8w,t8w,                                                &
+              grid%dx, grid%dy,                                                       &
+              p_phy,chem,rho,grid%cldfra,grid%cldfra2,                                &
+              wetscav_frcing(ims,kms,jms,p_rainprod),                                 &
+              wetscav_frcing(ims,kms,jms,p_evapprod),                                 &
+              grid%hno3_col_mdel,                                                     &
+              grid%qlsink,grid%precr,grid%preci,grid%precs,grid%precg,                &
+              grid%wdflx,grid%raincv,grid%rainncv,                                    &  !NUWRF - add raincv and rainncv for GOCART wetscav (ZTao)
+              grid%precr3d,grid%preci3d,grid%precs3d,grid%precg3d,                    &  !NUWRF - add by ZTao for GCE 4ice MP
+              gas_aqfrac, numgas_mam,dz8w,                                            &
+              grid%h2oaj,grid%h2oai,grid%nu3,grid%ac3,grid%cor3,                      &
+              grid%asulf,grid%ahno3,grid%anh3,grid%cvaro1,grid%cvaro2,                &
+              grid%cvalk1,grid%cvole1,grid%cvapi1,grid%cvapi2,                        &
+              grid%cvlim1,grid%cvlim2,                                                &
+              grid%wd_no3_sc, grid%wd_so4_sc, grid%wd_nh4_sc,grid%wd_oa_sc,           &
+              grid%wd_so2_sc, grid%wd_sulf_sc, grid%wd_hno3_sc, grid%wd_nh3_sc,       &
+              grid%wd_cvasoa_sc, grid%wd_cvbsoa_sc, grid%wd_asoa_sc, grid%wd_bsoa_sc, &
+              grid%qv_b4mp, grid%qc_b4mp, grid%qi_b4mp, grid%qs_b4mp,                 &
+!======================================================================================
+!Variables required for CAM_MAM_WETSCAV
+              grid%p_hyd,scalar,grid%dgnum4d,grid%dgnumwet4d,grid%dlf,grid%dlf2,      &
+              grid%qme3d,grid%prain3d,grid%nevapr3d,grid%rate1ord_cw2pr_st3d,         &
+              grid%shfrc3d,grid%cmfmc,grid%cmfmc2,grid%evapcsh,grid%icwmrsh,          &
+              grid%rprdsh,grid%evapcdp3d,grid%icwmrdp3d,grid%rprddp3d,grid%fracis3d,  &
+              grid%f_ice_phy,grid%f_rain_phy,grid%cldfrai,grid%cldfral,               &
+              grid%cldfra_mp_all,grid%is_CAMMGMP_used,                                &
+!======================================================================================
+              ids,ide, jds,jde, kds,kde,                                              &
+              ims,ime, jms,jme, kms,kme,                                              &
+              its,ite, jts,jte, kts,kte)
+
+       endif
+!
 ! Sum up the aerosol mass for radiation and diagnostic purposes. Unlike
 ! aerosol_driver, which is called every dtchem, this must be done every
 ! time step because of emissions and deposition.
@@ -1777,6 +1831,9 @@ end if !Chemistry time step check
      call dust_load_driver ( config_flags,                                            &
            rri, chem, dz8w, grid%dustload_1, grid%dustload_2, grid%dustload_3,        &
            grid%dustload_4, grid%dustload_5,                                          &
+           grid%dustscon_1, grid%dustscon_2, grid%dustscon_3,                         &  !NUWRF dkim6
+           grid%dustscon_4, grid%dustscon_5,                                          &  !NUWRF dkim6
+           grid%dod,                                                                  &  !NUWRF dkim6
            ids,ide, jds,jde, kds,kde,                                                 &
            ims,ime, jms,jme, kms,kme,                                                 &
            its,ite, jts,jte, kts, kte                                                 )

@@ -110,7 +110,8 @@ CONTAINS
       call depvel_gocart(config_flags,ipr,ii,imx,jmx,lmx,&
                          airden, delz_sfc, pblz, ts, ustar, hflux, ilwi, &
                          ps, z0, dvel, drydf,g,rmol(i,j),aer_res(i,j))
-      do nv = p_p25,num_chem
+!      do nv = p_p25,num_chem
+       do nv = numgas+1, num_chem    !change p_p25 to numgas+1 by ZTao (09/2023)
         ddvel(i,j,nv) = real( dvel(1,1),kind=4 )
       enddo
       ddvel(i,j,p_sulf) = real( dvel(1,1),kind=4 )

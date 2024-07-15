@@ -2063,14 +2063,14 @@ real, dimension( ims:ime, jms:jme ), intent(in)  :: &
 
 
 #if (RWORDSIZE == 4)
-      call swrad ( np=dk_half, icb=icb, ict=ict, fcld=dble(fcld1d), &
+      call swrad_ ( np=dk_half, icb=icb, ict=ict, fcld=dble(fcld1d), &
                    pl=dble(p8w1d), ta=dble(t1d), wa=dble(sh1d), oa=dble(o31d), &
                    taucl=dble(taucl_sw), ssacl=dble(ssacl_sw), asycl=dble(asycl_sw), &
                    taual=dble(taual_sw), ssaal=dble(ssaal_sw), asyal=dble(asyal_sw), &
                    cosz=dble(cosz), rsuvbm=dble(rsuvbm), rsuvdf=dble(rsuvdf), rsirbm=dble(rsirbm), rsirdf=dble(rsirdf),&
                    flx_out=flx, flxd_out=flxd,flxu_out=flxu, flxd_surf = flxd_surf, lmask=lmask, irestrict=min(CHUNK,ite-ii+1) )
 #elif (RWORDSIZE == 8)
-      call swrad ( np=dk_half, icb=icb, ict=ict, fcld=fcld1d, &
+      call swrad_ ( np=dk_half, icb=icb, ict=ict, fcld=fcld1d, &
                    pl=p8w1d, ta=t1d, wa=sh1d, oa=o31d, &
                    taucl=taucl_sw, ssacl=ssacl_sw, asycl=asycl_sw, &
                    taual=taual_sw, ssaal=ssaal_sw, asyal=asyal_sw, &
@@ -2313,14 +2313,14 @@ real, dimension( ims:ime, jms:jme ), intent(in)  :: &
 !
 
 #if (RWORDSIZE == 4)
-       call lwrad ( np=dk_half, tb=dble(tsfc), ts=dble(tskin), ict=ict, icb=icb,&
+       call lwrad_ ( np=dk_half, tb=dble(tsfc), ts=dble(tskin), ict=ict, icb=icb,&
                     pl=dble(p8w1d), ta=dble(t1d), wa=dble(sh1d), oa=dble(o31d), &
                     emiss=dble(emis1d), fcld=dble(fcld1d), &
                     taucl=dble(taucl_lw), ssacl=dble(ssacl_lw), asycl=dble(asycl_lw),  &
                     taual=dble(taual_lw), ssaal=dble(ssaal_lw), asyal=dble(asyal_lw),  &
                     flx_out=flx, acflxd_out=flxd, acflxu_out=flxu, irestrict=min(CHUNK,ite-ii+1) )
 #elif (RWORDSIZE == 8)
-       call lwrad ( np=dk_half, tb=tsfc, ts=tskin, ict=ict, icb=icb,&
+       call lwrad_ ( np=dk_half, tb=tsfc, ts=tskin, ict=ict, icb=icb,&
                     pl=p8w1d, ta=t1d, wa=sh1d, oa=o31d, &
                     emiss=emis1d, fcld=fcld1d, &
                     taucl=taucl_lw, ssacl=ssacl_lw, asycl=asycl_lw,  &
@@ -3110,7 +3110,7 @@ enddo
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
 
-  subroutine swrad ( np,cosz, pl,ta,wa,oa, fcld,ict,icb, &
+  subroutine swrad_ ( np,cosz, pl,ta,wa,oa, fcld,ict,icb, &
                      taucl,ssacl,asycl,taual,ssaal,asyal, &
                      rsuvbm,rsuvdf,rsirbm,rsirdf, &
                      flx_out,flxd_out,flxu_out , &
@@ -5386,7 +5386,7 @@ enddo
  endif
  ENDDO
 
- end subroutine swrad
+ end subroutine swrad_
 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
@@ -7111,7 +7111,7 @@ subroutine delta_eddington(tau,ssc,g0,cza,rr,tt,td)
 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
- subroutine lwrad ( np, emiss, tb, ts, ict, icb,&
+ subroutine lwrad_ ( np, emiss, tb, ts, ict, icb,&
                     pl, ta, wa, oa, fcld, &
                     taucl, ssacl, asycl, &
                     taual, ssaal, asyal,  &
@@ -11006,7 +11006,7 @@ subroutine delta_eddington(tau,ssc,g0,cza,rr,tt,td)
    acflxd_out = REAL(acflxd)  ! downwelling broadband LW flux [W/m2]
 
 
-  end subroutine lwrad
+  end subroutine lwrad_
 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
 !GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD GODDARD 
