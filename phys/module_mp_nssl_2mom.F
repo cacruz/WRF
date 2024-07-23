@@ -1,4 +1,3 @@
-#ifdef WRF_ELEC
 !WRF:MODEL_LAYER:PHYSICS
 
 ! prepocessed on "Aug 14 2023" at "16:15:23"
@@ -24326,4 +24325,3 @@ END SUBROUTINE nssl_2mom_driver
 
 
 END MODULE module_mp_nssl_2mom
-#endif

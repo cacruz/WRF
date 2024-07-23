@@ -404,9 +404,9 @@ USE module_model_constants, ONLY :  piconst
 !-------------------------------------------------------------------------------
 ! I: Distributed aerodynamics parameters
 !-------------------------------------------------------------------------------
-   REAL, INTENT(IN) :: lf_urb_s ! frontal area index [-]
-   REAL, INTENT(IN) :: z0_urb   ! roughness length [m]
-   REAL, INTENT(IN) :: vegfrac_in  ! vegetation fraction (0 to 1) [-]
+   REAL, INTENT(IN), optional :: lf_urb_s ! frontal area index [-]
+   REAL, INTENT(IN), optional :: z0_urb   ! roughness length [m]
+   REAL, INTENT(IN), optional :: vegfrac_in  ! vegetation fraction (0 to 1) [-]
 
 !-------------------------------------------------------------------------------
 ! O: output variables from Urban to LSM 

@@ -1,7 +1,7 @@
 !WRF:MODEL_LAYER:INITIALIZATION
 !
-   subroutine chem_init (id,chem,emis_ant,scalar,dt,bioemdt,photdt,chemdt, &
-               stepbioe,casafxdt,stepcasa, & ! NUWRF, ZT
+  subroutine chem_init (id,chem,emis_ant,scalar,dt,bioemdt,photdt,chemdt,stepbioe, &
+               casafxdt,stepcasa, & ! NUWRF, ZT
                stepphot,stepchem,stepfirepl,plumerisefire_frq,z_at_w,xlat,xlong,    &
                g,aerwrf,config_flags,grid,alt,t,p,CONVFAC,ttday,tcosz,julday,gmt,   &
                tauaer1,tauaer2,tauaer3,tauaer4,                      &
@@ -173,6 +173,7 @@ call wrf_message("**************************************************************
 
     numgas = get_last_gas(config_flags%chem_opt)
     numgas_out = numgas
+
    chem_select: SELECT CASE(config_flags%chem_opt)
      CASE (GOCART_SIMPLE)
        CALL wrf_debug(15,'calling only gocart aerosols driver from chem_driver')
@@ -247,7 +248,7 @@ call wrf_message("**************************************************************
        call wrf_message("CASACO2 options")
        write(message_txt,*) 'CASACO2_Tracer=',CASACO2_TRACER,'chem_opt=',config_flags%chem_opt
        call wrf_message(trim(message_txt))
-     CASE (CBMZ_CAM_MAM3_NOAQ)
+    CASE (CBMZ_CAM_MAM3_NOAQ)
         numgas_mam = numgas
         CALL wrf_debug(15,'calling CBMZ_CAM_MAM3_NOAQ chemistry from chem_driver')
      CASE (CBMZ_CAM_MAM3_AQ)
@@ -341,17 +342,16 @@ call wrf_message("**************************************************************
             ( config_flags%chem_opt == 203).OR.                                    & !BSINGH(12/17/2013): Added for SAPRC 8 bin vbs
             ( config_flags%chem_opt == 601 .OR. config_flags%chem_opt == 611) .OR. &
             ( config_flags%chem_opt == 300 .OR. config_flags%chem_opt == 301) .OR. & !NUWRF: added GOCART related schemes (ZTao, Mar. 2022)
-            ( config_flags%chem_opt == 303 .OR. config_flags%chem_opt == 109) .OR. &
-            ( config_flags%chem_opt == MOZART_MOSAIC_4BIN_AQ_KPP ) then
+            ( config_flags%chem_opt == 303 .OR. config_flags%chem_opt == 109) ) then
          call wrf_debug( 15, 'Chemics_init: Wet scavenging turned on' )
        else
-         call wrf_error_fatal("ERROR: wet scavenging option requires chem_opt = 8 through 13 or 31 to 36 or 41 to 42 or 109 or 503 or 504 or 601 or 611 to function.")
+         call wrf_error_fatal("ERROR: wet scavenging option requires chem_opt = 8 through 13 or 31 to 36 or 41 to 42 or 109 or 300 or 301 or 303 or 503 or 504 or 601 or 611 to function.")
        endif
        if ( config_flags%mp_physics /= 2 .and. config_flags%mp_physics /= 7 .and. config_flags%mp_physics /= 10 .and. config_flags%mp_physics /= 11  &
             .and. config_flags%mp_physics /= 17 .and. config_flags%mp_physics /= 18 .and. config_flags%mp_physics /= 22 .and. config_flags%mp_physics /= 107) then  !NUWRF: added Goddard MP (=7) option (ZTao, Mar 2022) and 2-moment GODDARD MP (=107)
          call wrf_error_fatal("ERROR: wet scavenging option requires mp_phys = 2 (Lin et al.) or 7 (Goddard 4ice) or 10 (Morrison) or 11 (CAMMGMP) or 17/18/22 NSSL_2mom or 107 (Goddard 2-moment) to function.")
        endif
-     elseif( id == 1 ) then
+    elseif( id == 1 ) then
        if ( config_flags%mp_physics /= 6 .and. config_flags%mp_physics /= 8 .and. config_flags%mp_physics /= 10 .and. config_flags%mp_physics /= 17  &
             .and. config_flags%mp_physics /= 18 .and. config_flags%mp_physics /= 22) then
          call wrf_error_fatal("ERROR: wet scavenging option for MOZART,MOZCART requires mp_phys = 6 (WSM6) or 8 (Thompson) or 10 (Morrison) .or 17/18/22 (NSSL 2-moment) to function.")
@@ -372,13 +372,10 @@ call wrf_message("**************************************************************
            ( config_flags%chem_opt == 203).OR.                                    &
            ( config_flags%chem_opt == 131 ) .OR. ( config_flags%chem_opt == 132 ) .OR. &
            ( config_flags%chem_opt >= 601 .AND. config_flags%chem_opt <= 611)  .OR. &
-           ( config_flags%chem_opt == 300 .OR. config_flags%chem_opt == 301) .OR. & !NUWRF: added GOCART related schemes (ZTao, Mar. 2022)
-           ( config_flags%chem_opt == 303 .OR. config_flags%chem_opt == 109) .OR. &
-           ( config_flags%chem_opt == MOZART_MOSAIC_4BIN_AQ_KPP ) then
+             config_flags%chem_opt == 109 .OR. config_flags%chem_opt == MOZART_MOSAIC_4BIN_AQ_KPP ) then
            call wrf_debug( 15, 'Chemics_init: Cloud chemistry turned on' )
       else
-        call wrf_error_fatal("ERROR: wet scavenging option requires chem_opt = 8 through 13 or 31 to 36 or 41 to 42 or 109 or &
-                              300 or 301 or 303 or 503 or 504 or 601 or 611 to function.")
+        call wrf_error_fatal("ERROR: cloud chemistry option requires chem_opt = 8 through 13 or 31 to 36 or 41 to 43 or 109 to function.")
       endif
        if ( config_flags%mp_physics /= 2 .and. config_flags%mp_physics /= 10 .and. config_flags%mp_physics /= 11  &
             .and. config_flags%mp_physics /= 17 .and. config_flags%mp_physics /= 18 .and. config_flags%mp_physics /= 22 ) then
@@ -1701,7 +1698,6 @@ casa_block: IF (config_flags%chem_opt == CASACO2_TRACER) THEN
        enddo
    ENDIF
 ENDIF casa_block
-
 !!
    aer_select: SELECT CASE(config_flags%chem_opt)
      CASE (RACMPM_KPP)

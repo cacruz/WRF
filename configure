@@ -297,6 +297,81 @@ if [ -z "$CURL_PATH" ] ; then CURL_PATH=''; fi
 
 if [ -n "$NETCDF4" ] ; then
   if [ $NETCDF4 -eq 1 ] ; then
+    DEP_LIB_PATH=''
+    if [ -f $NETCDF/bin/nf-config ] ; then
+      nx_config="$NETCDF/bin/nf-config --flibs"
+      DEP_LIB_PATH="`$nx_config | awk '{for(i=1;i<=NF;i++){if(match($i, /-L.*/)) {print $i} } }'`"
+      CURL="`$nx_config | awk '{for(i=1;i<=NF;i++){if($i == "-lcurl") {print $i} } }'`"
+      GPFS="`$nx_config | awk '{for(i=1;i<=NF;i++){if($i == "-lgpfs") {print $i} } }'`"
+    fi
+    if [ "$DEP_LIB_PATH" = '' ] ; then
+      if [ -f $NETCDF/bin/nc-config ] ; then
+        nx_config="$NETCDF/bin/nc-config --libs"
+        DEP_LIB_PATH="`$nx_config | awk '{for(i=1;i<=NF;i++){if(match($i, /-L.*/)) {print $i} } }'`"
+        CURL="`$nx_config | awk '{for(i=1;i<=NF;i++){if($i == "-lcurl") {print $i} } }'`"
+        GPFS="`$nx_config | awk '{for(i=1;i<=NF;i++){if($i == "-lgpfs") {print $i} } }'`"
+        if [ "$CURL" != '' -a  "$CURL_PATH" = '' ] ; then
+           CURL_PATH="DEFAULT"
+        fi
+        if [ "$GPFS" != '' -a  "$GPFS_PATH" = '' ] ; then
+           GPFS_PATH="DEFAULT"
+        fi
+      fi
+    fi
+    for P in "$HDF5_PATH" "$ZLIB_PATH" "$GPFS_PATH" "$CURL_PATH"
+    do
+      if [ "$P" != '' -a "$P" != "DEFAULT" ] ; then
+        if [ "${P#${P%?}}" = "/" ] ; then
+          P=`echo $P | sed 's/\/$//'`
+        fi
+        DEP_LIB_PATH="`echo $DEP_LIB_PATH | awk -v VAR=-L$P/lib '{for(i=1;i<=NF;i++){if ($i != VAR ) {print $i} } }'`"
+        DEP_LIB_PATH="$DEP_LIB_PATH -L$P/lib"
+      fi
+    done
+    if [ "${NETCDF#${NETCDF%?}}" = "/" ] ; then
+      NETCDF=`echo $NETCDF | sed 's/\/$//'`
+    fi
+    buff="`ls -l $NETCDF | sed 's/  */ /g'`"
+    while [ "`echo $buff | grep lib`" = "" -a "`echo $buff | grep '\->'`" != ""  ]
+    do
+      buff="`echo $buff | sed -e 's/->//' -e 's/  */ /g'`"
+      n=`echo $buff | wc -w`
+      lastword=`echo "$buff" | cut -d' ' -f$n | sed 's/\/$//'`
+      c="`echo $lastword | cut -c1`"
+      if [ "$c" == "/" ] ; then
+         NETCDF=$lastword
+      else
+        c="`echo $lastword | cut -c1-2`"
+        if [ "$c" = "./" ] ; then
+          lastword="echo $lastword | cut -c3-"
+        fi
+        NETCDF=${NETCDF%/*}/$lastword
+      fi
+      buff="`ls -l $NETCDF | sed 's/  */ /g'`"
+    done
+    if [ "`echo $NETCDF | grep '..'`"  != "" ] ; then
+      buff="`echo $NETCDF | sed -e 's/^\///' -e 's/\// /g'`"
+      n=`echo $buff | wc -w`
+      i=1
+      while [ $i -le $n ]
+      do
+         if [ "`echo $buff | cut -d' ' -f$i`" = ".." ] ; then
+          m=$i
+        fi
+        i=$(( $i + 1 ))
+      done
+      m=$(( $m + 1 ))
+      NETCDF=/"`echo $buff | cut -d' ' -f${m}- | sed 's/  */\//g'`"
+    fi
+    if [ "${DEP_LIB_PATH#${DEP_LIB_PATH%?}}" = "/" ] ; then
+      DEP_LIB_PATH=`echo $DEP_LIB_PATH | sed 's/\/$//'`
+    fi
+    DEP_LIB_PATH="`echo $DEP_LIB_PATH | awk -v VAR=-L$NETCDF/lib '{for(i=1;i<=NF;i++){if ($i != VAR ) {print $i} } }'`"
+  fi
+fi
+
+if [ -n "$NETCDF4" ] ; then
+  if [ $NETCDF4 -eq 1 ] ; then
     NETCDF4_DEP_LIB=''
     if [ "$NETCDF_C" != "NOT_FOUND" -a -f $NETCDF_C/bin/nc-config ] ; then
       nx_config="`$NETCDF_C/bin/nc-config --libs`"
@@ -589,13 +664,14 @@ if test -n "$PERL" ; then
    srch=`grep -i "^#ARCH.*$os" arch/configure.defaults | grep -i "$mach"`
    if [ -n "$srch" ] ; then
      $PERL arch/Config.pl -dmparallel=$COMMLIB -ompparallel=$OMP -perl=$PERL \
-          -netcdf=$NETCDF -pnetcdf=$PNETCDF -netcdfpar=$NETCDFPAR -adios2=$ADIOS2 -hdf5=$HDF5 -phdf5=$PHDF5 \
-             -boxmg=$BOXMGLIBDIR -os=$os -mach=$mach -ldflags=$ldflags \
+          -netcdf=$NETCDF -pnetcdf=$PNETCDF -netcdfpar=$NETCDFPAR -adios2=$ADIOS2 -phdf5=$PHDF5 \
+          -os=$os -mach=$mach -ldflags=$ldflags \
           -compileflags=$compileflags -opt_level=$opt_level -USENETCDFF=$USENETCDFF -USENETCDF=$USENETCDF \
           -time=$FORTRAN_COMPILER_TIMER -tfl="$TFL" -cfl="$CFL" -config_line="$config_line" \
-          -wrf_core=$wrf_core -gpfs=$GPFS_PATH -curl=$CURL_PATH -netcdf4_dep_lib="$NETCDF4_DEP_LIB" \
-           -gribapi=$GRIBAPI -hdfeos=$HDFEOS -zlib=$ZLIB
-          -hdf4=$HDF4 -hdf5=$HDF5 -curl=$CURL_PATH -dep_lib_path="$DEP_LIB_PATH"
+          -wrf_core=$wrf_core -gpfs=$GPFS_PATH -gribapi=$GRIBAPI -hdfeos=$HDFEOS -zlib=$ZLIB \
+          -boxmg=$BOXMGLIBDIR \
+          -hdf4=$HDF4 -hdf5=$HDF5 \
+          -curl=$CURL_PATH -netcdf4_dep_lib="$NETCDF4_DEP_LIB " -dep_lib_path="$DEP_LIB_PATH"
      if test ! -f configure.wrf ; then
        echo "configure.wrf not created! Exiting configure script..."
        exit 1
@@ -744,6 +820,7 @@ EOF
     rm ${foo} ${foo}.F 2> /dev/null
   fi
 
+cat > ${foo}.c <<EOF
  int main(int argc, char ** argv)
  {
      return (0);

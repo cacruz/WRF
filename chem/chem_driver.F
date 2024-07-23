@@ -851,17 +851,18 @@
               grid%ebio_c2h6,grid%ebio_c2h4,grid%ebio_c3h6,grid%ebio_c3h8,grid%ebio_so2,   &
               grid%ebio_dms,grid%ebio_hcn,                                                 &
               grid%ebio_alk3, grid%ebio_alk4, grid%ebio_alk5, grid%ebio_ole1, grid%ebio_ole2,            &    
-              grid%ebio_aro1, grid%ebio_aro2, grid%ebio_ccho, grid%ebio_meoh,             &    
-              grid%ebio_ethene, grid%ebio_hcooh, grid%ebio_terp, grid%ebio_bald,          &    
-              grid%ebio_cco_oh, grid%ebio_rco_oh,                                         &    
+              grid%ebio_aro1, grid%ebio_aro2, grid%ebio_ccho, grid%ebio_meoh,              &    
+              grid%ebio_ethene, grid%ebio_hcooh, grid%ebio_terp, grid%ebio_bald,           &    
+              grid%ebio_cco_oh, grid%ebio_rco_oh,                                          &    
               grid%clayfrac,grid%sandfrac,grid%dust_alpha,grid%dust_gamma,grid%dust_smtune, grid%dust_ustune, &
-              grid%clayfrac_nga,grid%sandfrac_nga,                                        &
+              grid%clayfrac_nga,grid%sandfrac_nga,                                         &
               grid%snowh,grid%zs,grid%afwa_dustloft,                                       &
               grid%tot_dust,grid%tot_edust,grid%vis_dust,                                  &
-              grid%soilctop, grid%ust_t, grid%rough_cor, grid%smois_cor,                  &              
+              grid%soilctop, grid%ust_t, grid%rough_cor, grid%smois_cor,                   &              
               grid%ebio_c5h8,grid%ebio_apinene,grid%ebio_bpinene,grid%ebio_toluene,        &
-              grid%ebio_ch3cho,grid%ebio_ch3co2h,grid%ebio_tbut2ene,                      &
-              grid%ebio_c2h5cho,grid%ebio_nc4h10,					                      &
+              grid%ebio_ch3cho,grid%ebio_ch3co2h,grid%ebio_tbut2ene,                       &
+              grid%ebio_c2h5cho,grid%ebio_nc4h10,					   &
+         ! stuff for MEGAN v2.04  
               grid%T2,grid%swdown,                                                         &
               grid%nmegan,grid%EFmegan,                                                    &
               grid%msebio_isop,                                                            &
@@ -873,7 +874,7 @@
               grid%mebio_acet,grid%mebio_mbo,grid%mebio_no,                                &
               current_month,                                                               &
          ! stuff for LNOx emissions
-             grid%ht, grid%refl_10cm, grid%ic_flashrate, grid%cg_flashrate,                 &
+             grid%ht, grid%refl_10cm, grid%ic_flashrate, grid%cg_flashrate,                &
          ! stuff for aircraft emissions
               emis_aircraft,                                                               &
          ! stuff for the GHG fluxes
@@ -883,13 +884,12 @@
               grid%potevp,grid%SFCEVP,grid%LU_INDEX,                                       &
               grid%biomt_par,grid%emit_par,grid%ebio_co2oce,                               &
               eghg_bio,                                                                    &
-              grid%seas_flux,                                                              &
          ! stuff for the online nh3-"WRF-NH3-CHEM" modified by renchuanhua
               grid%actnh3, grid%EFnh3,                                                     &          
               grid%agrisoil_nh3, grid%fertilizer_nh3, grid%freeinten_nh3,                  &
               grid%graze_nh3, grid%industry_nh3,                                           &
               grid%residential_nh3,  grid%transport_nh3, current_hour, grid%Q2,            &
-              grid%dust_flux, grid%seas_flux,                                              &
+              grid%seas_flux,                                                              &
 #ifdef WRF_LIS
               grid%lisPorosity,                                                            &
 #endif

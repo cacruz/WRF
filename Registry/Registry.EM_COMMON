@@ -632,69 +632,6 @@ state   real    dfi_qaoli3        ikjftb  dfi_scalar      1         -     \
 state   real    dfi_qke_adv   ikjftb  dfi_scalar      1         -      \
    rusdf=(bdy_interp:dt) "dfi_qke_adv"   "DFI twice TKE from MYNN"      "m2 s-2"
 
-
-#---------for ntu3m---------------------------------------------------------------------------
-state   real    qdcn           ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "QDCN"           "Mass mixing ratio for dry CN " "kg kg-1"
-state   real    qtcn           ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "QTCN"           "Mass mixing ratio for total CN" "kg kg-1"
-state   real    qccn           ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "QCCN"           "Mass mixing ratio for cloud CN" "kg kg-1"
-state   real    qrcn           ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "QRCN"           "Mass mixing ratio for rain CN" "kg kg-1"
-state   real    qnin           ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "QNIN"           "Potential ice nuclei number mixing ratio" "# kg-1"
-state   real    fi             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "FI"             "Shape moment mixing ratio for pristine ice" "kg kg-1"
-state   real    fs             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "FS"             "Shape moment mixing ratio for snow-aggregates" "kg kg-1"
-state   real    vi             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "VI"             "Volume moment mixing ratio for pristine ice" "m^3 kg-1"
-state   real    vs             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "VS"             "Volume moment mixing ratio for snow-aggragates" "m^3 kg-1"
-state   real    vg             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "VG"             "Volume moment mixing ratio for rimed ice" "m^3 kg-1"
-state   real    ai             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AI"             "Second moment mixing ratio for pristine ice" "kg kg-1"
-state   real    as             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AS"             "Second moment mixing ratio for snow-aggregates" "kg kg-1"
-state   real    ag             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AG"             "Second moment mixing ratio for rimed ice" "kg kg-1"
-state   real    ah             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AH"             "Second moment mixing ratio for hail" "kg kg-1"
-state   real    i3m            ikjftb   scalar      1         -     \
-   i0rh02usdf=(bdy_interp:dt)  "I3M"           "3rd moment of pristine ice" "kg kg-1"                                          
-state   real    dfi_qdcn       ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_QDCN"      "Dry CN Mass concentration"   "kg kg-1"
-state   real    dfi_qtcn       ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_QTCN"      "Total CN Mass concentration" "kg kg-1"
-state   real    dfi_qccn       ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_QCCN"      "Cloud CN Mass concentration" "kg kg-1"
-state   real    dfi_qrcn       ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_QRCN"      "Rain CN Mass concentration"  "kg kg-1"
-state   real    dfi_qnin       ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_QNIN"      "Potential ICE Nuclei Number concentration" "# kg(-1)"
-state   real    dfi_vi         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_VI"        "volume moment of pristine ice" "m^3 kg(-1)"
-state   real    dfi_vs         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_VS"        "volume moment of pristine ice" "m^3 kg(-1)"
-state   real    dfi_vg         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_VG"        "volume moment of graupel" "m^3 kg(-1)"
-state   real    dfi_fi         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_FI"        "shape moment of pristine ice" "kg kg(-1)"
-state   real    dfi_fs         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_FS"        "shape moment of aggregates" "kg kg(-1)"
-state   real    dfi_ai         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_AI"        "2nd moment of pristine ice" "m^2 kg(-1)"
-state   real    dfi_as         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_AS"        "2nd moment of aggregate" "m^2 kg(-1)"
-state   real    dfi_ag         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_AG"        "2nd moment of graupel" "m^2 kg(-1)"
-state   real    dfi_ah         ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_AH"        "2nd moment of hail" "m^2 kg(-1)"
-state   real    dfi_i3m        ikjftb  dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)       "DFI_I3M"       "3rd moment of pristine ice" "kg kg(-1)"
-
 #---------for ntu3m---------------------------------------------------------------------------
 state   real    qdcn           ikjftb   scalar      1         -     \
    i0rhusdf=(bdy_interp:dt)  "QDCN"           "Mass mixing ratio for dry CN " "kg kg-1"
@@ -726,6 +663,7 @@ state   real    ah             ikjftb   scalar      1         -     \
    i0rhusdf=(bdy_interp:dt)  "AH"             "Second moment mixing ratio for hail" "m^2 kg-1"
 state   real    i3m            ikjftb   scalar      1         -     \
    i0rhusdf=(bdy_interp:dt)  "I3M"            "Third moment mixing ratio for pristine ice" "m^3 kg-1"
+
 state   real    dfi_qdcn       ikjftb   dfi_scalar      1         -     \
    rusdf=(bdy_interp:dt)     "DFI_QDCN"      "Mass mixing ratio for dry CN" "kg kg-1"
 state   real    dfi_qtcn       ikjftb   dfi_scalar      1         -     \
@@ -757,7 +695,8 @@ state   real    dfi_ah         ikjftb   dfi_scalar      1         -     \
 state   real    dfi_i3m        ikjftb   dfi_scalar      1         -     \
    rusdf=(bdy_interp:dt)     "DFI_I3M"       "Third moment mixing ratio for pristine ice" "m^3 kg-1"
 #-------------------------------------for ntu3m----------------------------------------------------------
-
+#
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Arrays for Specified LBCs  (lbc arrays REMOVED; Boundary arrays are now specified with the state array; see above, 20050413 JM )
 
@@ -1076,7 +1015,6 @@ state    real   ALSWVISDIF        ij    misc        1         Z      r        "A
 state    real   ALSWNIRDIR        ij    misc        1         Z      r        "ALSWNIRDIR"            "ALB NIR DIR component"  ""
 state    real   ALSWNIRDIF        ij    misc        1         Z      r        "ALSWNIRDIF"            "ALB NIR DIF component"  ""
 
-
 # NU-WRF:  Porosity from LIS
 state   real    lisPorosity      ij     misc        1         -      rh    "lisPorosity"     "2-D Porosity from LIS"                  ""
 
@@ -1112,6 +1050,7 @@ state   real   WSTAR_YSU      ij     misc        1         -     -        "WSTAR
 state   real   DELTA_YSU      ij     misc        1         -     -        "DELTA_YSU"           "entrainment layer depth from ysupbl"    "m"
 
 # EEPS PBL  scheme
+state   real   pek_pbl        ikj    misc        1         -     hr        "PEK_PBL"            "TKE  from EEPS"                    "m2 s-2"
 state   real   pep_pbl        ikj    misc        1         -     hr        "PEP_PBL"            "TKE dissipation rate from EEPS"    "m2 s-3"
 state   real   pek_adv        ikjftb  scalar      1         -      i0rusdf=(bdy_interp:dt) "pek_adv"       "TKE from EEPS"      "m2 s-2"
 state   real   pep_adv        ikjftb  scalar      1         -      i0rusdf=(bdy_interp:dt) "pep_adv"       "TKE dissipating rate from EEPS"      "m2 s-3"
@@ -1695,7 +1634,7 @@ state    real    itype_2          ikj     misc        1         -     hdu       
 state    real    itype_3          ikj     misc        1         -     hdu       "ice_type3"             "Diagnostic ice type cat 3 ISHMAEL microphysics"  ""
 
 # LIGHTNING NUDGING
-state    real    ltg_dat        ij      misc        1         -      r         "ltg_dat"               "gridded lightning data"  "Flash per xkm x xkm per LAD_INT sec"
+#state    real    ltg_dat        ij      misc        1         -      r         "ltg_dat"               "gridded lightning data"  "Flash per xkm x xkm per LAD_INT sec"
 # END LIGHTNING NUDGING
 state    real  NCA              ij      misc        1         -      r        "NCA"                   "COUNTER OF THE CLOUD RELAXATION TIME IN KF CUMULUS SCHEME"    ""      
 state    integer  LOWLYR        ij      misc        1         -     -         "LOWLYR"                "INDEX OF LOWEST MODEL LAYER ABOVE THE GROUND IN BMJ SCHEME"   ""      
@@ -2177,7 +2116,7 @@ state    real    LTG1_MAX         ij     misc        1         -     irh        
 state    real    LTG2_MAX         ij     misc        1         -     irh         "LTG2_MAX"       "MAX LTG THREAT 2"        "flashes km-2 5min-1"
 i1       real    TOTICE_COLINT    ij     misc        1         -     -           "TOTICE_COLINT"  "COL INT TOTAL ICE"       "kg m-2"
 i1       integer LTG1_CALC        ij     misc        1         -     -           "LTG1_CALC"      "LTG1 CALCULATED T OR F"  "dimensionless"
-# SRD
+# SRD    
 
 state   real    max_cfl         -       misc        1         -     -       "max_cfl"           "maximum CFL value in grid at a time" "-"
 
@@ -2296,9 +2235,9 @@ rconfig   integer diag_print              namelist,time_control         1       
 rconfig   logical nocolons                namelist,time_control         1             .false. -    "nocolons"
 rconfig   logical cycling                 namelist,time_control         1             .false. -    "true for cycling (using wrfout file as input data)"
 rconfig   integer output_diagnostics      namelist,time_control         1              0
-rconfig   integer nwp_diagnostics         namelist,time_control         1              0
 # EMK NUWRF...Time period for mean integrated vapor transport
 rconfig   integer ivt_interval            namelist,time_control         1              60      rh    "ivt_interval"  "Time interval for mean integrated vapor transport (min)"
+rconfig   integer nwp_diagnostics         namelist,time_control         1              0
 rconfig   logical output_ready_flag       namelist,time_control         1             .false. -    "drop a flag called wrfoutReady_d<domain>_<date> after history write" "" ""
 rconfig   logical force_use_old_data      namelist,time_control         1             .false. -    "T=use v3 input data, F=only use v4 data" "" ""
 
@@ -2515,6 +2454,8 @@ rconfig   integer  nssl_2moment_on        namelist,physics      1            -1 
 rconfig   integer  nssl_3moment           namelist,physics      1             0       rh       "NSSL 3-moment flag"  ""      ""
 rconfig   integer  nssl_density_on        namelist,physics      1            -1       rh       "NSSL graupel/hail density flag"  ""      ""
 
+
+
 rconfig   integer     CCNTY               namelist,physics      1            2        rh       "Aerosol background type for NTU microphysics"  ""   ""
 
 # Lightning Qv Nudging 
@@ -2533,8 +2474,7 @@ rconfig   integer     progn               namelist,physics      max_domains    0
 rconfig   real        accum_mode          namelist,physics      1             1000.0e6 rh       "accum_mode"                 ""      ""
 rconfig   real        aitken_mode         namelist,physics      1             300.0e6  rh       "aitken_mode"                 ""      ""
 rconfig   real        coarse_mode         namelist,physics      1             0.2e6    rh       "coarse_mode"                 ""      ""
-# NUWRD, do radar refl by default
-rconfig   integer     do_radar_ref        namelist,physics      1              1       rh       "compute radar reflectivity for a number of schemes"                 ""      ""
+rconfig   integer     do_radar_ref        namelist,physics      1              0       rh       "compute radar reflectivity for a number of schemes"                 ""      ""
 rconfig   integer     compute_radar_ref   derived               1              0       -        "compute_radar_ref" "0/1 flag: compute radar reflectivity, either do_radar_ref=1 .or. (milbrandt or NSSL schemes)"
 rconfig   integer     ra_lw_physics       namelist,physics	max_domains    -1      rh       "ra_lw_physics"         ""      ""
 rconfig   integer     ra_sw_physics       namelist,physics	max_domains    -1      rh       "ra_sw_physics"         ""      ""
@@ -3045,7 +2985,7 @@ rconfig   integer compression             namelist,grib2 	        1      40    r
 rconfig   integer lis_landcover_type     namelist,lis      1            1                      -    "Landcover classification (1=USGS,2=MODIS,3=UMD)" "" 
 rconfig   character lis_filename         namelist,lis    max_domains  "lisfile.d<domain>.nc"   -      "Names of input LIS history dump" "" 
 rconfig   character use_lis_noahmp       namelist,lis      1          "yes"                    -      "Option to use LIS NOAHMP model" "" 
-rconfig   character use_lis_urban        namelist,lis      1          "no"                     -      "Option to use LIS URBAN physics" "" 
+rconfig   character use_lis_urban        namelist,lis      1          "no"                     -      "Option to use LIS URBAN physics" ""   
 
 # NAMELIST DERIVED
 rconfig   integer nobs_ndg_vars           derived                       1         6       -        "num_ndg_vars"         "Number of nudging variables"          ""
@@ -3120,7 +3060,6 @@ package   nuwrf4icescheme mp_physics==7              -               moist:qv,qc
 package   thompson        mp_physics==8                -             moist:qv,qc,qr,qi,qs,qg;scalar:qni,qnr;state:re_cloud,re_ice,re_snow
 package   milbrandt2mom   mp_physics==9                -             moist:qv,qc,qr,qi,qs,qg,qh;scalar:qnc,qnr,qni,qns,qng,qnh
 package   morr_two_moment mp_physics==10               -             moist:qv,qc,qr,qi,qs,qg;scalar:qni,qns,qnr,qng;state:rqrcuten,rqscuten,rqicuten
-# NUWRF
 package   morr_faster     mp_physics==49               -             state:refl_10cm;moist:qv,qc,qr,qi,qs,qg;scalar:qnc,qni,qns,qnr,qng;state:rqrcuten,rqscuten,rqicuten
 package   cammgmpscheme   mp_physics==11               -             moist:qv,qc,qi,qr,qs;scalar:qnc,qni,qnr,qns;state:rh_old_mp,lcd_old_mp,cldfra_old_mp,cldfra_mp,cldfra_mp_all,cldfra_conv,cldfrai,cldfral,turbtype3d,smaw3d,wsedl3d,icwmrdp3d,dp3d,shfrc3d,dlf,dlf2,tke_pbl,lradius,iradius
 #package   milbrandt3mom  mp_physics==12               -             moist:qv,qc,qr,qi,qs,qg,qh;scalar:qnc,qnr,qni,qns,qng,qnh,qzr,qzi,qzs,qzg,qzh
@@ -3133,9 +3072,6 @@ package   wsm7scheme      mp_physics==24               -             moist:qv,qc
 package   wdm7scheme      mp_physics==26               -             moist:qv,qc,qr,qi,qs,qg,qh;scalar:qnn,qnc,qnr;state:re_cloud,re_ice,re_snow
 package   thompsonaero    mp_physics==28               -             moist:qv,qc,qr,qi,qs,qg;scalar:qni,qnr,qnc,qnwfa,qnifa,qnbca;state:re_cloud,re_ice,re_snow,qnwfa2d,qnifa2d,taod5503d,taod5502d
 package   thompsongh      mp_physics==38               -             moist:qv,qc,qr,qi,qs,qg;scalar:qni,qnr,qnc,qng,qvolg,qnwfa,qnifa,qnbca;state:re_cloud,re_ice,re_snow,qnwfa2d,qnifa2d,taod5503d,taod5502d
-#---------Tsai------------------------------------------------------------------------------------------------------------------------------
-package   ntu             mp_physics==36               -             moist:qv,qc,qr,qi,qs,qg,qh;scalar:qnc,qnr,qni,qns,qng,qnh,qdcn,qtcn,qccn,qrcn,qnin,vi,vs,vg,fi,fs,ai,as,ag,ah,i3m
-#---------Tsai---------------------------------------------------------------------------------------------------------------------------------
 package   p3_1category    mp_physics==50               -             moist:qv,qc,qr,qi;scalar:qni,qnr,qir,qib;state:re_cloud,re_ice,vmi3d,rhopo3d,di3d,refl_10cm,th_old,qv_old
 package   p3_1category_nc mp_physics==51               -             moist:qv,qc,qr,qi;scalar:qnc,qni,qnr,qir,qib;state:re_cloud,re_ice,vmi3d,rhopo3d,di3d,refl_10cm,th_old,qv_old
 package   p3_2category    mp_physics==52               -             moist:qv,qc,qr,qi,qi2;scalar:qnc,qni,qnr,qir,qib,qni2,qir2,qib2;state:re_cloud,re_ice,vmi3d,rhopo3d,di3d,vmi3d_2,rhopo3d_2,di3d_2,refl_10cm,th_old,qv_old
@@ -3155,6 +3091,7 @@ package   nssl_hail1m     nssl_hail_on==2              -             moist:qh;
 package   nssl_ccn_opt    nssl_ccn_on==1               -             scalar:qnn
 package   nssl_graupelvol nssl_density_on==1           -             scalar:qvolg
 package   nssl_hailvol    nssl_density_on==2           -             scalar:qvolg,qvolh
+
 
 package   radar_refl      compute_radar_ref==1         -             state:refl_10cm,refd_max
 endif
@@ -3193,9 +3130,6 @@ package   p3_1category_dfi  mp_physics_dfi==50       -             dfi_moist:dfi
 package   p3_1category_nc_dfi  mp_physics_dfi==51    -             dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qi;dfi_scalar:dfi_qnc,dfi_qni,dfi_qnr,dfi_qir,dfi_qib;state:dfi_re_cloud,dfi_re_ice
 package   p3_2category_dfi  mp_physics_dfi==52    -                dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qi,dfi_qi2;dfi_scalar:dfi_qnc,dfi_qni,dfi_qnr,dfi_qir,dfi_qib,dfi_qni2,dfi_qir2,dfi_qib2;state:dfi_re_cloud,dfi_re_ice
 package   p3_1cat_3mom_dfi  mp_physics_dfi==53    -                dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qi;dfi_scalar:dfi_qni,dfi_qnr,dfi_qir,dfi_qib,dfi_qzi;state:dfi_re_cloud,dfi_re_ice
-#-------Tsai---------------------------------------------------------------------------------------------------------------------------------------
-package   ntu_dfi           mp_physics_dfi==36       -             dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qi,dfi_qs,dfi_qg,dfi_qh;dfi_scalar:dfi_qnc,dfi_qnr,dfi_qni,dfi_qns,dfi_qng,dfi_qnh,dfi_qdcn,dfi_qtcn,dfi_qccn,dfi_qrcn,dfi_qnin,dfi_vi,dfi_vs,dfi_vg,dfi_fi,dfi_fs,dfi_ai,dfi_as,dfi_ag,dfi_ah,dfi_i3m
-#-------Tsai----------------------------------------------------------------------------------------------------------------------------------------
 package   jensen_ishmael_dfi  mp_physics_dfi==55         -         dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qi,dfi_qi2,dfi_qi3;dfi_scalar:dfi_qnr,dfi_qni,dfi_qvoli,dfi_qaoli,dfi_qni2,dfi_qvoli2,dfi_qaoli2,dfi_qni3,dfi_qvoli3,dfi_qaoli3;state:dfi_re_cloud,dfi_re_ice
 package   ntu_dfi           mp_physics_dfi==56       -             dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qi,dfi_qs,dfi_qg,dfi_qh;dfi_scalar:dfi_qnc,dfi_qnr,dfi_qni,dfi_qns,dfi_qng,dfi_qnh,dfi_qdcn,dfi_qtcn,dfi_qccn,dfi_qrcn,dfi_qnin,dfi_fi,dfi_fs,dfi_vi,dfi_vs,dfi_vg,dfi_ai,dfi_as,dfi_ag,dfi_ah,dfi_i3m
 package   etampnew_dfi      mp_physics_dfi==95       -             dfi_moist:dfi_qv,dfi_qc,dfi_qr,dfi_qs;dfi_scalar:dfi_qt
@@ -3515,7 +3449,6 @@ halo      HALO_EM_INIT_1 dyn_em 48:u_1,u_2,v_1,v_2,w_1,w_2,ph_1,ph_2
 halo      HALO_EM_INIT_2 dyn_em 48:t_1,t_2,mu_1,mu_2,tke_1,tke_2,ww,phb
 halo      HALO_EM_INIT_3 dyn_em 48:ph0,php,t_init,mub,mu0,p,al,alt,alb
 halo      HALO_EM_INIT_4 dyn_em 48:pb,h_diabatic,qv_diabatic,qc_diabatic,msftx,msfty,msfux,msfuy,msfvx,msfvy,msfvx_inv,f,e,sina,cosa,ht,potevp,snopcx,soiltb,xlat,xlong,xlat_u,xlat_v,xlong_u,xlong_v,clat,msft,msfu,msfv
- #halo      HALO_EM_INIT_5 dyn_em 48:moist,chem,scalar,tracer
 # NU-WRF
 halo      HALO_EM_INIT_5 dyn_em 48:moist,chem,scalar,tracer,clwp,rwp,ciwp,fpwp
 halo      HALO_EM_INIT_6 dyn_em 48:om_tmp,om_s,om_u,om_v,om_depth,om_tini,om_sini,om_lat,om_lon,om_ml
@@ -3540,7 +3473,7 @@ halo      HALO_EM_TKE_ADVECT_3 dyn_em 24:tke_2
 halo      HALO_EM_TKE_ADVECT_5 dyn_em 48:tke_2
 halo      HALO_EM_TKE_A dyn_em 4:ph_2,phb
 halo      HALO_EM_TKE_B dyn_em 4:z,rdz,rdzw,zx,zy
-# NU-WRF:  Added Helicity halo
+# NU-WRF:  Added Helicity halo   
 # SRD
 halo      HALO_EM_HELICITY dyn_em 8:u_2,v_2,w_2,ph_2,phb,z,zx,zy,rdz,rdzw,uh,up_heli_max
 # SRD

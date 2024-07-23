@@ -352,12 +352,13 @@ CONTAINS
                                        ,CLMSCHEME                 &
                                        ,CTSMSCHEME                &
                                        ,SSIBSCHEME                & !ssib
-                                       ,NUWRFLISSCHEME            & ! NUWRF
                                        ,MYNNSFCSCHEME             &
                                        ,OMLSCHEME                 &
                                        ,PWP3DSCHEME               &
                                        ,DRIP                      &
-                                       ,CHANNEL                   
+                                       ,CHANNEL                   &
+                                       ,NUWRFLISSCHEME            ! NUWRF
+
 
    USE module_model_constants
 ! *** add new modules of schemes here
@@ -399,12 +400,14 @@ CONTAINS
    USE module_sf_sfcdiags_ruclsm
    USE module_sf_sstskin
    USE module_sf_tmnupdate
+
    ! NUWRF
 #ifdef WRF_LIS
    USE LISWRFGridCompMod, only : LISWRF_import, LISWRF_export
    USE module_configure, only : model_config_rec
 #endif
    USE module_lai2fveg       ! NUWRF
+      
    USE module_sf_lake
    USE module_cpl, ONLY : coupler_on, cpl_rcv
    use module_ra_gfdleta, only: cal_mon_day
@@ -610,7 +613,7 @@ CONTAINS
      &          ,ims,ime,jms,jme,kms,kme                              &
      &          ,ips,ipe,jps,jpe,kps,kpe                              &
      &          ,kts,kte,num_tiles
-   
+
 #ifdef WRF_LIS
    INTEGER, intent(in)    :: yy,mo,dd,hr,mn,ss
    real,    intent(inout) :: lisPorosity( ims:ime, jms:jme) ! NUWRF for LIS
@@ -1244,6 +1247,7 @@ CONTAINS
    REAL,OPTIONAL, INTENT(IN   ) :: hfx_force_tend,lh_force_tend,tsk_force_tend
 
 !  LOCAL  VAR
+
    REAL,       DIMENSION( ims:ime, kms:kme, jms:jme ) ::v_phytmp
    REAL,       DIMENSION( ims:ime, kms:kme, jms:jme ) ::u_phytmp
 
@@ -1259,12 +1263,13 @@ CONTAINS
 ! SSIB local variables
    REAL ZDIFF
    REAL, DIMENSION( ims:ime , jms:jme ) :: XICE_save
+! NUWRF local variables
+   integer :: its, ite, jts, jte
+   integer :: ll, mm
 !
    REAL    :: DTMIN,DTBL
 !
    INTEGER :: i,J,K,NK,jj,ij
-   integer :: its, ite, jts, jte
-   integer :: ll, mm
    INTEGER :: gfdl_ntsflg
    LOGICAL :: radiation, myj, myjpbl, frpcpn, isisfc
    LOGICAL, INTENT(in), OPTIONAL :: rdlai2d
@@ -1448,15 +1453,6 @@ CONTAINS
 !
   real,    dimension(ims:ime,1:maxpatch,jms:jme ) ::  q_ref2m   ! clm
 
-  real,  intent(inout),optional :: t_veg24(ims:ime,1:maxpatch,jms:jme)      ! voce accum variables
-  real,  intent(inout),optional :: t_veg240(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: fsun24(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: fsun240(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: fsd24(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: fsd240(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: fsi24(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: fsi240(ims:ime,1:maxpatch,jms:jme)
-  real,  intent(inout),optional :: laip(ims:ime,1:maxpatch,jms:jme)
 #ifdef WRF_LIS
    REAL, DIMENSION( ims:ime , jms:jme ) :: fvegxy_nw
    REAL, DIMENSION( ims:ime , jms:jme ) :: t2mbxy_nw
@@ -1464,6 +1460,7 @@ CONTAINS
    REAL, DIMENSION( ims:ime , jms:jme ) :: q2mbxy_nw
    REAL, DIMENSION( ims:ime , jms:jme ) :: q2mvxy_nw
 #endif      
+
   real,  intent(inout),optional :: t_veg24(ims:ime,1:maxpatch,jms:jme)      ! voce accum variables
   real,  intent(inout),optional :: t_veg240(ims:ime,1:maxpatch,jms:jme)
   real,  intent(inout),optional :: fsun24(ims:ime,1:maxpatch,jms:jme)
@@ -1486,6 +1483,7 @@ CONTAINS
    real,parameter :: TRESH = .95E0
 #endif
 !     
+!
 ! FASDAS
 !
    REAL, DIMENSION( ims:ime, jms:jme ) , INTENT(INOUT), OPTIONAL ::   SDA_HFX,SDA_QFX,HFX_BOTH, QFX_BOTH, QNORM
@@ -1719,11 +1717,11 @@ CONTAINS
             ENDIF
          ENDIF
 
-
+  
 ! EMK NUWRF...Don't change the land/sea table
-        if (sf_surface_physics .ne. NUWRFLISSCHEME) THEN
+      if (sf_surface_physics .ne. NUWRFLISSCHEME) THEN
             
-        IF ( (XLAND(i,j) .GT. 1.5) .AND. (XICE(I,J) .GE. XICE_THRESHOLD) .AND. (XICEM(I,J) .LT. XICE_THRESHOLD) ) THEN
+      IF ( XLAND(i,j) .GT. 1.5 .AND. XICE(I,J) .GE. XICE_THRESHOLD .AND. XICEM(I,J) .LT. XICE_THRESHOLD ) THEN
           ! water point turns to sea-ice point
           XICEM(I,J) = XICE(I,J)
           XLAND(I,J) = 1.
@@ -1761,33 +1759,32 @@ CONTAINS
             SMOIS(I,NK,J) = 1.0
             SH2O(I,NK,J) = 0.0
           ENDDO
-        ENDIF !  IF ( (XLAND(i,j) ...
-
-        IF (lakemodel.ne.1) then
-           IF(XLAND(i,j) .GT. 1.5) THEN
-              IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-                 TSK(i,j)   =SST(i,j)
-                 TSLB(i,1,j)=SST(i,j)
-              ENDIF
+      ENDIF  ! IF ( XLAND(i,j)...
+      IF (lakemodel.ne.1) then
+         IF(XLAND(i,j) .GT. 1.5) THEN
+           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
+            TSK(i,j)   =SST(i,j)
+            TSLB(i,1,j)=SST(i,j)
            ENDIF
-        ELSE
+          ENDIF
+      ELSE
 #if (EM_CORE==1)
-           IF(XLAND(i,j) .GT. 1.5.AND.LAKEMASK(I,J).NE.1) THEN
-              IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-                 TSK(i,j)   =SST(i,j)
-                 TSLB(i,1,j)=SST(i,j)
-              ENDIF
+         IF(XLAND(i,j) .GT. 1.5.AND.LAKEMASK(I,J).NE.1) THEN
+           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
+            TSK(i,j)   =SST(i,j)
+            TSLB(i,1,j)=SST(i,j)
            ENDIF
+          ENDIF
 #else
-           IF(XLAND(i,j) .GT. 1.5.and.ht(i,j).lt.lake_min_elev) then
-              IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
-                 TSK(i,j)   =SST(i,j)
-                 TSLB(i,1,j)=SST(i,j)
-              ENDIF
+       IF(XLAND(i,j) .GT. 1.5.and.ht(i,j).lt.lake_min_elev) then
+           IF ( SST(i,j) .LT. 350. .and. SST(i,j) .GT. 250.) THEN
+            TSK(i,j)   =SST(i,j)
+            TSLB(i,1,j)=SST(i,j)
            ENDIF
+       ENDIF
 #endif
-        ENDIF  ! (lakemodel .ne. 1)
-        IF ( XLAND(i,j) .LT. 1.5 .AND. XICEM(I,J) .GE. XICE_THRESHOLD .AND. XICE(I,J) .LT. XICE_THRESHOLD ) THEN
+      ENDIF  ! (lakemodel=1)
+      IF ( XLAND(i,j) .LT. 1.5 .AND. XICEM(I,J) .GE. XICE_THRESHOLD .AND. XICE(I,J) .LT. XICE_THRESHOLD ) THEN
 ! sea-ice point turns to water point
           XICEM(I,J) = XICE(I,J)
           XLAND(I,J) = 2.
@@ -1807,21 +1804,23 @@ CONTAINS
             SMOIS(I,NK,J) = 1.0
             SH2O(I,NK,J) = 1.0
           ENDDO
-        ENDIF ! IF ( XLAND(i,j) .LT. 1.5 ...
-	else ! EMK NUWRF...Using LIS
 
-	IF(XLAND(i,j) .GT. 1.5) THEN
+       ENDIF ! IF ( XLAND(i,j) .LT. 1.5 ...
+
+       else ! EMK NUWRF...Using LIS
+
+       IF(XLAND(i,j) .GT. 1.5) THEN
           IF ( (SST(i,j) .LT. 350.) .and. (SST(i,j) .GT. 250.) ) THEN
-            TSK(i,j)   =SST(i,j)   
-            TSLB(i,1,j)=SST(i,j)
+             TSK(i,j)   =SST(i,j)   
+             TSLB(i,1,j)=SST(i,j)
           ENDIF
-        ENDIF
+       endif
 
-        endif ! EMK NUWRF...Don't change the land/sea table with LIS
+       endif ! EMK NUWRF...Don't change the land/sea table with LIS
 
-        XICE_save(I,J) = XICEM(I,J)
-        XICEM(i,j) = XICE(i,j)
-        TSK_SAVE(I,J) = TSK(I, J)
+       XICE_save(I,J) = XICEM(I,J)
+       XICEM(i,j) = XICE(i,j)
+       TSK_SAVE(I,J) = TSK(I, J)
 
       ENDDO
       ENDDO
@@ -2131,6 +2130,7 @@ CONTAINS
            PRESENT(mol)        .AND.  PRESENT(regime)  .AND.    &
                                                       .TRUE. ) THEN
          CALL wrf_debug( 100, 'in SFCLAY' )
+
          IF ( FRACTIONAL_SEAICE == 1 ) THEN
             CALL SFCLAYREV_SEAICE_WRAPPER(u_phytmp,v_phytmp,t_phy,qv_curr,&
                  p_phy,dz8w,cp,g,rcp,r_d,xlv,psfc,chs,chs2,cqs2,cpm, &
@@ -2444,7 +2444,7 @@ CONTAINS
 #if ( EM_CORE==1)
      CASE (TEMFSFCSCHEME)
        IF (PRESENT(qv_curr).and.PRESENT(hd_temf)) THEN
-         CALL wrf_debug( 100, 'in TEMFSFCSCHEME' )
+         CALL wrf_debug( 100, 'in TEMFSFCLAY' )
 ! WA 9/7/09 must initialize Z0 and ZNT for TEMF in ideal cases
        ! DO J=j_start(ij),j_end(ij)
        ! DO I=i_start(ij),i_end(ij)
@@ -2473,7 +2473,7 @@ CONTAINS
 
      CASE (IDEALSCMSFCSCHEME)
        IF (PRESENT(qv_curr)) THEN
-         CALL wrf_debug( 100, 'in IDEALSCMSFCSCHEME' )
+         CALL wrf_debug( 100, 'in IDEALSCMSFCLAY' )
          CALL IDEALSCMSFCLAY(u3d=u_phytmp,v3d=v_phytmp,th3d=th_phy,    &
                qv3d=qv_curr,p3d=p_phy,pi3d=pi_phy,rho=rho,z=z,ht=ht, &
                CP=cp,G=g,ROVCP=rcp,R=r_d,XLV=xlv,psfc=psfc,chs=chs,  &
@@ -3349,7 +3349,6 @@ CONTAINS
         ! END NUWRF
 #endif         
 
-
      CASE (NOAHMPSCHEME)
        IF (PRESENT(qv_curr)    .AND.  PRESENT(rainbl)        .AND.    &
 !          PRESENT(emiss)      .AND.  PRESENT(t2)            .AND.    &
@@ -3506,6 +3505,7 @@ CONTAINS
            ENDDO
            ENDDO
            
+
          IF(SF_URBAN_PHYSICS > 0 ) THEN  !urban
          
 	   call noahmp_urban (sf_urban_physics,     NUM_SOIL_LAYERS,     IVGTYP,ITIMESTEP,  & ! IN : Model configuration 
@@ -3555,7 +3555,7 @@ CONTAINS
                           dgr_urb3d,       dg_urb3d,      lfr_urb3d,  lfg_urb3d,            & !GRZ
                            lp_urb2d,       hi_urb2d,       lb_urb2d,  hgt_urb2d,            & !H multi-layer urban
                            mh_urb2d,     stdh_urb2d,       lf_urb2d,                        & !SLUCM
-                         lf_urb2d_s,       z0_urb2d,         vegfra,                        & !SLUCM
+!                         lf_urb2d_s,       z0_urb2d,         vegfra,                        & !SLUCM
                              th_phy,            rho,          p_phy,        ust,            & !I multi-layer urban
                                 gmt,         julday,          xlong,       xlat,            & !I multi-layer urban
                             a_u_bep,        a_v_bep,        a_t_bep,    a_q_bep,            & !O multi-layer urban
@@ -4825,8 +4825,6 @@ CONTAINS
 
    ENDIF run_param_if
 
-   CALL wrf_debug(100,'DONE')
-
    END SUBROUTINE surface_driver
 
 !-------------------------------------------------------------------------
@@ -5223,7 +5221,6 @@ CONTAINS
         &     IDS,IDE,JDS,JDE,KDS,KDE,                        &
         &     IMS,IME,JMS,JME,KMS,KME,                        &
         &     ITS,ITE,JTS,JTE,KTS,KTE,SCM_FORCE_FLUX )
-!     USE module_model_constants
      USE module_sf_qnsesfc
 
      IMPLICIT NONE

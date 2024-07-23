@@ -138,13 +138,6 @@ CONTAINS
       REAL:: max_relh, temp_xland, gridkm
       LOGICAL :: debug_flag = .FALSE.
 
-      INTEGER:: i_end, j_end
-      REAL, ALLOCATABLE, DIMENSION(:):: temp_P, temp_T, temp_R, temp_Dz
-      REAL, ALLOCATABLE, DIMENSION(:):: temp_Qv, temp_Qc, temp_Qi, temp_Qs
-      REAL, ALLOCATABLE, DIMENSION(:):: temp_CF, temp_Nc, temp_Ni
-      REAL:: max_relh, temp_xland, gridkm
-      LOGICAL :: debug_flag = .FALSE.
-
       REAL :: dclat
 
 !      INTEGER , PARAMETER :: nl_max = 1000

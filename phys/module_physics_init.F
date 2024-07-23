@@ -6,6 +6,7 @@
 !  calling 'integrate'.
 
 !  This MODULE CONTAINS the following routines:
+
 MODULE module_physics_init
 
    USE module_state_description
@@ -237,9 +238,6 @@ CONTAINS
                          t00, p00, tlp,                          & !for obs-nudging
                          TYR,TYRA,TDLY,TLAG,NYEAR,NDAY,tmn_update,   &
                          ACHFX,ACLHF,ACGRDFLX,                   &
-! next 2 flags for Explicit lightning:
-                         nssl_ipelec,                             &
-                         nssl_isaund,                             &
    ! OPTIONAL 
                          RQCNCUTEN, RQINCUTEN,                   &
                          rliq,                                   &  !BSINGH:01/31/2013 - Added rliq and is_CAMMGMP_used for CAM5 physics
@@ -279,9 +277,6 @@ CONTAINS
                          ,QR_CU,QS_CU,NC_CU,NI_CU,NR_CU,NS_CU,CCN_CU              & ! TWG
                          ,alevsiz_cu,num_months,no_src_types_cu,aeromcu,aeropcu   & ! PSH/TWG 06/10/16                         
                          ,EFCG,EFCS,EFIG,EFIS,EFSG,EFSS                           & ! TWG
-#endif
-#ifdef WRF_ELEC
-                         ,qnn_curr, F_QNN   &
 #endif
                           )
 
@@ -572,10 +567,6 @@ CONTAINS
    INTEGER, INTENT(IN ) :: iopt_crop, iopt_irr, iopt_irrm 
    REAL,    OPTIONAL, DIMENSION(ims:ime,60,jms:jme) :: gecros_state      ! Optional gecros crop
 
-#ifdef WRF_ELEC
-   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),  OPTIONAL,  INTENT(INOUT ) ::   qnn_curr
-   LOGICAL, OPTIONAL, intent(in) :: f_qnn
-#endif
 !  Irrigation
    REAL,    OPTIONAL, DIMENSION(ims:ime,jms:jme) :: IRWATSI 
    REAL,    OPTIONAL, DIMENSION(ims:ime,jms:jme) :: IRWATMI
@@ -590,6 +581,9 @@ CONTAINS
    INTEGER, OPTIONAL, DIMENSION(ims:ime,jms:jme) :: IRNUMFI
 ! tile drainage
    REAL,    OPTIONAL, DIMENSION(ims:ime,jms:jme) :: qtdrain
+                                                                
+!   REAL, DIMENSION( ims:ime, kms:kme, jms:jme ),  OPTIONAL,  INTENT(INOUT ) ::   qnn_curr
+
    INTEGER , OPTIONAL,  INTENT(OUT) :: STEPWTD
    REAL , OPTIONAL, INTENT(IN) :: WTDDT
 
@@ -741,11 +735,6 @@ CONTAINS
    REAL, OPTIONAL, INTENT(IN), DIMENSION(ims:ime,kms:kme,jms:jme) :: PHB,PH,P,PB,QV     ! for ntu3m
    REAL, INTENT(INOUT), DIMENSION(ims:ime,kms:kme,jms:jme) :: QDCN,QTCN,QCCN,QRCN,QNIN  ! for ntu3m
 #endif
-!----------------------------------------Tsai-----------------------------------------------------------
-   INTEGER, OPTIONAL, INTENT(IN) :: CCNTY
-   REAL, OPTIONAL, INTENT(IN) :: BACKIN
-   REAL, INTENT(IN), DIMENSION(ims:ime,kms:kme,jms:jme) :: QV,phb,ph,alt,p,pb
-!----------------------------------------Tsai------------------------------------------------------------
 ! lake varibles:
   real,    dimension(ims:ime,jms:jme ),intent(out)                        :: lakedepth2d,    &
                                                                              savedtke12d
@@ -833,7 +822,6 @@ CONTAINS
    TYPE(fdob_type), OPTIONAL, INTENT(INOUT) :: fdob
 #endif
    REAL, OPTIONAL, INTENT(IN) :: p00, t00, tlp   ! for obs-nudging base-state calcn
-   INTEGER, INTENT(IN) :: nssl_ipelec,nssl_isaund
 
 ! WA 12/21/09
    REAL,OPTIONAL, DIMENSION( ims:ime , kms:kme , jms:jme ) , &
@@ -888,7 +876,7 @@ CONTAINS
    INTEGER :: myproc
 
    INTEGER :: sf_surface_physics ! EMK NUWRF
-      
+
 !-------------------------------------------------
 ! Noah-mosaic related variables are added to declaration  (danli)
 !-------------------------------------------------
@@ -1030,9 +1018,6 @@ CHARACTER(LEN=8) :: name
         (config_flags%mp_physics  .eq. THOMPSON .or.        &
          config_flags%mp_physics  .eq. THOMPSONAERO .or.    &
          (config_flags%mp_physics .eq. NSSL_2MOM .and. config_flags%nssl_2moment_on == 1) .or. &
-         config_flags%mp_physics  .eq. NSSL_2MOM .or.       &
-         config_flags%mp_physics  .eq. NSSL_2MOMG .or.      &
-         config_flags%mp_physics  .eq. NSSL_2MOMCCN .or.    &
          config_flags%mp_physics  .eq. WSM3SCHEME .or.      &
          config_flags%mp_physics  .eq. WSM5SCHEME .or.      &
          config_flags%mp_physics  .eq. WSM6SCHEME .or.      &
@@ -1237,6 +1222,7 @@ CHARACTER(LEN=8) :: name
    ENDDO
    endif
    ENDIF
+!
 
 ! EMK NUWRF...Add sanity check for MMINLU and LIS. If MMINLU is blank with LIS
 ! selected, stop with error; something is wrong with the wrfinput file.
@@ -1252,11 +1238,7 @@ CHARACTER(LEN=8) :: name
      IF(XLAND(i,j) .LT. 1.5)THEN
        IF(mminlu_loc .EQ. '    ') ALBBCK(i,j)=ALBLND
        EMBCK(i,j)=0.85
-! EMK NUWRF...Don't alter albedo when coupling with LIS
-       if (sf_surface_physics .ne. NUWRFLISSCHEME) then
        ALBEDO(i,j)=ALBBCK(i,j)
-       end if
-! EMK NUWRF END
        EMISS(i,j)=EMBCK(i,j)
        THC(i,j)=THINLD
        ZNT(i,j)=ZZLND
@@ -1268,7 +1250,7 @@ CHARACTER(LEN=8) :: name
        IF(mminlu_loc .EQ. '    ') ALBBCK(i,j)=0.08
 ! EMK NUWRF...Don't alter albedo when coupling with LIS
        if (sf_surface_physics .ne. NUWRFLISSCHEME) then
-       ALBEDO(i,j)=ALBBCK(i,j)
+          ALBEDO(i,j)=ALBBCK(i,j)
        end if
 ! EMK NUWRF END
        EMBCK(i,j)=0.98
@@ -1302,7 +1284,6 @@ CHARACTER(LEN=8) :: name
       ENDIF
 ! crm end
 ! *********************************************************
-        
 
    ENDDO
    ENDDO
@@ -1406,36 +1387,11 @@ CHARACTER(LEN=8) :: name
                 config_flags%fractional_seaice,                      &
                 lu_state,                                           &
                 allowed_to_read , usemonalb ,                       &
-                sf_surface_physics,                                 & ! NUWRF
+                sf_surface_physics,                                 &  ! NUWRF
                 ids, ide, jds, jde, kds, kde,                       &
                 ims, ime, jms, jme, kms, kme,                       &
                 its, ite, jts, jte, kts, kte                       )
    ENDIF
-
-#ifdef WRF_ELEC
-   IF ( present( f_qnn ) ) THEN
-   IF ( f_qnn ) THEN
-! Initialize simple ccn field
-     IF ( qnn_curr((ite+itf)/2,(kte+ktf)/2,(jte+jtf)/2) < 1.0 ) THEN ! initialize ccn if not already done
-       DO j=jts,jtf
-         DO k=kts,ktf
-          DO i=its,itf
-           IF ( config_flags%mp_physics == wdm5scheme .or. config_flags%mp_physics == wdm6scheme ) THEN
-             qnn_curr(i,k,j) = ccn_conc
-           ELSEIF ( config_flags%mp_physics == nssl_2momccn ) THEN
-             qnn_curr(i,k,j) = nssl_cccn/1.225
-             ccn_conc =  nssl_cccn/1.225
-           ELSE
-             qnn_curr(i,k,j) = ccn_conc
-           ENDIF
-          ENDDO
-         ENDDO
-        ENDDO
-      ENDIF
-   ENDIF
-   ENDIF
-#endif
-
 
   ENDIF !}
 
@@ -1513,14 +1469,14 @@ CHARACTER(LEN=8) :: name
                 its=its, ite=ite, jts=jts, jte=jte, kts=kts, kte=kte                    )
 
    CALL wrf_debug ( 200 , 'module_start: phy_init: Before call to bl_init' )
-   CALL bl_init(id,STEPBL,BLDT,DT,RUBLTEN,RVBLTEN,RTHBLTEN,     & ! NUWRF - added id
+   CALL bl_init(STEPBL,BLDT,DT,RUBLTEN,RVBLTEN,RTHBLTEN,        &
                 RQVBLTEN,RQCBLTEN,RQIBLTEN,TSK,TMN,             &
                 config_flags,restart,UST,LOWLYR,TSLB,ZS,DZS,    &
                 num_soil_layers,TKE_PBL,mfshconv,pek,pep,       &
                 massflux_EDKF, entr_EDKF, detr_EDKF, & 
                 thl_up, thv_up, rt_up,       &
                 rv_up, rc_up, u_up, v_up,    &
-                frac_up, itimestep,                             &
+                frac_up, itimestep,id,                          &
                 EXCH_H,VEGFRA,                                  &
                 SNOW,SNOWC, CANWAT,SMSTAV,                      &
                 SMSTOT, SFCRUNOFF,UDRUNOFF,ACSNOW,ACSNOM,       &
@@ -1732,7 +1688,6 @@ CHARACTER(LEN=8) :: name
                 PHB,PH,P,PB,QV,XLAND,CCNTY,QDCN,QTCN,QCCN,QRCN, & ! for ntu3m
                 QNIN,                                           & ! for ntu3m
 #endif
-                QV,phb,ph,alt,p,pb,XLAND,BACKIN,CCNTY,          & ! Tsai
                 mp_restart_state,tbpvs_state,tbpvs0_state,      &
                 allowed_to_read, start_of_simulation,           &
 !CAMMGMP specific variables
@@ -1839,7 +1794,7 @@ CHARACTER(LEN=8) :: name
                 fractional_seaice,                                  &
                 lu_state,                                           &
                 allowed_to_read , usemonalb ,                       &
-                sf_surface_physics,                                 & ! NUWRF
+                sf_surface_physics,                                 &  ! NUWRF
                 ids, ide, jds, jde, kds, kde,                       &
                 ims, ime, jms, jme, kms, kme,                       &
                 its, ite, jts, jte, kts, kte                       )
@@ -1855,8 +1810,8 @@ CHARACTER(LEN=8) :: name
    INTEGER , INTENT(IN)           :: iswater, julday
    REAL    , INTENT(IN)           :: cen_lat
    CHARACTER(LEN=*), INTENT(IN)        :: mminlu
-   integer,intent(in) :: sf_surface_physics ! EMK NU-WRF
    LOGICAL,  INTENT(IN)           :: allowed_to_read , usemonalb
+   INTEGER,  INTENT(IN)           :: sf_surface_physics
    REAL,     DIMENSION( ims:ime , jms:jme ) , INTENT(IN   ) :: lu_index, snowc, xice, snoalb 
    REAL,     DIMENSION( ims:ime , jms:jme ) , INTENT(OUT  ) :: albedo, albbck, mavail, emiss, &
                                                                embck,                         &
@@ -2043,9 +1998,9 @@ CHARACTER(LEN=8) :: name
       jtf = min0(jte, jde-1)
 ! EMK NUWRF...Ignore usemonalb if using LIS coupling
       if (sf_surface_physics .ne. NUWRFLISSCHEME) then
-      IF(usemonalb)CALL wrf_message ( 'Climatological albedo is used instead of table values' )
-      endif
-! EMK NUWRF END
+         IF(usemonalb)CALL wrf_message ( 'Climatological albedo is used instead of table values' )
+      end if
+! EMK NUWRF END         
       DO j = jts, jtf
         DO i = its, itf
           IS=nint(lu_index(i,j))
@@ -2071,8 +2026,8 @@ CHARACTER(LEN=8) :: name
                  ALBEDO(I,J)=ALBBCK(I,J)*(1.+SCFX(IS))
              ENDIF
           ENDIF
-          endif
-! EMK NUWRF END
+          end if
+! EMK NUWRF END         
           THC(I,J)=THERIN(IS,ISN)/100.
           Z0(I,J)=SFZ0(IS,ISN)/100.
           ZNT(I,J)=Z0(I,J)
@@ -2236,7 +2191,6 @@ CHARACTER(LEN=8) :: name
    REAL ,    INTENT(IN)           :: DT, RADT, cen_lat, GMT, pptop,  &
                                      swrad_scat, p_top
    LOGICAL,  INTENT(IN)           :: start_of_simulation
-
    INTEGER,      INTENT(IN   )    ::   levsiz, n_ozmixm
    INTEGER,      INTENT(IN   )    ::   paerlev, n_aerosolc
    INTEGER,      INTENT(IN   )    ::   alevsiz, no_src_types
@@ -2285,6 +2239,7 @@ CHARACTER(LEN=8) :: name
    LOGICAL :: aclwalloc = .false.
    integer :: month,iday
    INTEGER :: i, j, k, itf, jtf, ktf
+
 !---------------------------------------------------------------------
 
    jtf=min0(jte,jde-1)
@@ -2606,14 +2561,14 @@ CHARACTER(LEN=8) :: name
 
    END SUBROUTINE ra_init
 
-   SUBROUTINE bl_init(id,STEPBL,BLDT,DT,RUBLTEN,RVBLTEN,RTHBLTEN,  & ! NUWRF - added id
+   SUBROUTINE bl_init(STEPBL,BLDT,DT,RUBLTEN,RVBLTEN,RTHBLTEN,  &
                 RQVBLTEN,RQCBLTEN,RQIBLTEN,TSK,TMN,             &
                 config_flags,restart,UST,LOWLYR,TSLB,ZS,DZS,    &
                 num_soil_layers,TKE_PBL,mfshconv,pek,pep,       &
                 massflux_EDKF, entr_EDKF, detr_EDKF, & 
                 thl_up, thv_up, rt_up,       &
                 rv_up, rc_up, u_up, v_up,    &
-                frac_up, itimestep,                             &
+                frac_up, itimestep, id,                         &
                 EXCH_H,VEGFRA,                                  &
                 SNOW,SNOWC, CANWAT,SMSTAV,                      &
                 SMSTOT, SFCRUNOFF,UDRUNOFF,ACSNOW,ACSNOM,       &
@@ -2826,7 +2781,6 @@ CHARACTER(LEN=8) :: name
 !--------------------------------------------------------------------
    IMPLICIT NONE
 !--------------------------------------------------------------------
-   INTEGER , INTENT(IN)        :: id ! NUWRF
    TYPE (grid_config_rec_type) ::     config_flags
    LOGICAL , INTENT(IN)        :: restart
    LOGICAL, INTENT(IN)         ::   FNDSOILW, FNDSNOWH
@@ -3157,10 +3111,6 @@ CHARACTER(LEN=8) :: name
    REAL,  DIMENSION( ims:ime , jms:jme ) , OPTIONAL, INTENT(INOUT) ::    &
                                         TSK_SAVE
    LOGICAL,  INTENT(IN) :: start_of_simulation
-#ifdef WRF_LIS
-   INTEGER :: ntasks_x, ntasks_y ! NUWRF
-   integer :: mpi_comm_compute_tasks ! EMK NUWRF
-#endif
    INTEGER :: i,j,patch
 
 ! CLM varaibles
@@ -3242,7 +3192,6 @@ CHARACTER(LEN=8) :: name
 
 ! IRRIGATION
   INTEGER,OPTIONAL,INTENT(OUT), DIMENSION( ims:ime,jms:jme):: irr_rand_field  
-
   INTEGER,OPTIONAL :: irr_ph,irr_freq  
 
 ! To accommodate shared physics
@@ -3551,29 +3500,21 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
           ENDIF               
           
 !
-
+          
 #ifdef WRF_LIS
-! NUWRF...LIS
       CASE (NUWRFLISSCHEME)
-
-!          call lisinit_coupled(ntasks_x,ntasks_y,mytask,&
-!               its,min(ite,ide-1),jts,min(jte,jde-1))
-!          print*,'wrfside ',its,min(ite,ide-1),jts,min(jte,jde-1)
           if(id.eq.1) then 
-             CALL nl_get_nproc_x ( 1, ntasks_x)
-             CALL nl_get_nproc_y ( 1, ntasks_y )
-
-             ! EMK NUWRF...Pass MPI communicator for WRF compute tasks
-!             call liswrfinit_coupled(ntasks_x, ntasks_y)
-             call wrf_get_dm_communicator(mpi_comm_compute_tasks) 
-             call liswrfinit_coupled(ntasks_x, ntasks_y, &
-                  mpi_comm_compute_tasks)
-
-!             call lisinit_coupled(ntasks_x, ntasks_y,mytask,&
-!             its,min(ite,ide-1),jts,min(jte,jde-1))
+            block
+               INTEGER :: ntasks_x, ntasks_y 
+               integer :: mpi_comm_compute_tasks 
+               CALL nl_get_nproc_x ( 1, ntasks_x)
+               CALL nl_get_nproc_y ( 1, ntasks_y )
+               ! EMK NUWRF...Pass MPI communicator for WRF compute tasks
+               call wrf_get_dm_communicator(mpi_comm_compute_tasks) 
+               call liswrfinit_coupled(ntasks_x, ntasks_y, mpi_comm_compute_tasks)
+            end block
           endif
 #endif
-          
       CASE (NOAHMPSCHEME)
           IF ( TRIM(mminlu) .EQ. 'NLCD40' ) THEN
              CALL wrf_error_fatal ( 'NoahMP does not work with NLCD data. Stop.' )
@@ -3610,10 +3551,9 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
 
           IF ((SF_URBAN_PHYSICS.eq.1).OR.(SF_URBAN_PHYSICS.EQ.2).OR.(SF_URBAN_PHYSICS.EQ.3)) THEN
              IF ( PRESENT( FRC_URB2D ) .AND. PRESENT( UTYPE_URB2D )) THEN
-                CALL urban_param_init(DZR,DZB,DZG,num_soil_layers,             & !urban
-                                sf_urban_physics,config_flags%use_wudapt_lcz,  &
-                                config_flags%slucm_distributed_drag) 
-                
+                CALL urban_param_init(DZR,DZB,DZG,num_soil_layers,                   & !urban
+                                sf_urban_physics,config_flags%use_wudapt_lcz,        &
+                                config_flags%slucm_distributed_drag)
                 CALL urban_var_init(ISURBAN,TSK,TSLB,TMN,IVGTYP,               & !urban
                               ims,ime,jms,jme,kms,kme,num_soil_layers,         & !urban
                               LCZ_1_TABLE,LCZ_2_TABLE,LCZ_3_TABLE,LCZ_4_TABLE, & !urban
@@ -3878,7 +3818,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
       CASE (YSUSCHEME)
            if(isfc .ne. 1)CALL wrf_error_fatal &
             ( 'module_physics_init: Use sf_sfclay_physics= 1 or 91 for this pbl option' )
-     CASE (SHINHONGSCHEME)
+      CASE (SHINHONGSCHEME)
            if(isfc .ne. 1)CALL wrf_error_fatal &
             ( 'module_physics_init: Use sf_sfclay_physics= 1 or 91 for this pbl option' )
            IF ((SF_URBAN_PHYSICS.eq.2).OR.(SF_URBAN_PHYSICS.EQ.3)) CALL wrf_error_fatal &
@@ -4546,7 +4486,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
 #if ( EM_CORE == 1 )
                       PHB,PH,P,PB,QV,XLAND,CCNTY,QDCN,QTCN,QCCN,  & ! for ntu3m
                       QRCN,QNIN,                                  & ! for ntu3m
-#endif                  
+#endif
                       mp_restart_state,tbpvs_state,tbpvs0_state,   & ! eta mp
                       allowed_to_read, start_of_simulation,       &
 !CAMMGMP specific variables
@@ -4575,7 +4515,6 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
    USE module_mp_morr_two_moment
    USE microphy_p3
    USE module_mp_morr_faster
-   USE module_mp_p3
    USE module_mp_jensen_ishmael
    USE module_mp_milbrandt2mom
 !  USE module_mp_milbrandt3mom
@@ -4585,9 +4524,6 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
 #if (WRFPLUS != 1) & !defined( VAR4D )
    USE module_mp_nssl_2mom, only: nssl_2mom_init
 #endif
-   USE module_mp_nssl_2mom
-   USE module_mp_ntu                       ! Tsai
-   USE module_mp_nssl_2mom, only: nssl_2mom_init
 #if (EM_CORE==1)
    USE module_mp_cammgmp_driver, ONLY:CAMMGMP_INIT !CAM5's microphysics
    USE module_mp_morr_two_moment_aero              !TWG2017
@@ -4618,6 +4554,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
    REAL, OPTIONAL, DIMENSION(ims:ime,jms:jme), INTENT(IN) :: XLAND                     ! for ntu3m
    REAL, OPTIONAL, INTENT(IN), DIMENSION(ims:ime,kms:kme,jms:jme) :: PHB,PH,P,PB,QV    ! for ntu3m
    REAL, INTENT(INOUT), DIMENSION(ims:ime,kms:kme,jms:jme) :: QDCN,QTCN,QCCN,QRCN,QNIN ! for ntu3m
+#endif
    REAL , DIMENSION(:) ,INTENT(INOUT)  :: mp_restart_state,tbpvs_state,tbpvs0_state
    LOGICAL , INTENT(IN)  :: allowed_to_read
    REAL, INTENT(INOUT) :: ccn_conc ! RAS
@@ -4629,7 +4566,6 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
    REAL, DIMENSION(ims:ime,kms:kme,jms:jme, num_sc), INTENT(INOUT):: scalar    !  G. Thompson
 
 ! Local
-   REAL, PARAMETER :: n_ccn0 = 1.0E8 ! NUWRF
    INTEGER :: i, j, itf, jtf
    REAL, DIMENSION(20) :: nssl_params
    INTEGER    :: nssl_ipelec_tmp, nssl_ipconc
@@ -4654,38 +4590,7 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
      ENDDO
      ENDDO
    ENDIF
-
-   IF ( present( nssl_cccn ) ) THEN
-     SELECT CASE(config_flags%mp_physics)
-     CASE (NSSL_2MOM,NSSL_2MOMCCN)
-       IF ( config_flags%elec_physics > 0 ) THEN
-#ifdef WRF_ELEC
-         nssl_ipelec_tmp = Max(1,nssl_ipelec)
-#else
-         nssl_ipelec_tmp = nssl_ipelec
-#endif
-       ELSE
-         nssl_ipelec_tmp = 0.0
-       ENDIF
-     CASE DEFAULT
-       nssl_ipelec_tmp = 0.0
-     END SELECT
-     
-     nssl_params(1)  = nssl_cccn
-     nssl_params(2)  = nssl_alphah
-     nssl_params(3)  = nssl_alphahl
-     nssl_params(4)  = nssl_cnoh
-     nssl_params(5)  = nssl_cnohl
-     nssl_params(6)  = nssl_cnor
-     nssl_params(7)  = nssl_cnos
-     nssl_params(8)  = nssl_rho_qh
-     nssl_params(9)  = nssl_rho_qhl
-     nssl_params(10) = nssl_rho_qs
-     nssl_params(11) = nssl_ipelec_tmp
-     nssl_params(12) = nssl_isaund
-
-   ENDIF
-
+   
    mp_select: SELECT CASE(config_flags%mp_physics)
 
      CASE (KESSLERSCHEME)
@@ -4801,13 +4706,6 @@ CALL lsm_mosaic_init(IVGTYP,config_flags%ISWATER,config_flags%ISURBAN,config_fla
                         config_flags%hail_opt, allowed_to_read )
      CASE (WDM7SCHEME)
           CALL wdm7init(rhoair0,rhowater,rhosnow,cliq,cpv,ccn_conc, allowed_to_read )
-#if (EM_CORE==1)
-     CASE (NTU)
-          CALL ntu_init(PHB,PH,P,PB,inv_dens,QV,QDCN,QTCN,QCCN,QRCN,   &
-                        QNIN,XLAND,CCNTY,restart,ids,ide,jds,jde,kds,  &
-                        kde,ims,ime,jms,jme,kms,kme,its,ite,jts,jte,   &
-                        kts,kte)
-#endif
 #if (EM_CORE==1)
      CASE (NTU)
           CALL ntu_init(PHB,PH,P,PB,inv_dens,QV,QDCN,QTCN,QCCN,QRCN,   &

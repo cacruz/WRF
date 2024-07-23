@@ -304,7 +304,7 @@ solve_em.o:     module_small_step_em.o \
 		../phys/module_microphysics_zero_out.o \
 		../phys/module_physics_addtendc.o \
 		../phys/module_checkerror.o \
-                ../phys/module_firebrand_spotting.o
+                ../phys/module_firebrand_spotting.o \
                 ../phys/module_crm_stat.o 
                 # added crm_stat #
 

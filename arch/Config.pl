@@ -19,7 +19,6 @@ $sw_zlib_path = "" ;
 $sw_pnetcdf_path = "" ;
 $sw_netcdfpar_path = "" ;
 $sw_adios2_path = "" ;
-$sw_hdf5_path=""; 
 $sw_boxmg_path=""; 
 $sw_phdf5_path=""; 
 $sw_jasperlib_path=""; 
@@ -56,10 +55,10 @@ $sw_usenetcdff = "" ;    # UNIDATA switches around library names a bit
 $sw_usenetcdf = "" ;    
 $sw_time = "" ;          # name of a timer to time fortran compiles, e.g. timex or time
 $sw_ifort_r8 = 0 ;
-$sw_hdf5 = "-lhdf5_hl -lhdf5";
-$sw_hdf5_hl_fortran="-lhdf5_hl_fortran";
 $sw_hdf5 = "-lhdf5_hl -lhdf5 -ldl"; # NUWRF adds -ldl
+$sw_hdf5_hl_fortran="-lhdf5_hl_fortran";
 $sw_zlib = "-lz";
+$sw_dep_lib_path = "";
 $sw_netcdf4_dep_lib = "";
 $sw_gpfs_path = "";
 $sw_gpfs_lib  = "-lgpfs";
@@ -99,6 +98,11 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   {
     $sw_netcdf_path = substr( $ARGV[0], 8 ) ;
   }
+  if ( substr( $ARGV[0], 1, 13 ) eq "dep_lib_path=" )
+  {
+    $sw_dep_lib_path = substr( $ARGV[0], 14 ) ;
+    $sw_dep_lib_path =~ s/\r|\n/ /g ;
+  }
   if ( substr( $ARGV[0], 1, 16 ) eq "netcdf4_dep_lib=" )
   {
     $sw_netcdf4_dep_lib = substr( $ARGV[0], 17 ) ;
@@ -137,10 +141,6 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   if ( substr( $ARGV[0], 1, 7 ) eq "adios2=" )
   {
     $sw_adios2_path = substr( $ARGV[0], 8 ) ;
-  }
-  if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
-  {
-    $sw_hdf5_path = substr( $ARGV[0], 6 ) ;
   }
   if ( substr( $ARGV[0], 1, 6 ) eq "boxmg=" )
   {
@@ -678,6 +678,7 @@ while ( <CONFIGURE_DEFAULTS> )
     $_ =~ s/CONFIGURE_NETCDFPAR_PATH/$sw_netcdfpar_path/g ;
     $_ =~ s/CONFIGURE_ADIOS2_PATH/$sw_adios2_path/g ;
     $_ =~ s/CONFIGURE_HDF4_PATH/$sw_hdf4_path/g ;
+    $_ =~ s/CONFIGURE_GRIBAPI_PATH/$sw_gribapi_path/g ;
     $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
     $_ =~ s/CONFIGURE_HDFEOS_PATH/$sw_hdfeos_path/g ;
     $_ =~ s/CONFIGURE_ZLIB_PATH/$sw_zlib_path/g ;
@@ -752,12 +753,6 @@ while ( <CONFIGURE_DEFAULTS> )
     else                   
       { $_ =~ s/CONFIGURE_HDF4_LIB_PATH//g ;
 	 }
-#    if ( $sw_hdf5_path ) 
-#      { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5_fortran -lhdf5: ;
-#	 }
-#    else                   
-#      { $_ =~ s/CONFIGURE_HDF5_LIB_PATH//g ;
-#	 }
     if ( $sw_hdfeos_path ) 
       { $_ =~ s:CONFIGURE_HDFEOS_LIB_PATH:-L$sw_hdfeos_path/lib -lhdfeos -lGctp : ;
 	 }
@@ -1148,6 +1143,7 @@ while ( <ARCH_PREAMBLE> )
   $_ =~ s/CONFIGURE_CONFIG_NUM/Compiler choice: $response_opt/g ;
   $_ =~ s/CONFIGURE_CONFIG_NEST/Nesting option: $response_nesting/g ;
 
+  $_ =~ s/CONFIGURE_DEP_LIB_PATH/$sw_dep_lib_path/g ;
   $_ =~ s/CONFIGURE_NETCDF4_DEP_LIB/$sw_netcdf4_dep_lib/g ;
 
     $_ =~ s/CONFIGURE_COMMS_LIB/$sw_comms_lib/g ;

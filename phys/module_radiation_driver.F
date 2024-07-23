@@ -10,8 +10,7 @@ CONTAINS
 
 ! !INTERFACE:
    SUBROUTINE radiation_driver (                                          &
-               p_top                                                      &
-              ,ACFRCV ,ACFRST ,ALBEDO                                     &
+               ACFRCV ,ACFRST ,ALBEDO                                     &
               ,CFRACH ,CFRACL ,CFRACM                                     &
               ,CUPPT  ,CZMEAN ,DT                                         &
               ,DZ8W   ,EMISS  ,GLW                                        &
@@ -27,6 +26,7 @@ CONTAINS
               ,swint_opt                                                  &
               ,solar_opt                                                  &
               ,P8W    ,P ,PI                                              &
+              ,p_top                                                      &
               ,RADT   ,RA_CALL_OFFSET                                     &
               ,RHO    ,RLWTOA                                             &
               ,RSWTOA ,RTHRATEN                                           &
@@ -877,7 +877,7 @@ CONTAINS
                                                                pb &
                                         ,qv,qc,qr,qi,qs,qg,qh,qndrop,      &
                                                       qnifa,qnwfa,qnbca,   & ! Trude
-                                                      qi2,qi3        ! for P3
+                                                      qi2,qi3,    &  ! for P3
                                                       effcs, qnc             ! KVW, crm
 
    LOGICAL, OPTIONAL ::     f_qv,f_qc,f_qr,f_qi,f_qs,f_qg,f_qh,f_qndrop,&
@@ -4351,9 +4351,9 @@ CONTAINS
       ENDDO
 
 
-      k_cldb = k_m12C + 5
+      k_cldb = k_m12C + 3
       in_cloud = .false.
-      k = k_m12C + 4
+      k = k_m12C + 2
       DO WHILE (.not. in_cloud .AND. k.gt.kbot)
          k_cldt = 0
          if (cfr1d(k).ge.0.01) then
@@ -4411,7 +4411,7 @@ CONTAINS
 !     print*, ' max_iwc = ', max_iwc, ' over DZ=',tdz
 
       do k = k1, k2
-         max_iwc = MAX(1.E-5, max_iwc - (qi(k)+qs(k)))
+         max_iwc = MAX(1.E-6, max_iwc - (qi(k)+qs(k)))
       enddo
       max_iwc = MIN(1.E-4, max_iwc)
 
@@ -4423,7 +4423,7 @@ CONTAINS
             this_dz = this_dz + dz(k)
          endif
          this_iwc = max_iwc*this_dz/tdz
-         iwc = MAX(5.E-6, this_iwc*(1.-entr))
+         iwc = MAX(1.E-6, this_iwc*(1.-entr))
          if (cfr(k).gt.0.0.and.cfr(k).lt.1.0.and.T(k).ge.203.16) then
             qi(k) = qi(k) + cfr(k)*cfr(k)*iwc
          endif
@@ -4453,7 +4453,7 @@ CONTAINS
 !     print*, ' max_lwc = ', max_lwc, ' over DZ=',tdz
 
       do k = k1, k2
-         max_lwc = MAX(1.E-5, max_lwc - qc(k))
+         max_lwc = MAX(1.E-6, max_lwc - qc(k))
       enddo
       max_lwc = MIN(1.E-4, max_lwc)
 

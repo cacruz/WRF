@@ -208,28 +208,18 @@
 	    numgas_aqfrac, it, jt, kt, kpeg, mpeg, icase )
 
 !   map back to wrf-chem 3d arrays 
-	call mapaer_tofrom_host( 1,                           &
-		ims,ime, jms,jme, kms,kme,                    &
-		its,ite, jts,jte, kts,kte,                    &
-		it,      jt,      kt, kt,                     &
-		num_moist, num_chem, moist, chem,             &
-		t_phy, p_phy, rho_phy                         )
+        call mapaer_tofrom_host( 1,                           &
+                ims,ime, jms,jme, kms,kme,                    &
+                its,ite, jts,jte, kts,kte,                    &
+                it,      jt,      kt, kt,                     &
+                num_moist, num_chem, moist, chem,             &
+                t_phy, p_phy, rho_phy                         )
 
-<<<<<<< HEAD
-	gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:)
-        if ( config_flags%mozart_ph_diag .eq. 1 ) then 
+        gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:)
+        if ( config_flags%mozart_ph_diag .eq. 1 ) then
         ph_cw(it,kt,jt)        = ph_aq_box
         end if
-||||||| parent of df58a2a71 (These are Ekman 11.1 updates before v4.4 merge)
-	gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:) 
-
-
-=======
-	gas_aqfrac(it,kt,jt,:) = gas_aqfrac_box(:) 
-        ph_cw(it,kt,jt)        = ph_aq_box
-
->>>>>>> df58a2a71 (These are Ekman 11.1 updates before v4.4 merge)
-3800	continue
+3800    continue
 
 3910	continue
 3920	continue
